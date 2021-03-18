@@ -1,0 +1,148 @@
+open Types
+open Values
+open Symvalue
+
+type size = int32
+type address = int64
+type offset = int32
+type store = int * sym_expr
+
+(*  Represents a symbolic memory  *)
+type memory = (address, store) Hashtbl.t 
+type t = memory
+
+exception Bounds
+exception InvalidAddress
+
+let packed_size = function
+  | Memory.Pack8 -> 1
+  | Memory.Pack16 -> 2
+  | Memory.Pack32 -> 4
+
+(*  Create an empty symbolic memory  *)
+let alloc (sz : int) : memory = 
+  let mem : memory = Hashtbl.create sz in
+  mem
+
+let size (mem : memory) : int = 
+  Hashtbl.length mem
+
+let memcpy (mem : memory) : memory =
+  Hashtbl.copy mem
+
+(* String representation of the symbolic memory *)
+let to_string (mem : memory) : string = 
+  Hashtbl.fold (
+    fun a (v, e) acc ->
+      "(" ^ (Int64.to_string a) ^ "-> " ^ 
+      "(" ^ (string_of_int v) ^ ", " ^ (Symvalue.to_string e) ^ ")" ^
+      ")\n" ^ acc
+  ) mem ""
+
+let load_byte (mem : memory) (a : address) : store =
+  try Hashtbl.find mem a with Not_found -> raise InvalidAddress
+
+let store_byte (mem : memory) (a : address) (b : store) : unit =
+  Hashtbl.replace mem a b
+
+let load_bytes (mem : memory) (a : address) (n : int) : string = (* TODO *)
+  "bytes"
+
+let store_bytes (mem : memory) (a : address) (bs : string) : unit =
+  for i = String.length bs - 1 downto 0 do
+    let b = Char.code bs.[i] in
+    let sb = Extract (Value (I32 (Int32.of_int b)), i) in
+    store_byte mem Int64.(add a (of_int i)) (b, sb)
+  done
+
+let effective_address (a : I64.t) (o : offset) : address =
+  let ea = Int64.(add a (of_int32 o)) in
+  if I64.lt_u ea a then raise Bounds;
+  ea
+
+let loadn (mem : memory) (a : address) (o : offset) (n : int) =
+  assert (n > 0 && n <= 8);
+  let rec loop a n acc = 
+    if n = 0 then acc else (
+      let (x, lacc) = acc in
+      let (cv, se) = load_byte mem a in
+      let x' = Int64.(logor (of_int cv) (shift_left x 8)) in
+      loop (Int64.sub a 1L) (n - 1) (x', [se] @ lacc)
+    )
+  in loop Int64.(add (effective_address a o) (of_int (n - 1))) n (0L, [])
+
+let storen (mem : memory) (a : address) (o : offset) (n : int) 
+    (x : int64 * sym_expr) : unit =
+  assert (n > 0 && n <= 8);
+  let rec loop a i n x =
+    if n > i then (
+      let (cv, se) = x in
+      let b = Int64.to_int cv land 0xff in
+      store_byte mem a (b, Extract (se, i));
+      loop (Int64.add a 1L) (i + 1) n ((Int64.shift_right cv 8), se)
+    )
+  in loop (effective_address a o) 0 n x
+
+(*  Gets a variable from the symbolic memory  *)
+let load_value (mem : memory) (a : address) (o : offset) 
+    (t : value_type) : sym_value  =
+  let (n, se) = loadn mem a o (Types.size t) in
+  let n' = 
+    match t with
+    | I32Type -> I32 (Int64.to_int32 n)
+    | I64Type -> I64 n
+    | F32Type -> F32 (F32.of_bits (Int64.to_int32 n))
+    | F64Type -> F64 (F64.of_bits n)
+  in
+  (* ugly hack *)
+  let is_val = List.fold_left (fun a b ->
+    begin match b with
+    | Extract (e, _) ->
+        begin match e with
+        | Value _ -> a && true
+        | _       -> a && false
+        end
+    | _ -> failwith "corrupt memory"
+    end
+  ) true se
+  in
+  let se' =
+    if is_val then (Symvalue.Value n')
+    else List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se)
+  in (n', se')
+
+(*  Adds a variable to the symbolic memory  *)
+let store_value (mem : memory) (a : address) (o : offset) 
+    (v : sym_value) : unit =
+  let (cv, sv) = v in
+  let x =
+    match cv with
+    | I32 x -> Int64.of_int32 x
+    | I64 x -> x
+    | F32 x -> Int64.of_int32 (F32.to_bits x)
+    | F64 x -> F64.to_bits x
+  in storen mem a o (Types.size (Values.type_of cv)) (x, sv)
+
+let load_packed (sz : Memory.pack_size) (mem : memory) (a : address) 
+    (o : offset) (t : value_type) : sym_value = (* TODO *)
+  let n = packed_size sz in
+  let (cv, sv) = loadn mem a o n in
+  let x' =
+    begin match t with
+    | I32Type -> I32 (Int64.to_int32 cv)
+    | I64Type -> I64 cv
+    | _ -> raise Memory.Type
+    end
+  (* TODO: fix for other sizes *)
+  in (x', List.hd sv)
+
+let store_packed (sz : Memory.pack_size) (mem : memory) (a : address) 
+    (o : offset) (v : sym_value) : unit =
+  let n = packed_size sz in
+  let (cv, sv) = v in
+  let x =
+    match cv with
+    | I32 x -> Int64.of_int32 x
+    | I64 x -> x
+    | _     -> raise Memory.Type
+  in storen mem a o n (x, sv)
