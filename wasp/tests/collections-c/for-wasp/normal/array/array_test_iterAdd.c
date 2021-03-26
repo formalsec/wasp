@@ -1,5 +1,5 @@
 #include "array.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Array *v1;
 static Array *v2;
@@ -9,14 +9,14 @@ static int stat;
 int main() {
     stat = array_new(&v1);
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
 
-    int N = __builtin_annot_intval("symb_int", N);
+    int N = dyn_sym_int32('N');
 
-    ASSUME(c != a && c != b && c != d && c != N);
+    assume(c != a && c != b && c != d && c != N);
 
     array_add(v1, &a);
     array_add(v1, &b);
@@ -32,15 +32,15 @@ int main() {
             array_iter_add(&iter, &N);
     }
 
-    ASSERT(5 == array_size(v1));
+    assert(5 == array_size(v1));
 
     void *n;
     array_get_at(v1, 3, &n);
-    ASSERT(N == *((int *)n));
-    ASSERT(1 == array_contains(v1, &N));
+    assert(N == *((int *)n));
+    assert(1 == array_contains(v1, &N));
 
     array_get_at(v1, 4, (void *)&n);
-    ASSERT(d == *((int *)n));
+    assert(d == *((int *)n));
 
     array_destroy(v1);
 

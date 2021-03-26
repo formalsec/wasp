@@ -1,5 +1,5 @@
 #include "slist.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -18,33 +18,33 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    char a = (char)__builtin_annot_intval("symb_int", a);
+    int a = dyn_sym_int32('a');
 
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
+    int b = dyn_sym_int32('b');
 
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
+    int c = dyn_sym_int32('c');
 
     char str_c[] = {c, '\0'};
 
-    char d = (char)__builtin_annot_intval("symb_int", d);
+    int d = dyn_sym_int32('d');
 
     char str_d[] = {d, '\0'};
 
-    ASSERT(CC_OK == slist_add(list, str_a));
-    ASSERT(CC_OK == slist_add(list, str_b));
-    ASSERT(CC_OK == slist_add(list, str_c));
-    ASSERT(CC_OK == slist_add(list, str_d));
+    assert(CC_OK == slist_add(list, str_a));
+    assert(CC_OK == slist_add(list, str_b));
+    assert(CC_OK == slist_add(list, str_c));
+    assert(CC_OK == slist_add(list, str_d));
 
     void *e;
     slist_get_first(list, &e);
-    ASSERT(e != NULL);
+    assert(e != NULL);
 
     slist_get_last(list, &e);
-    ASSERT(e != NULL);
+    assert(e != NULL);
 
     teardown_test();
     return 0;

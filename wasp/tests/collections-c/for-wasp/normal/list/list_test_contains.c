@@ -1,5 +1,5 @@
 #include "list.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static List *list1;
 static List *list2;
@@ -14,13 +14,13 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
-    int e = __builtin_annot_intval("symb_int", e);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
+    int e = dyn_sym_int32('e');
 
-    ASSUME(a != b && a != c && a != d && a != e && b != c && b != d && b != e &&
+    assume(a != b && a != c && a != d && a != e && b != c && b != d && b != e &&
            c != d && c != e && d != e);
 
     list_add(list1, &a);
@@ -29,9 +29,9 @@ int main() {
     list_add(list1, &c);
     list_add(list1, &d);
 
-    ASSERT(2 == list_contains(list1, &b));
-    ASSERT(1 == list_contains(list1, &d));
-    ASSERT(0 == list_contains(list1, &e));
+    assert(2 == list_contains(list1, &b));
+    assert(1 == list_contains(list1, &d));
+    assert(0 == list_contains(list1, &e));
 
     teardown_test();
 }

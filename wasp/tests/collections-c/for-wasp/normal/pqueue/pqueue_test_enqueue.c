@@ -1,5 +1,5 @@
 #include "pqueue.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static struct Pair { int a, b; } A, B, C;
 
@@ -33,22 +33,27 @@ void teardown_tests() {
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
 
-    int e = __builtin_annot_intval("symb_int", e);
-    int f = __builtin_annot_intval("symb_int", f);
+    int e = dyn_sym_int32('e');
+    int f = dyn_sym_int32('f');
     int *ptr;
 
     pqueue_push(p1, (void *)&f);
     pqueue_top(p1, (void *)&ptr);
-    ASSERT(&f == ptr);
+    assert(&f == ptr);
 
     pqueue_push(p1, (void *)&e);
     pqueue_top(p1, (void *)&ptr);
-    ASSERT(((e > f) && (e == *ptr)) || ((e <= f) && (f == *ptr)));
+    assert(((e > f) && (e == *ptr)) || ((e <= f) && (f == *ptr)));
+
+    assume(a < 8388608 && a > -8388608);
+    assume(b < 8388608 && b > -8388608);
+    assume(c < 8388608 && c > -8388608);
+    assume(d < 8388608 && d > -8388608);
 
     struct Pair *ptr2;
     A.a = a, A.b = b;
@@ -56,12 +61,12 @@ int main() {
 
     pqueue_push(p2, (void *)&A);
     pqueue_top(p2, (void *)&ptr2);
-    ASSERT(&A == ptr2);
+    assert(&A == ptr2);
 
     pqueue_push(p2, (void *)&B);
     pqueue_top(p2, (void *)&ptr2);
 
-    ASSERT( ((comp(&A, &B) >= 0) && ((a == ptr2->a) && (b == ptr2->b))) ||
+    assert( ((comp(&A, &B) >= 0) && ((a == ptr2->a) && (b == ptr2->b))) ||
             ((comp(&A, &B) < 0)  && ((c == ptr2->a) && (d == ptr2->b))) );
 
     teardown_tests();

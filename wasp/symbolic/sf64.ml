@@ -2,6 +2,15 @@ type binop = F64Add | F64Sub | F64Mul | F64Div (*  Falta: | Min | Max | CopySign
 type unop  = F64Neg (*  Falta: | Abs | Ceil | Floor | Trunc | Nearest | Sqrt *)
 type relop = F64Eq | F64Neq | F64Lt | F64LtEq | F64Gt | F64GtEq (*  All done  *)
 
+let neg_relop (op : relop) : relop =
+  begin match op with
+  | F64Eq   -> F64Neq
+  | F64Neq  -> F64Eq
+  | F64Lt   -> F64GtEq
+  | F64Gt   -> F64LtEq
+  | F64LtEq -> F64Gt
+  | F64GtEq -> F64Lt
+  end
 
 (*  String representation of an f64 binary operation  *)
 let string_of_binop (op : binop) : string =

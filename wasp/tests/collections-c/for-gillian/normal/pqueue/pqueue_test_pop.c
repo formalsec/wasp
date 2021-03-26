@@ -45,6 +45,10 @@ int main() {
     int z = __builtin_annot_intval("symb_int", z);
     int *ptr;
 
+    ASSUME(x < 8388608 && x > -8388608);
+    ASSUME(y < 8388608 && y > -8388608);
+    ASSUME(z < 8388608 && z > -8388608);
+
     ASSUME(x > z && z > y);
 
     pqueue_push(p1, (void *)&y);

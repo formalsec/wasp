@@ -1,14 +1,14 @@
 #ifndef TEST_UTILS_H
 #define TEST_UTILS_H
 
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 #define symb_str(X)                                                            \
-    char X = (char)__builtin_annot_intval("symb_int", X);                      \
+    int X = dyn_sym_int32('X');                      \
     char str_##X[] = {X, '\0'}
 
 #define symb_uint(X)                                                           \
-    uint64_t X = (uint64_t)__builtin_annot_intval("symb_int", X)
+    uint64_t X = dyn_sym_int32('X');
 
 void CHECK_EQUAL_C_STRING(char *s1, char *s2);
 

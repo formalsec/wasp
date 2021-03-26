@@ -36,7 +36,9 @@ let eval_unop (s1 : sym_value) (op : Ast.unop) : sym_value =
 let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
 	let (v1, se1) = s1 in
 	let (v2, se2) = s2 in 
+  Printf.printf "(v1, se1)=(%s, %s), (v2, se2)=(%s, %s)" (Values.string_of_value v1) (pp_to_string se1) (Values.string_of_value v2) (pp_to_string se2);
 	let v' = Eval_numeric.eval_binop op v1 v2 in
+  Printf.printf " result=%s" (Values.string_of_value v');
 	let se' = 
     begin match se1, se2 with
     | Value _, Value _ -> Value v'
@@ -46,7 +48,7 @@ let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
 			  | Values.I32 Ast.I32Op.Add  -> I32Binop (I32Add , se1, se2)
 				| Values.I32 Ast.I32Op.And  -> I32Binop (I32And , se1, se2)
 				| Values.I32 Ast.I32Op.Or   -> I32Binop (I32Or  , se1, se2)
-				| Values.I32 Ast.I32Op.Sub  -> I32Binop (I32Sub , se1, se2)
+        | Values.I32 Ast.I32Op.Sub  -> Printf.printf "sub\n"; I32Binop (I32Sub , se1, se2)
 				| Values.I32 Ast.I32Op.DivS -> I32Binop (I32DivS, se1, se2)
 				| Values.I32 Ast.I32Op.DivU -> I32Binop (I32DivU, se1, se2)
 				| Values.I32 Ast.I32Op.Xor  -> I32Binop (I32Xor , se1, se2)
@@ -86,31 +88,31 @@ let eval_relop (s1 : sym_value) (s2 : sym_value) (op : Ast.relop) : sym_value =
 	let (v2, se2) = s2 in 
 	let v' = Values.value_of_bool (Eval_numeric.eval_relop op v1 v2) in
 	let se' = 
-    (match se1,se2 with
+    begin match se1,se2 with
     | Value _, Value _ -> Value v'
 		| _ -> 
-        (match op with
+        begin match op with
 				(* I32 *)
-        | Values.I32 Ast.I32Op.Eq -> I32Relop (I32Eq, se1, se2)
-				| Values.I32 Ast.I32Op.Ne -> I32Relop (I32Neq, se1, se2)
-				| Values.I32 Ast.I32Op.LtU
-				| Values.I32 Ast.I32Op.LtS -> I32Relop (I32Lt, se1, se2)
-				| Values.I32 Ast.I32Op.GtU
-				| Values.I32 Ast.I32Op.GtS -> I32Relop (I32Gt, se1, se2)
-				| Values.I32 Ast.I32Op.LeU
-				| Values.I32 Ast.I32Op.LeS -> I32Relop (I32LtEq, se1, se2)
-				| Values.I32 Ast.I32Op.GeU
-				| Values.I32 Ast.I32Op.GeS -> I32Relop (I32GtEq, se1, se2)
+        | Values.I32 Ast.I32Op.Eq  -> I32Relop (I32Eq, se1, se2)
+				| Values.I32 Ast.I32Op.Ne  -> I32Relop (I32Ne, se1, se2)
+				| Values.I32 Ast.I32Op.LtU -> I32Relop (I32LtU, se1, se2)
+				| Values.I32 Ast.I32Op.LtS -> I32Relop (I32LtS, se1, se2)
+				| Values.I32 Ast.I32Op.GtU -> I32Relop (I32GtU, se1, se2)
+				| Values.I32 Ast.I32Op.GtS -> I32Relop (I32GtS, se1, se2)
+				| Values.I32 Ast.I32Op.LeU -> I32Relop (I32LeU, se1, se2)
+				| Values.I32 Ast.I32Op.LeS -> I32Relop (I32LeS, se1, se2)
+				| Values.I32 Ast.I32Op.GeU -> I32Relop (I32GeU, se1, se2)
+				| Values.I32 Ast.I32Op.GeS -> I32Relop (I32GeS, se1, se2)
 				(* I64 *)					  
 				| Values.I64 Ast.I64Op.Eq -> I64Relop (I64Eq, se1, se2)
 				| Values.I64 Ast.I64Op.Ne -> I64Relop (I64Neq, se1, se2)
-				| Values.I64 Ast.I64Op.LtU
+				| Values.I64 Ast.I64Op.LtU -> I64Relop (I64Lt, se1, se2)
 				| Values.I64 Ast.I64Op.LtS -> I64Relop (I64Lt, se1, se2)
-				| Values.I64 Ast.I64Op.GtU
+				| Values.I64 Ast.I64Op.GtU -> I64Relop (I64Gt, se1, se2)
 				| Values.I64 Ast.I64Op.GtS -> I64Relop (I64Gt, se1, se2)
-				| Values.I64 Ast.I64Op.LeU
+				| Values.I64 Ast.I64Op.LeU -> I64Relop (I64LtEq, se1, se2)
 				| Values.I64 Ast.I64Op.LeS -> I64Relop (I64LtEq, se1, se2)
-				| Values.I64 Ast.I64Op.GeU
+				| Values.I64 Ast.I64Op.GeU -> I64Relop (I64GtEq, se1, se2)
 				| Values.I64 Ast.I64Op.GeS -> I64Relop (I64GtEq, se1, se2)
 				(* F32 *)
 				| Values.F32 Ast.F32Op.Eq -> F32Relop (F32Eq, se1, se2)
@@ -125,5 +127,7 @@ let eval_relop (s1 : sym_value) (s2 : sym_value) (op : Ast.relop) : sym_value =
 				| Values.F64 Ast.F64Op.Lt -> F64Relop (F64Lt, se1, se2)
 				| Values.F64 Ast.F64Op.Gt -> F64Relop (F64Gt, se1, se2)
 				| Values.F64 Ast.F64Op.Le -> F64Relop (F64LtEq, se1, se2)
-				| Values.F64 Ast.F64Op.Ge -> F64Relop (F64GtEq, se1, se2))) 
+				| Values.F64 Ast.F64Op.Ge -> F64Relop (F64GtEq, se1, se2)
+        end
+    end
   in (v', se')

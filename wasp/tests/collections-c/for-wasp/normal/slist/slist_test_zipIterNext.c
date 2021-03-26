@@ -1,6 +1,6 @@
 #include "slist.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -19,32 +19,32 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    char a = (char)__builtin_annot_intval("symb_int", a);
-    ASSUME(a > 0); ASSUME(a < 127);
+    int a = dyn_sym_int32('a');
+    assume(a > 0); assume(a < 127);
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
-    ASSUME(b > 0); ASSUME(b < 127);
+    int b = dyn_sym_int32('b');
+    assume(b > 0); assume(b < 127);
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
-    ASSUME(c > 0); ASSUME(c < 127);
+    int c = dyn_sym_int32('c');
+    assume(c > 0); assume(c < 127);
     char str_c[] = {c, '\0'};
 
-    char d = (char)__builtin_annot_intval("symb_int", d);
-    ASSUME(d > 0); ASSUME(d < 127);
+    int d = dyn_sym_int32('d');
+    assume(d > 0); assume(d < 127);
     char str_d[] = {d, '\0'};
 
-    char e = (char)__builtin_annot_intval("symb_int", e);
-    ASSUME(e > 0); ASSUME(e < 127);
+    int e = dyn_sym_int32('e');
+    assume(e > 0); assume(e < 127);
     char str_e[] = {e, '\0'};
 
-    char f = (char)__builtin_annot_intval("symb_int", f);
-    ASSUME(f > 0); ASSUME(f < 127);
+    int f = dyn_sym_int32('f');
+    assume(f > 0); assume(f < 127);
     char str_f[] = {f, '\0'};
 
-    char g = (char)__builtin_annot_intval("symb_int", g);
-    ASSUME(g > 0); ASSUME(g < 127);
+    int g = dyn_sym_int32('g');
+    assume(g > 0); assume(g < 127);
     char str_g[] = {g, '\0'};
 
     slist_add(list, str_a);
@@ -73,7 +73,7 @@ int main() {
         }
         i++;
     }
-    ASSERT(3 == i);
+    assert(3 == i);
 
     teardown_test();
     return 0;

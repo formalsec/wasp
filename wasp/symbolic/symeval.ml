@@ -1,3 +1,4 @@
+
 (*
 ░██████╗██╗░░░██╗███╗░░░███╗  ███████╗██╗░░░██╗░█████╗░██╗░░░░░
 ██╔════╝╚██╗░██╔╝████╗░████║  ██╔════╝██║░░░██║██╔══██╗██║░░░░░
@@ -44,7 +45,7 @@ let numeric_error at = function
   | Eval_numeric.TypeError (i, v, t) ->
     Crash.error at
       ("type error, expected " ^ Types.string_of_value_type t ^ " as operand " ^
-       string_of_int i ^ ", got " ^ Types.string_of_value_type (type_of v))
+       string_of_int i ^ ", got " ^ Types.string_of_value_type (Values.type_of v))
   | exn -> raise exn
 
 
@@ -78,9 +79,9 @@ type sym_config =
 {
   sym_frame : sym_frame;
   sym_code : sym_code;
-  logic_env : logical_env;
+  mutable logic_env : logical_env;
   path_cond : path_conditions;
-  sym_mem : Symmem2.t;
+  mutable sym_mem : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
 }
 
@@ -221,17 +222,32 @@ let rec sym_step (c : sym_config) : sym_config =
         vs, [SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at], logic_env, path_cond, sym_mem
 
       | If (ts, es1, es2), (I32 0l, ex) :: vs' -> 
+        let ex' = simplify ex in
         let to_add =
-          match ex with
+          begin match ex with
           | Value _ -> []
-          | _       -> [neg_expr ex]
+          | _       -> 
+              let ex'' =
+                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
+                else ex'
+              in [neg_expr ex'']
+          end
         in
         (*Printf.printf ("\n\n###### Entered IF, with 0 on top of stack. ######\nPath conditions are now:\n %s\n#################################################\n\n")   (Symvalue.str_path_cond ([v'] @ path_cond));*)
         vs', [SPlain (Block (ts, es2)) @@ e.at], logic_env, to_add @ path_cond, sym_mem
 
       | If (ts, es1, es2), (I32 i, ex) :: vs' -> 
-        let v' = ex in
-        let to_add = (match v' with | Value _ -> [] | _ -> [v']) in
+        let ex' = simplify ex in
+        let to_add =
+          begin match ex' with
+          | Value _ -> []
+          | _ ->
+              let ex'' = 
+                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
+                else ex'
+              in [ex'']
+          end
+        in
         (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack. ######\nPath conditions are now:\n %s\n##################################################\n\n")   (Symvalue.str_path_cond ([v'] @ path_cond));*)
         vs', [SPlain (Block (ts, es1)) @@ e.at], logic_env, to_add @ path_cond, sym_mem
 
@@ -239,17 +255,34 @@ let rec sym_step (c : sym_config) : sym_config =
         [], [SBreaking (x.it, vs) @@ e.at], logic_env, path_cond, sym_mem
 
       | BrIf x, (I32 0l, ex) :: vs' ->
+        let ex' = simplify ex in
         let to_add =
-          match ex with
+          begin match ex' with
           | Value _ -> []
-          | _       -> [neg_expr ex]
+          | _ ->
+              let ex'' = 
+                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
+                else ex'
+              in [neg_expr ex'']
+          end
         in
-        (*Printf.printf ("\n\n###### Entered BRIF, with 0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n#################################################\n\n") (Source.string_of_region e.at) (Symvalue.pretty_str_path_cond (to_add @ path_cond));*)
+        (*Printf.printf ("\n\n###### Entered BRIF, with 0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n#################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc
+         (to_add @ path_cond));*)
         vs', [], logic_env, to_add @ path_cond, sym_mem
 
       | BrIf x, (I32 i, ex) :: vs' -> 
-        let to_add = (match ex with | Value _ -> [] | _ -> [ex]) in
-        (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n##################################################\n\n") (Source.string_of_region e.at) (Symvalue.pretty_str_path_cond ([v'] @ path_cond));*)
+        let ex' = simplify ex in
+        let to_add = 
+          begin match ex' with
+          | Value _ -> []
+          | _ ->
+              let ex'' = 
+                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
+                else ex'
+              in [ex'']
+          end
+        in
+        (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n##################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc (to_add @ path_cond));*)
         vs', [SPlain (Br x) @@ e.at], logic_env, to_add @ path_cond, sym_mem
 
       | BrTable (xs, x), (I32 i, _) :: vs' when I32.ge_u i (Lib.List32.length xs) ->
@@ -391,6 +424,7 @@ let rec sym_step (c : sym_config) : sym_config =
         Printf.printf "%s\n" (pp_string_of_pc path_cond);
         Printf.printf ">>> Assert reached. Checking satisfiability...\n";
         let ex' = Symvalue.simplify ex in
+        Printf.printf "simplify (%s) = %s\n" (pp_to_string ex) (pp_to_string ex');
         begin match ex' with 
         | Value (I32 0l) ->
             Crash.error e.at (
@@ -402,12 +436,13 @@ let rec sym_step (c : sym_config) : sym_config =
             Printf.printf "\n\n###### Assertion passed ######\n";
             vs', [], logic_env, path_cond, sym_mem
         | _ ->
-          let en = Symvalue.neg_expr ex' in
+          let query = neg_expr ex' in
+          Printf.printf "Query: %s\n" (pp_to_string query);
           if (path_cond = []) then begin
             Printf.printf "\n\n###### Assertion passed ######\n";
             vs', [], logic_env, path_cond, sym_mem
           end else begin
-            begin match Z3Encoding2.check_sat_core [Symvalue.and_list ([en] @ path_cond)] with 
+            begin match Z3Encoding2.check_sat_core [and_list (path_cond @ [query])] with 
             | None -> (* Not satisfiable, execution can continue *)
                 Printf.printf "\n\n###### Assertion passed ######\n";
                 vs', [], logic_env, path_cond, sym_mem
@@ -526,7 +561,7 @@ let rec sym_step (c : sym_config) : sym_config =
               if x = y then (
                 eq, Symvalue.I32Relop (I32Eq, ex1, ex2)
               ) else (
-                neq, Symvalue.I32Relop (I32Neq, ex1, ex2)
+                neq, Symvalue.I32Relop (I32Ne, ex1, ex2)
               )
           | _, _ -> eval_relop (v1, ex1) (v2, ex2) (Values.I32 Ast.I32Op.Eq)
         in
@@ -634,56 +669,40 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
 (*  Symbolic invoke  *)
 let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
   let at = match func with Func.AstFunc (_,_, f) -> f.at | _ -> no_region in
-
-  (* 
-  let FuncType (ins, out) = Func.type_of func in
-  if List.map Values.type_of vs <> ins then
-    Crash.error at "wrong number or types of arguments";
-  *)
-
   let inst_ref =
     match Func.get_inst func with
-    | Some i -> i
-    | None -> failwith "can not symbolically host function!"
+    | Some inst -> inst
+    | None -> Crash.error at "can not symbolically host function" 
   in
-
-  (*
-  let inst0 = 
-    match Func.get_inst func with
-    | Some i -> i
-    | None -> failwith "can not symbolically host function!"
+  let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
+      !inst_ref.sym_memory) 
   in
-  *)
-
-  let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] !inst_ref.sym_memory) in
-
-  let init_sym_mem = Symmem2.memcpy !inst_ref.sym_memory in
-
- (* let module0 = Instance.modulecpy !inst_ref in *)
-  
+  let initial_memory = Symmem2.memcpy !inst_ref.sym_memory in
   (*  ----------------  CONCOLIC EXECUTION  ----------------  *)
-
   (* Model satisfiability *)
   let satisfiable = ref true in
-
-  (* Path conditions for Z3 start 1==1 -> true *)
-  let big_pi = ref (I32Relop (I32Eq, (Value (Values.I32 0l)), (Value (Values.I32 0l)))) in 
-  let big_pi_list = ref [(I32Relop (I32Eq, (Value (Values.I32 0l)), (Value (Values.I32 0l))))] in
-
+  (* 1. Initialize the global path condition *)
+  let v = Symvalue.Value (I32 0l) in
+  let e = I32Relop (I32Eq, v, v) in
+  let big_pi      = ref  e  in 
+  let big_pi_list = ref [e] in
   let global_time_z3 = ref 0. in
-  (* While the model is satisfiable *)
   Printf.printf "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
-  while !satisfiable = true do
+  (* 2. Check if the global path conditions is satisfiable *)
+  while !satisfiable do
 
     Printf.printf "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ITERATION NUMBER %s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n" (string_of_int !iterations);
 
-    (* Interpret the program *)
-    (*Printf.printf "init_path_cond = %s\n" (Symvalue.str_path_cond !c.path_cond);*)
-    let result = sym_eval !c in
-    let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond = pi; _} = result in
-    if pi = [] then (
+    (* 4. Execute the concolic interpreter with the obtained model *)
+    let {sym_frame = frame; 
+         sym_code = vs, es; 
+         logic_env; 
+         path_cond = pi;
+         _} = (sym_eval !c)
+    in
+    if pi = [] then begin 
       satisfiable := false
-    ) else (
+    end else begin
       Printf.printf "\n\n$$$$$$ LOGICAL ENVIRONMENT BEFORE Z3 STATE $$$$$$\n";
       Printf.printf "%s" (Logicenv.print_sym_store logic_env);
       Printf.printf "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n\n";
@@ -694,11 +713,10 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
 
       (* Negate the path conditions obtained in sym_eval.
         Returns sym_value that ORs all of those negations *)
-      let pi_i = Symvalue.neg_list pi in 
+      let pi_i = neg_expr (and_list pi) in
       (* ANDs pi_i with the negated expressions from previous iterations *)
-      let new_big_pi = (BoolOp (And, pi_i, !big_pi)) in
-      big_pi_list := !big_pi_list @ [pi_i];
-      big_pi := new_big_pi;
+      big_pi := BoolOp (And, pi_i, !big_pi);
+      big_pi_list := [pi_i] @ !big_pi_list;
 
       Printf.printf "\n\n$$$$$$ BIG PI REPRESENTATION $$$$$$\n";
       Printf.printf "%s\n\n" (pp_string_of_pc !big_pi_list);
@@ -706,8 +724,8 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
       Printf.printf "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n\n";
 
       (* FOR STATISTICS: measuring the size of pi and big_pi *)
-      let size_pi = Symvalue.size_expr (Symvalue.and_list pi) in
-      let size_big_pi = Symvalue.size_expr !big_pi in
+      let size_pi     = Symvalue.length (Symvalue.and_list pi) in
+      let size_big_pi = Symvalue.length !big_pi in
 
 
       (* STATISTICS: measure time it takes to find a new logic environment *)
@@ -739,9 +757,11 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
             global_time_z3 := !global_time_z3 +. !total_time;
             
             let envc = Logicenv.neg_pc sym_st in
-            big_pi := (BoolOp (And, envc, !big_pi));
+            big_pi := BoolOp (And, envc, !big_pi);
             big_pi_list := !big_pi_list @ [envc];
-            c := {!c with logic_env = sym_st; sym_mem = init_sym_mem};
+            !c.logic_env <- sym_st;
+            !c.sym_mem   <- initial_memory;
+            (*c := {!c with logic_env = sym_st; sym_mem = initial_memory};*)
 
             "SATISFIABLE\n" ^ 
             "MODEL: \n" ^ (Z3.Model.to_string m) ^ "\n" ^ 
@@ -759,7 +779,7 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
       Printf.printf "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
       iterations := !iterations + 1;
       lines := []
-    );
+    end
   done;
   Printf.printf "\n\n>>>> END OF THE CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n%s\n\n" (Constraints.print_constraints finish_constraints);
   Printf.printf ">>>> TEST COVERAGE LINES:\n";
@@ -768,12 +788,8 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
 
   Printf.printf "\n>>>> TOTAL TIME SPENT w/ THE SOLVER: %f\n" !global_time_z3;
 
-
-  try (
-    let (vs, _) = !c.sym_code in
-    List.rev (vs) 
-  ) 
-  with Stack_overflow ->
+  let (vs, _) = !c.sym_code in
+  try List.rev vs with Stack_overflow ->
     Exhaustion.error at "call stack exhausted"
 
 

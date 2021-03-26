@@ -1,6 +1,6 @@
 #include "slist.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -18,54 +18,54 @@ void teardown_test() {
 
 int main() {
     setup_test();
-    char a = (char)__builtin_annot_intval("symb_int", a);
-    ASSUME(a > 0); ASSUME(a < 127);
+    int a = dyn_sym_int32('a');
+    assume(a > 0); assume(a < 127);
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
-    ASSUME(b > 0); ASSUME(b < 127);
+    int b = dyn_sym_int32('b');
+    assume(b > 0); assume(b < 127);
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
-    ASSUME(c > 0); ASSUME(c < 127);
+    int c = dyn_sym_int32('c');
+    assume(c > 0); assume(c < 127);
     char str_c[] = {c, '\0'};
 
-    char d = (char)__builtin_annot_intval("symb_int", d);
-    ASSUME(d > 0); ASSUME(d < 127);
+    int d = dyn_sym_int32('d');
+    assume(d > 0); assume(d < 127);
     char str_d[] = {d, '\0'};
 
-    char e = (char)__builtin_annot_intval("symb_int", e);
-    ASSUME(e > 0); ASSUME(e < 127);
+    int e = dyn_sym_int32('e');
+    assume(e > 0); assume(e < 127);
     char str_e[] = {e, '\0'};
 
-    char f = (char)__builtin_annot_intval("symb_int", f);
-    ASSUME(f > 0); ASSUME(f < 127);
+    int f = dyn_sym_int32('f');
+    assume(f > 0); assume(f < 127);
     char str_f[] = {f, '\0'};
 
-    char g = (char)__builtin_annot_intval("symb_int", g);
-    ASSUME(g > 0); ASSUME(g < 127);
+    int g = dyn_sym_int32('g');
+    assume(g > 0); assume(g < 127);
     char str_g[] = {g, '\0'};
 
-    char h = (char)__builtin_annot_intval("symb_int", h);
-    ASSUME(h > 0); ASSUME(h < 127);
+    int h = dyn_sym_int32('h');
+    assume(h > 0); assume(h < 127);
     char str_h[] = {h, '\0'};
 
-    char i = (char)__builtin_annot_intval("symb_int", i);
-    ASSUME(i > 0); ASSUME(i < 127);
+    int i = dyn_sym_int32('i');
+    assume(i > 0); assume(i < 127);
     char str_i[] = {i, '\0'};
 
-    char x = (char)__builtin_annot_intval("symb_int", x);
-    ASSUME(x > 0); ASSUME(x < 127);
+    int x = dyn_sym_int32('x');
+    assume(x > 0); assume(x < 127);
     char str_x[] = {x, '\0'};
 
-    char y = (char)__builtin_annot_intval("symb_int", y);
-    ASSUME(y > 0); ASSUME(y < 127);
+    int y = dyn_sym_int32('y');
+    assume(y > 0); assume(y < 127);
     char str_y[] = {y, '\0'};
 
-    ASSUME(b != a && b != c && b != d);
-    ASSUME(h != a && h != b && h != c && h != d);
-    ASSUME(c != a && c != d);
-    ASSUME(i != e && i != f && i != g);
+    assume(b != a && b != c && b != d);
+    assume(h != a && h != b && h != c && h != d);
+    assume(c != a && c != d);
+    assume(i != e && i != f && i != g);
 
     slist_add(list, str_a);
     slist_add(list, str_b);
@@ -87,18 +87,18 @@ int main() {
 
     size_t index;
     slist_index_of(list, str_h, &index);
-    ASSERT(2 == index);
+    assert(2 == index);
 
     slist_index_of(list2, str_i, &index);
-    ASSERT(2 == index);
+    assert(2 == index);
 
     slist_index_of(list, str_c, &index);
-    ASSERT(3 == index);
+    assert(3 == index);
 
-    ASSERT(1 == slist_contains(list, str_h));
-    ASSERT(1 == slist_contains(list2, str_i));
-    ASSERT(5 == slist_size(list));
-    ASSERT(4 == slist_size(list2));
+    assert(1 == slist_contains(list, str_h));
+    assert(1 == slist_contains(list2, str_i));
+    assert(5 == slist_size(list));
+    assert(4 == slist_size(list2));
 
     slist_zip_iter_init(&zip, list, list2);
     while (slist_zip_iter_next(&zip, &e1, &e2) != CC_ITER_END) {
@@ -108,10 +108,10 @@ int main() {
 
     char *last;
     slist_get_last(list2, (void *)&last);
-    ASSERT(str_y == last);
+    assert(str_y == last);
 
     slist_get_last(list, (void *)&last);
-    ASSERT(str_d == last);
+    assert(str_d == last);
 
     teardown_test();
     return 0;

@@ -1,5 +1,5 @@
 #include "list.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static List *list1;
 static List *list2;
@@ -9,14 +9,14 @@ int a, b, c, d, e, f, g, h;
 void setup_tests() {
     list_new(&list1), list_new(&list2);
 
-    a = __builtin_annot_intval("symb_int", a);
-    b = __builtin_annot_intval("symb_int", b);
-    c = __builtin_annot_intval("symb_int", c);
-    d = __builtin_annot_intval("symb_int", d);
-    e = __builtin_annot_intval("symb_int", e);
-    f = __builtin_annot_intval("symb_int", f);
-    g = __builtin_annot_intval("symb_int", g);
-    h = __builtin_annot_intval("symb_int", h);
+    a = dyn_sym_int32('a');
+    b = dyn_sym_int32('b');
+    c = dyn_sym_int32('c');
+    d = dyn_sym_int32('d');
+    e = dyn_sym_int32('e');
+    f = dyn_sym_int32('f');
+    g = dyn_sym_int32('g');
+    h = dyn_sym_int32('h');
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -57,17 +57,17 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    int i = __builtin_annot_intval("symb_int", i);
+    int i = dyn_sym_int32('i');
     int *ii = (int *)malloc(sizeof(int));
 
     *ii = i;
 
     list_add_at(list1, ii, 3);
-    ASSERT(5 == list_size(list1));
+    assert(5 == list_size(list1));
 
     int *new;
     list_get_at(list1, 3, (void *)&new);
-    ASSERT(*ii == *new);
+    assert(*ii == *new);
 
     teardown_test();
 }

@@ -1,34 +1,34 @@
 #include "treetable.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static TreeTable *table;
 
 int main() {
     treetable_new(cmp, &table);
 
-    int x = __builtin_annot_intval("symb_int", x);
-    int y = __builtin_annot_intval("symb_int", y);
-    int z = __builtin_annot_intval("symb_int", z);
-    int w = __builtin_annot_intval("symb_int", w);
+    int x = dyn_sym_int32('x');
+    int y = dyn_sym_int32('y');
+    int z = dyn_sym_int32('z');
+    int w = dyn_sym_int32('w');
 
-    char a = (char)__builtin_annot_intval("symb_int", a);
+    int a = dyn_sym_int32('a');
 
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
+    int b = dyn_sym_int32('b');
 
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
+    int c = dyn_sym_int32('c');
 
     char str_c[] = {c, '\0'};
 
-    char d = (char)__builtin_annot_intval("symb_int", d);
+    int d = dyn_sym_int32('d');
 
     char str_d[] = {d, '\0'};
 
-    ASSUME(x < y && y < z && z < w);
+    assume(x < y && y < z && z < w);
 
     treetable_add(table, &z, str_a);
     treetable_add(table, &w, str_b);
@@ -37,7 +37,7 @@ int main() {
 
     treetable_remove_last(table, NULL);
 
-    ASSERT(0 == treetable_contains_key(table, &w));
+    assert(0 == treetable_contains_key(table, &w));
 
     treetable_destroy(table);
 }

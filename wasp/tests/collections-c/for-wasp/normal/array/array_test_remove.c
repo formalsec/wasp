@@ -1,5 +1,5 @@
 #include "array.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Array *v1;
 static Array *v2;
@@ -8,9 +8,9 @@ static int stat;
 
 int main() {
     stat = array_new(&v1);
-    int n = __builtin_annot_intval("symb_int", n);
-    ASSUME(n > 2);
-    ASSUME(n < 16);
+    int n = dyn_sym_int32('n');
+    assume(n > 2);
+    assume(n < 16);
 
     int *last;
     int *next_to_last;
@@ -24,7 +24,7 @@ int main() {
 
     array_remove(v1, next_to_last, NULL);
 
-    ASSERT(array_size(v1) < n);
+    assert(array_size(v1) < n);
 
     array_destroy(v1);
 

@@ -1,6 +1,6 @@
 #include "list.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static List *list1;
 static List *list2;
@@ -15,12 +15,12 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
 
-    ASSUME(a != b && a != c && a != d && b != c && b != d && c != d);
+    assume(a != b && a != c && a != d && b != c && b != d && c != d);
 
     list_add(list1, &a);
     list_add(list1, &b);
@@ -29,10 +29,10 @@ int main() {
 
     size_t idx;
     list_index_of(list1, &a, zero_if_ptr_eq, &idx);
-    ASSERT(0 == idx);
+    assert(0 == idx);
 
     list_index_of(list1, &c, zero_if_ptr_eq, &idx);
-    ASSERT(2 == idx);
+    assert(2 == idx);
 
     teardown_test();
 }

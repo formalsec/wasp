@@ -2,6 +2,16 @@ type binop = F32Add | F32Sub | F32Mul | F32Div (*  Falta: | Min | Max | CopySign
 type unop  = F32Neg (*  Falta: | Abs | Ceil | Floor | Trunc | Nearest | Sqrt *)
 type relop = F32Eq | F32Neq | F32Lt | F32LtEq | F32Gt | F32GtEq (*  All done  *)
 
+let neg_relop (op : relop) : relop =
+  begin match op with
+  | F32Eq   -> F32Neq
+  | F32Neq  -> F32Eq
+  | F32Lt   -> F32GtEq
+  | F32Gt   -> F32LtEq
+  | F32LtEq -> F32Gt
+  | F32GtEq -> F32Lt
+  end
+
 (*  String representation of an f32 binary operation  *)
 let string_of_binop (op : binop) : string =
 	match op with

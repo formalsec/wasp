@@ -1,5 +1,5 @@
 #include "slist.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -20,17 +20,17 @@ int main() {
 
     SList *list2 = NULL;
     slist_new(&list2);
-    ASSERT(list != NULL);
-    ASSERT(list2 != NULL);
+    assert(list != NULL);
+    assert(list2 != NULL);
 
     void *e = NULL;
     slist_get_first(list, &e);
-    ASSERT(NULL == e);
+    assert(NULL == e);
 
     slist_get_last(list, &e);
-    ASSERT(NULL == e);
-    ASSERT(0 == slist_size(list));
-    ASSERT(list != list2);
+    assert(NULL == e);
+    assert(0 == slist_size(list));
+    assert(list != list2);
 
     teardown_test();
     return 0;

@@ -52,4 +52,6 @@ int start() {
   heap_swap(t1, t2, x);
   x_prime = t2->i;
   assert (x_prime == db);
+
+  return sizeof(void*);
 }

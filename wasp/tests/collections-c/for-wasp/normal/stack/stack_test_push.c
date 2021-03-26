@@ -1,5 +1,5 @@
 #include "stack.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Stack *s;
 
@@ -10,23 +10,23 @@ void teardown_tests() { stack_destroy(s); }
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
 
     int *p;
 
     stack_push(s, (void *)&a);
     stack_peek(s, (void *)&p);
-    ASSERT(&a == p);
+    assert(&a == p);
 
     stack_push(s, (void *)&b);
     stack_peek(s, (void *)&p);
-    ASSERT(&b == p);
+    assert(&b == p);
 
     stack_push(s, (void *)&c);
     stack_peek(s, (void *)&p);
-    ASSERT(&c == p);
+    assert(&c == p);
 
     teardown_tests();
     return 0;

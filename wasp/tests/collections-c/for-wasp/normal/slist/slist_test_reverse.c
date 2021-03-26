@@ -1,5 +1,5 @@
 #include "slist.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -17,12 +17,12 @@ void teardown_test() {
 
 int main() {
     setup_test();
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
-    int e = __builtin_annot_intval("symb_int", e);
-    int f = __builtin_annot_intval("symb_int", f);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
+    int e = dyn_sym_int32('e');
+    int f = dyn_sym_int32('f');
     slist_add(list, &a);
     slist_add(list, &b);
     slist_add(list, &c);
@@ -40,7 +40,7 @@ int main() {
     void *el;
     int ind = 0;
     while (slist_iter_next(&i, &el) != CC_ITER_END) {
-        ASSERT(reverse_ar[ind] == *(int *)el);
+        assert(reverse_ar[ind] == *(int *)el);
         ind++;
     }
 

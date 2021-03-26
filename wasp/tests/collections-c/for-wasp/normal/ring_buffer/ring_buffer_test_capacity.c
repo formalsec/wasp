@@ -1,6 +1,6 @@
 #include "ring_buffer.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static int stat;
 static Rbuf *rbuf;
@@ -13,34 +13,34 @@ int main() {
     setup_test();
 
     uint64_t items[10];
-    char a = (char)__builtin_annot_intval("symb_int", a);
+    int a = dyn_sym_int32('a');
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
+    int b = dyn_sym_int32('b');
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
+    int c = dyn_sym_int32('c');
     char str_c[] = {c, '\0'};
 
-    char d = (char)__builtin_annot_intval("symb_int", d);
+    int d = dyn_sym_int32('d');
     char str_d[] = {d, '\0'};
 
-    char e = (char)__builtin_annot_intval("symb_int", e);
+    int e = dyn_sym_int32('e');
     char str_e[] = {e, '\0'};
 
-    char f = (char)__builtin_annot_intval("symb_int", f);
+    int f = dyn_sym_int32('f');
     char str_f[] = {f, '\0'};
 
-    char g = (char)__builtin_annot_intval("symb_int", g);
+    int g = dyn_sym_int32('g');
     char str_g[] = {g, '\0'};
 
-    char h = (char)__builtin_annot_intval("symb_int", h);
+    int h = dyn_sym_int32('h');
     char str_h[] = {h, '\0'};
 
-    char i = (char)__builtin_annot_intval("symb_int", i);
+    int i = dyn_sym_int32('i');
     char str_i[] = {i, '\0'};
 
-    char j = (char)__builtin_annot_intval("symb_int", j);
+    int j = dyn_sym_int32('j');
     char str_j[] = {j, '\0'};
     rbuf_enqueue(rbuf, a);
     rbuf_enqueue(rbuf, b);
@@ -64,23 +64,23 @@ int main() {
     items[8] = i;
     items[9] = j;
 
-    ASSERT(items[0] == rbuf_peek(rbuf, 0));
-    ASSERT(items[1] == rbuf_peek(rbuf, 1));
+    assert(items[0] == rbuf_peek(rbuf, 0));
+    assert(items[1] == rbuf_peek(rbuf, 1));
 
-    char x = (char)__builtin_annot_intval("symb_int", x);
+    int x = dyn_sym_int32('x');
     char str_x[] = {x, '\0'};
 
-    char y = (char)__builtin_annot_intval("symb_int", y);
+    int y = dyn_sym_int32('y');
     char str_y[] = {y, '\0'};
 
     rbuf_enqueue(rbuf, str_x);
     rbuf_enqueue(rbuf, str_y);
 
-    ASSERT(rbuf_peek(rbuf, 0) == str_x);
-    ASSERT(rbuf_peek(rbuf, 1) == str_y);
+    assert(rbuf_peek(rbuf, 0) == str_x);
+    assert(rbuf_peek(rbuf, 1) == str_y);
     uint64_t out;
     rbuf_dequeue(rbuf, &out);
-    ASSERT(items[2] == out);
+    assert(items[2] == out);
 
     teardown_test();
     return 0;

@@ -79,16 +79,17 @@
     i32.const -559038737
     i32.eq
     call $assert
-    local.get 0)
+    i32.const 4)
   (func $dyn_sym_int32 (type 1) (param i32) (result i32)
     local.get 0
-    dyn_sym_int32)
+    drop
+    i32.const 0)
   (func $assume (type 4) (param i32)
     local.get 0
-    sym_assume)
+    drop)
   (func $assert (type 4) (param i32)
     local.get 0
-    sym_assert)
+    drop)
   (table (;0;) 1 1 funcref)
   (memory (;0;) 2)
   (global (;0;) (mut i32) (i32.const 66576))

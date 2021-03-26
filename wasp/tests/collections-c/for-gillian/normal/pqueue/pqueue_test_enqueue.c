@@ -50,6 +50,11 @@ int main() {
     pqueue_top(p1, (void *)&ptr);
     ASSERT(((e > f) && (e == *ptr)) || ((e <= f) && (f == *ptr)));
 
+    ASSUME(a < 8388608 && a > -8388608);
+    ASSUME(b < 8388608 && b > -8388608);
+    ASSUME(c < 8388608 && c > -8388608);
+    ASSUME(d < 8388608 && d > -8388608);
+
     struct Pair *ptr2;
     A.a = a, A.b = b;
     B.a = c, B.b = d;

@@ -1,6 +1,6 @@
 #include "utils.h"
 
-void CHECK_EQUAL_C_STRING(char *s1, char *s2) { ASSERT(strcmp(s1, s2) == 0); }
+void CHECK_EQUAL_C_STRING(char *s1, char *s2) { assert(strcmp(s1, s2) == 0); }
 
 void *copy(void *e1) {
     int *cp = (int *)malloc(sizeof(int));

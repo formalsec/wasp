@@ -28,12 +28,12 @@ int main() {
     ASSUME(!pred1(&d) && !pred1(&e) && !pred1(&f) && pred1(&a) && pred1(&b) &&
            pred1(&c));
 
-    deque_add_last(deque, &a);
-    deque_add_last(deque, &b);
-    deque_add_last(deque, &c);
-    deque_add_last(deque, &d);
-    deque_add_last(deque, &e);
-    deque_add_last(deque, &f);
+    deque_add_last(deque, (void*)&a);
+    deque_add_last(deque, (void*)&b);
+    deque_add_last(deque, (void*)&c);
+    deque_add_last(deque, (void*)&d);
+    deque_add_last(deque, (void*)&e);
+    deque_add_last(deque, (void*)&f);
     ASSERT(6 == deque_size(deque));
 
     Deque *filter = NULL;

@@ -1,26 +1,26 @@
 #include "treetable.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static TreeTable *table;
 
 int main() {
     treetable_new(cmp, &table);
 
-    int x = __builtin_annot_intval("symb_int", x);
-    int y = __builtin_annot_intval("symb_int", y);
-    int z = __builtin_annot_intval("symb_int", z);
-    int w = __builtin_annot_intval("symb_int", w);
+    int x = dyn_sym_int32('x');
+    int y = dyn_sym_int32('y');
+    int z = dyn_sym_int32('z');
+    int w = dyn_sym_int32('w');
 
-    char a = (char)__builtin_annot_intval("symb_int", a);
+    int a = dyn_sym_int32('a');
 
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
+    int b = dyn_sym_int32('b');
 
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
+    int c = dyn_sym_int32('c');
 
     char str_c[] = {c, '\0'};
 
@@ -30,9 +30,9 @@ int main() {
 
     treetable_remove_all(table);
 
-    ASSERT(0 == treetable_contains_key(table, &x));
-    ASSERT(0 == treetable_contains_key(table, &y));
-    ASSERT(0 == treetable_contains_key(table, &z));
+    assert(0 == treetable_contains_key(table, &x));
+    assert(0 == treetable_contains_key(table, &y));
+    assert(0 == treetable_contains_key(table, &z));
 
     treetable_destroy(table);
 }

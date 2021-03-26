@@ -1,17 +1,17 @@
 #include "treeset.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static TreeSet *set;
 
 int main() {
     treeset_new(cmp, &set);
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
-    ASSUME(a < b && b < c && c < d);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
+    assume(a < b && b < c && c < d);
 
     treeset_add(set, &a);
     treeset_add(set, &b);
@@ -41,8 +41,8 @@ int main() {
             four++;
     }
 
-    ASSERT(1 == one);
-    ASSERT(1 == two);
-    ASSERT(1 == three);
-    ASSERT(1 == four);
+    assert(1 == one);
+    assert(1 == two);
+    assert(1 == three);
+    assert(1 == four);
 }

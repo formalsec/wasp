@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from functools import reduce
-import os, sys, argparse, subprocess
+import os, sys, argparse, subprocess, time
 
 def getDirEntry(basename : str):
         lst = list(map(lambda f : f.name, \
@@ -19,9 +19,11 @@ def runTestsInDir(dirEntry : dict):
         try:
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")']
-            subprocess.check_output(cmd, timeout=5, stderr=subprocess.STDOUT)
+            t0 = time.time()
+            subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
+            t1 = time.time()
             dirEntry['okCnt'] += 1
-            print('OK')
+            print(f'OK (time={t1-t0}s)')
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             print('NOK')
             dirEntry['errorLst'].append(testPath)

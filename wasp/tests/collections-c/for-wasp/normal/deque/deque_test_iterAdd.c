@@ -1,5 +1,5 @@
 #include "deque.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Deque *deque;
 static DequeConf conf;
@@ -12,13 +12,13 @@ void teardown_tests() { deque_destroy(deque); }
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
-    int e = __builtin_annot_intval("symb_int", e);
-    int f = __builtin_annot_intval("symb_int", f);
-    int g = __builtin_annot_intval("symb_int", g);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
+    int e = dyn_sym_int32('e');
+    int f = dyn_sym_int32('f');
+    int g = dyn_sym_int32('g');
 
     deque_add(deque, &a);
     deque_add(deque, &b);
@@ -27,7 +27,7 @@ int main() {
     deque_add(deque, &e);
     deque_add(deque, &f);
 
-    ASSUME(d != a && d != b && d != c && d != e && d != f);
+    assume(d != a && d != b && d != c && d != e && d != f);
 
     DequeIter iter;
     deque_iter_init(&iter, deque);
@@ -36,21 +36,21 @@ int main() {
 
     int *el;
 
-    ASSERT(6 == deque_size(deque));
+    assert(6 == deque_size(deque));
 
     while (deque_iter_next(&iter, (void *)&el) != CC_ITER_END) {
         if (*el == d)
             deque_iter_add(&iter, &g);
         if (i >= 3) {
-            ASSERT(i == deque_iter_index(&iter) - 1);
+            assert(i == deque_iter_index(&iter) - 1);
         }
         i++;
     }
-    ASSERT(7 == deque_size(deque));
+    assert(7 == deque_size(deque));
 
     void *ret_;
     deque_get_at(deque, 4, &ret_);
-    ASSERT(g == *(int *)ret_);
+    assert(g == *(int *)ret_);
 
     teardown_tests();
     return 0;

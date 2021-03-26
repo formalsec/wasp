@@ -8,7 +8,7 @@ $(TARGET): $(TARGET:.wasm=.o) mockups.o
 	llc -O1 -march=wasm32 -filetype=obj $< -o $@
 
 %.bc: %.c
-	clang --target=wasm32 -O1 -emit-llvm -c $<
+	clang --target=wasm32 -O1 -emit-llvm -c $< 
 
 clean:
 	rm -rf *.o *.bc *.wasm

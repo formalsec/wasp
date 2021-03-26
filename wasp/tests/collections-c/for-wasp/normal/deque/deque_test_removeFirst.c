@@ -1,5 +1,5 @@
 #include "deque.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Deque *deque;
 static DequeConf conf;
@@ -12,10 +12,10 @@ void teardown_tests() { deque_destroy(deque); }
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
 
     deque_add_first(deque, &a);
     deque_add_last(deque, &b);
@@ -24,14 +24,14 @@ int main() {
 
     int *first;
     deque_get_first(deque, (void *)&first);
-    ASSERT(a == *first);
+    assert(a == *first);
 
     int *removed;
     deque_remove_first(deque, (void *)&removed);
-    ASSERT(a == *removed);
+    assert(a == *removed);
 
     deque_get_first(deque, (void *)&first);
-    ASSERT(b == *first);
+    assert(b == *first);
 
     teardown_tests();
     return 0;

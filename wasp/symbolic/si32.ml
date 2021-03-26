@@ -1,6 +1,22 @@
-type binop = I32Add | I32And | I32Or | I32Sub | I32Mul | I32DivS | I32DivU | I32Xor | I32Shl | I32ShrS | I32ShrU (*  Falta:  Rotl | Rotr  *)
+type binop = I32Add | I32Mul | I32DivU | I32ShrU | I32And |
+             I32Sub | I32Shl | I32DivS | I32ShrS | I32Or  | I32Xor
 type unop  = I32Clz (*  Falta: | Clz | Ctz | Popcnt *)
-type relop = I32Eq | I32Neq | I32Lt | I32LtEq | I32Gt | I32GtEq (*  All done, except Unsigned operations  *)
+type relop = I32Eq | I32LtU | I32LtS | I32LeU | I32LeS |
+             I32Ne | I32GtU | I32GtS | I32GeU | I32GeS
+
+let neg_relop (op : relop) : relop =
+  begin match op with
+  | I32Eq  -> I32Ne
+  | I32Ne  -> I32Eq
+  | I32LtU -> I32GeU
+  | I32LtS -> I32GeS
+  | I32GtU -> I32LeU
+  | I32GtS -> I32LeS
+  | I32LeU -> I32GtU
+  | I32LeS -> I32GtS
+  | I32GeU -> I32LtU
+  | I32GeS -> I32LtS
+  end
 
 (*  String representation of an i32 binary operation  *)
 let string_of_binop (op : binop) : string =
@@ -20,12 +36,12 @@ let string_of_binop (op : binop) : string =
 let pp_string_of_binop (op : binop) : string =
 	match op with
 	| I32Add  -> "+"
-	| I32And  -> "/\\"
-	| I32Or   -> "\\/"
+	| I32And  -> "&"
+	| I32Or   -> "|"
 	| I32Sub  -> "-"
 	| I32DivS -> "/"
 	| I32DivU -> "/"
-	| I32Xor  -> "Xor"
+	| I32Xor  -> "^"
 	| I32Mul  -> "*"
   | I32Shl  -> "<<"
   | I32ShrS -> "s>>"
@@ -43,18 +59,26 @@ let pp_string_of_unop (op : unop) : string =
 (*  String representation of an i32 relative operation  *)
 let string_of_relop (op : relop) : string =
 	match op with 
-	| I32Eq   -> "I32Eq"
-	| I32Neq  -> "I32Neq"
-	| I32Lt   -> "I32Lt"
-	| I32Gt   -> "I32Gt"
-	| I32LtEq -> "I32LtEq"
-	| I32GtEq -> "I32GtEq"
+	| I32Eq  -> "I32Eq"
+	| I32Ne  -> "I32Ne"
+	| I32LtU -> "I32LtU"
+	| I32LtS -> "I32LtS"
+	| I32GtU -> "I32GtU"
+	| I32GtS -> "I32GtS"
+	| I32LeU -> "I32LeU"
+	| I32LeS -> "I32LeS"
+	| I32GeU -> "I32GeU"
+	| I32GeS -> "I32GeS"
 
 let pp_string_of_relop (op : relop) : string =
 	match op with 
-	| I32Eq   -> "=="
-	| I32Neq  -> "!="
-	| I32Lt   -> "<"
-	| I32Gt   -> ">"
-	| I32LtEq -> "<="
-	| I32GtEq -> ">="
+	| I32Eq  -> "=="
+	| I32Ne  -> "!="
+	| I32LtU -> "<"
+	| I32LtS -> "<"
+	| I32GtU -> ">"
+	| I32GtS -> ">"
+	| I32LeU -> "<="
+	| I32LeS -> "<="
+	| I32GeU -> ">="
+	| I32GeS -> ">="

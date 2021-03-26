@@ -1,5 +1,5 @@
 #include "deque.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Deque *deque;
 static DequeConf conf;
@@ -12,13 +12,13 @@ void teardown_tests() { deque_destroy(deque); }
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
-    int e = __builtin_annot_intval("symb_int", e);
-    int f = __builtin_annot_intval("symb_int", f);
-    int g = __builtin_annot_intval("symb_int", g);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
+    int e = dyn_sym_int32('e');
+    int f = dyn_sym_int32('f');
+    int g = dyn_sym_int32('g');
 
     deque_add_last(deque, &a);
     deque_add_last(deque, &b);
@@ -31,12 +31,12 @@ int main() {
 
     const void *const *buff = deque_get_buffer(deque);
 
-    ASSERT(buff[4] == &g);
+    assert(buff[4] == &g);
 
-    ASSERT(buff[5] == &e);
+    assert(buff[5] == &e);
 
     const void *elem = buff[6];
-    ASSERT(elem == &f);
+    assert(elem == &f);
 
     teardown_tests();
     return 0;

@@ -1,5 +1,5 @@
 #include "pqueue.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static struct Pair { int a, b; } A, B, C;
 
@@ -33,52 +33,56 @@ void teardown_tests() {
 int main() {
     setup_tests();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
-    int e = __builtin_annot_intval("symb_int", e);
-    int f = __builtin_annot_intval("symb_int", f);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
+    int e = dyn_sym_int32('e');
+    int f = dyn_sym_int32('f');
 
-    int x = __builtin_annot_intval("symb_int", x);
-    int y = __builtin_annot_intval("symb_int", y);
-    int z = __builtin_annot_intval("symb_int", z);
+    int x = dyn_sym_int32('x');
+    int y = dyn_sym_int32('y');
+    int z = dyn_sym_int32('z');
     int *ptr;
 
-    ASSUME(x > z && z > y);
+    assume(x < 8388608 && x > -8388608);
+    assume(y < 8388608 && y > -8388608);
+    assume(z < 8388608 && z > -8388608);
+
+    assume(x > z && z > y);
 
     pqueue_push(p1, (void *)&y);
     pqueue_push(p1, (void *)&x);
     pqueue_push(p1, (void *)&z);
 
     pqueue_pop(p1, (void *)&ptr);
-    ASSERT(&x == ptr);
+    assert(&x == ptr);
 
     pqueue_pop(p1, (void *)&ptr);
-    ASSERT(&z == ptr);
+    assert(&z == ptr);
 
     pqueue_pop(p1, (void *)&ptr);
-    ASSERT(&y == ptr);
+    assert(&y == ptr);
 
     struct Pair *ptr2;
     A.a = a, A.b = b;
     B.a = c, B.b = d;
     C.a = e, C.b = f;
 
-    ASSUME(comp(&C, &A) > 0 && comp(&A, &B) > 0);
+    assume(comp(&C, &A) > 0 && comp(&A, &B) > 0);
 
     pqueue_push(p2, (void *)&A);
     pqueue_push(p2, (void *)&B);
     pqueue_push(p2, (void *)&C);
 
     pqueue_pop(p2, (void *)&ptr2);
-    ASSERT(&C == ptr2);
+    assert(&C == ptr2);
 
     pqueue_pop(p2, (void *)&ptr2);
-    ASSERT(&A == ptr2);
+    assert(&A == ptr2);
 
     pqueue_pop(p2, (void *)&ptr2);
-    ASSERT(&B == ptr2);
+    assert(&B == ptr2);
 
     teardown_tests();
     return 0;

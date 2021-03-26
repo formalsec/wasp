@@ -1,5 +1,5 @@
 #include "list.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static List *list1;
 static List *list2;
@@ -9,14 +9,14 @@ int a, b, c, d, e, f, g, h;
 void setup_tests() {
     list_new(&list1), list_new(&list2);
 
-    a = __builtin_annot_intval("symb_int", a);
-    b = __builtin_annot_intval("symb_int", b);
-    c = __builtin_annot_intval("symb_int", c);
-    d = __builtin_annot_intval("symb_int", d);
-    e = __builtin_annot_intval("symb_int", e);
-    f = __builtin_annot_intval("symb_int", f);
-    g = __builtin_annot_intval("symb_int", g);
-    h = __builtin_annot_intval("symb_int", h);
+    a = dyn_sym_int32('a');
+    b = dyn_sym_int32('b');
+    c = dyn_sym_int32('c');
+    d = dyn_sym_int32('d');
+    e = dyn_sym_int32('e');
+    f = dyn_sym_int32('f');
+    g = dyn_sym_int32('g');
+    h = dyn_sym_int32('h');
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -60,10 +60,10 @@ int main() {
     int *el;
     list_remove_last(list1, (void *)&el);
     free(el);
-    ASSERT(3 == list_size(list1));
+    assert(3 == list_size(list1));
 
-    ASSERT(CC_OK == list_get_last(list1, (void *)&el));
-    ASSERT(c == *el);
+    assert(CC_OK == list_get_last(list1, (void *)&el));
+    assert(c == *el);
 
     teardown_test();
 }

@@ -1,5 +1,5 @@
 #include "array.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Array *v1;
 static Array *v2;
@@ -9,14 +9,14 @@ static int stat;
 int main() {
     stat = array_new(&v1);
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int d = __builtin_annot_intval("symb_int", d);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int d = dyn_sym_int32('d');
 
-    int replacement = __builtin_annot_intval("symb_int", replacement);
+    int replacement = dyn_sym_int32('replacement');
 
-    ASSUME(c != a && c != b && c != d && c != replacement);
+    assume(c != a && c != b && c != d && c != replacement);
 
     array_add(v1, &a);
     array_add(v1, &b);
@@ -36,8 +36,8 @@ int main() {
     size_t index;
     array_index_of(v1, (void *)&replacement, &index);
 
-    ASSERT(2 == index);
-    ASSERT(0 == array_contains(v1, &c));
+    assert(2 == index);
+    assert(0 == array_contains(v1, &c));
 
     array_destroy(v1);
 

@@ -1,6 +1,6 @@
 #include "deque.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Deque *deque;
 static DequeConf conf;
@@ -17,9 +17,9 @@ int main() {
     int *b = malloc(sizeof(int));
     int *c = malloc(sizeof(int));
 
-    int x = __builtin_annot_intval("symb_int", x);
-    int y = __builtin_annot_intval("symb_int", y);
-    int z = __builtin_annot_intval("symb_int", z);
+    int x = dyn_sym_int32('x');
+    int y = dyn_sym_int32('y');
+    int z = dyn_sym_int32('z');
 
     *a = x;
     *b = y;
@@ -33,7 +33,7 @@ int main() {
     deque_copy_deep(deque, copy, &cpy);
 
     int size = deque_size(cpy);
-    ASSERT(3 == size);
+    assert(3 == size);
 
     int *ca;
     deque_get_at(cpy, 0, (void *)&ca);
@@ -42,9 +42,9 @@ int main() {
     int *cc;
     deque_get_at(cpy, 2, (void *)&cc);
 
-    ASSERT(x == *ca);
-    ASSERT(y == *cb);
-    ASSERT(z == *cc);
+    assert(x == *ca);
+    assert(y == *cb);
+    assert(z == *cc);
     deque_destroy_cb(cpy, free);
     free(a);
     free(b);

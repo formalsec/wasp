@@ -1,5 +1,5 @@
 #include "list.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static List *list1;
 static List *list2;
@@ -9,14 +9,14 @@ int a, b, c, d, e, f, g, h;
 void setup_tests() {
     list_new(&list1), list_new(&list2);
 
-    a = __builtin_annot_intval("symb_int", a);
-    b = __builtin_annot_intval("symb_int", b);
-    c = __builtin_annot_intval("symb_int", c);
-    d = __builtin_annot_intval("symb_int", d);
-    e = __builtin_annot_intval("symb_int", e);
-    f = __builtin_annot_intval("symb_int", f);
-    g = __builtin_annot_intval("symb_int", g);
-    h = __builtin_annot_intval("symb_int", h);
+    a = dyn_sym_int32('a');
+    b = dyn_sym_int32('b');
+    c = dyn_sym_int32('c');
+    d = dyn_sym_int32('d');
+    e = dyn_sym_int32('e');
+    f = dyn_sym_int32('f');
+    g = dyn_sym_int32('g');
+    h = dyn_sym_int32('h');
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -59,12 +59,12 @@ int main() {
 
     int *px = (int *) malloc(sizeof(int));
     int *py = (int *) malloc(sizeof(int));
-    int x = __builtin_annot_intval("symb_int", x);
-    int y = __builtin_annot_intval("symb_int", y);
+    int x = dyn_sym_int32('x');
+    int y = dyn_sym_int32('y');
 
     *px = x, *py = y;
 
-    ASSUME(c != a && c != b && c != d && d != a && d != b);
+    assume(c != a && c != b && c != d && d != a && d != b);
 
     ListIter iter;
     list_diter_init(&iter, list1);
@@ -78,19 +78,19 @@ int main() {
             list_diter_add(&iter, py);
     }
 
-    ASSERT(6 == list_size(list1));
+    assert(6 == list_size(list1));
     int *el;
     list_get_first(list1, (void *)&el);
-    ASSERT(a == *el);
+    assert(a == *el);
 
     list_get_last(list1, (void *)&el);
-    ASSERT(d == *el);
+    assert(d == *el);
 
     list_get_at(list1, 2, (void *)&el);
-    ASSERT(*py == *el);
+    assert(*py == *el);
 
     list_get_at(list1, 4, (void *)&el);
-    ASSERT(*px == *el);
+    assert(*px == *el);
 
     teardown_test();
 }

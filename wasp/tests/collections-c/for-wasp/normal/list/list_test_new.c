@@ -1,5 +1,5 @@
 #include "list.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static List *list1;
 static List *list2;
@@ -14,18 +14,18 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    ASSERT(list1 != NULL);
-    ASSERT(list2 != NULL);
+    assert(list1 != NULL);
+    assert(list2 != NULL);
 
     void *e = NULL;
     list_get_first(list1, &e);
-    ASSERT(e == NULL);
+    assert(e == NULL);
 
     list_get_last(list1, &e);
-    ASSERT(e == NULL);
+    assert(e == NULL);
 
-    ASSERT(0 == list_size(list1));
-    ASSERT(list1 != list2);
+    assert(0 == list_size(list1));
+    assert(list1 != list2);
 
     teardown_test();
 }

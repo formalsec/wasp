@@ -1,5 +1,5 @@
 #include "slist.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -10,14 +10,14 @@ int a, b, c, d, e, f, g, h;
 void setup_test() {
     slist_new(&list), slist_new(&list2);
 
-    a = __builtin_annot_intval("symb_int", a);
-    b = __builtin_annot_intval("symb_int", b);
-    c = __builtin_annot_intval("symb_int", c);
-    d = __builtin_annot_intval("symb_int", d);
-    e = __builtin_annot_intval("symb_int", e);
-    f = __builtin_annot_intval("symb_int", f);
-    g = __builtin_annot_intval("symb_int", g);
-    h = __builtin_annot_intval("symb_int", h);
+    a = dyn_sym_int32('a');
+    b = dyn_sym_int32('b');
+    c = dyn_sym_int32('c');
+    d = dyn_sym_int32('d');
+    e = dyn_sym_int32('e');
+    f = dyn_sym_int32('f');
+    g = dyn_sym_int32('g');
+    h = dyn_sym_int32('h');
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -58,7 +58,7 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    int i = __builtin_annot_intval("symb_int", i);
+    int i = dyn_sym_int32('i');
     int *i1 = (int *)malloc(sizeof(int));
 
     *i1 = i;
@@ -66,7 +66,7 @@ int main() {
     SListIter iter;
     slist_iter_init(&iter, list);
 
-    ASSUME(c != a && c != b && c != d && d != a && d != b &&
+    assume(c != a && c != b && c != d && d != a && d != b &&
            d != i);
 
     int *el;
@@ -74,17 +74,17 @@ int main() {
         if (*el == c)
             slist_iter_add(&iter, i1);
     }
-    ASSERT(5 == slist_size(list));
+    assert(5 == slist_size(list));
 
     int *li3;
     slist_get_at(list, 3, (void *)&li3);
-    ASSERT(*li3 == i);
+    assert(*li3 == i);
 
     int *li4;
     slist_get_at(list, 4, (void *)&li4);
-    ASSERT(d == *li4);
+    assert(d == *li4);
 
-    int x = __builtin_annot_intval("symb_int", x);
+    int x = dyn_sym_int32('x');
     int *i2 = (int *)malloc(sizeof(int));
 
     *i2 = x;
@@ -97,8 +97,8 @@ int main() {
 
     void *e;
     slist_get_last(list, &e);
-    ASSERT(x == *(int *)e);
-    ASSERT(6 == slist_size(list));
+    assert(x == *(int *)e);
+    assert(6 == slist_size(list));
 
     teardown_test();
     return 0;

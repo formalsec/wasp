@@ -1,27 +1,27 @@
 #include "treetable.h"
 #include "utils.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static TreeTable *table;
 
 int main() {
     treetable_new(cmp, &table);
 
-    int x = __builtin_annot_intval("symb_int", x);
-    int y = __builtin_annot_intval("symb_int", y);
-    int z = __builtin_annot_intval("symb_int", z);
+    int x = dyn_sym_int32('x');
+    int y = dyn_sym_int32('y');
+    int z = dyn_sym_int32('z');
 
-    ASSUME(x < y && y < z);
+    assume(x < y && y < z);
 
-    char a = (char)__builtin_annot_intval("symb_int", a);
+    int a = dyn_sym_int32('a');
 
     char str_a[] = {a, '\0'};
 
-    char b = (char)__builtin_annot_intval("symb_int", b);
+    int b = dyn_sym_int32('b');
 
     char str_b[] = {b, '\0'};
 
-    char c = (char)__builtin_annot_intval("symb_int", c);
+    int c = dyn_sym_int32('c');
 
     char str_c[] = {c, '\0'};
 
@@ -37,14 +37,14 @@ int main() {
         int const *key = entry.key;
 
         if (*key == y) {
-            ASSERT(CC_OK == treetable_iter_remove(&iter, NULL));
+            assert(CC_OK == treetable_iter_remove(&iter, NULL));
 
-            ASSERT(CC_ERR_KEY_NOT_FOUND == treetable_iter_remove(&iter, NULL));
+            assert(CC_ERR_KEY_NOT_FOUND == treetable_iter_remove(&iter, NULL));
         }
     }
 
-    ASSERT(2 == treetable_size(table));
-    ASSERT(0 == treetable_contains_key(table, &y));
+    assert(2 == treetable_size(table));
+    assert(0 == treetable_contains_key(table, &y));
 
     treetable_destroy(table);
 }

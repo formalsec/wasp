@@ -1,5 +1,5 @@
 #include "array.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Array *v1;
 static Array *v2;
@@ -9,11 +9,11 @@ static int stat;
 int main() {
     stat = array_new(&v1);
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
-    int e = __builtin_annot_intval("symb_int", e);
-    int f = __builtin_annot_intval("symb_int", f);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
+    int e = dyn_sym_int32('e');
+    int f = dyn_sym_int32('f');
 
     array_add(v1, &a);
     array_add(v1, &b);
@@ -24,7 +24,7 @@ int main() {
     Array *sub;
     array_subarray(v1, 1, 3, &sub);
 
-    ASSERT(3 == array_size(sub));
+    assert(3 == array_size(sub));
 
     int *s0;
     int *s1;
@@ -33,9 +33,9 @@ int main() {
     array_get_at(sub, 1, (void *)&s1);
     array_get_at(sub, 2, (void *)&s2);
 
-    ASSERT(&b == s0);
-    ASSERT(&c == s1);
-    ASSERT(&e == s2);
+    assert(&b == s0);
+    assert(&c == s1);
+    assert(&e == s2);
 
     array_destroy(sub);
 

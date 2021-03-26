@@ -1,5 +1,5 @@
 #include "slist.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -10,14 +10,14 @@ int a, b, c, d, e, f, g, h;
 void setup_test() {
     slist_new(&list), slist_new(&list2);
 
-    a = __builtin_annot_intval("symb_int", a);
-    b = __builtin_annot_intval("symb_int", b);
-    c = __builtin_annot_intval("symb_int", c);
-    d = __builtin_annot_intval("symb_int", d);
-    e = __builtin_annot_intval("symb_int", e);
-    f = __builtin_annot_intval("symb_int", f);
-    g = __builtin_annot_intval("symb_int", g);
-    h = __builtin_annot_intval("symb_int", h);
+    a = dyn_sym_int32('a');
+    b = dyn_sym_int32('b');
+    c = dyn_sym_int32('c');
+    d = dyn_sym_int32('d');
+    e = dyn_sym_int32('e');
+    f = dyn_sym_int32('f');
+    g = dyn_sym_int32('g');
+    h = dyn_sym_int32('h');
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -60,22 +60,22 @@ int main() {
 
     SList *cp;
     slist_copy_shallow(list, &cp);
-    ASSERT(4 == slist_size(cp));
+    assert(4 == slist_size(cp));
 
     void *e1;
     void *e2;
 
     slist_get_first(cp, &e1);
     slist_get_first(list, &e2);
-    ASSERT(e1 == e2);
+    assert(e1 == e2);
 
     slist_get_last(cp, &e1);
     slist_get_last(list, &e2);
-    ASSERT(e1 == e2);
+    assert(e1 == e2);
 
     slist_get_at(cp, 3, &e1);
     slist_get_at(list, 3, &e2);
-    ASSERT(e1 == e2);
+    assert(e1 == e2);
 
     slist_destroy(cp);
 

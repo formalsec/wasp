@@ -1,5 +1,5 @@
 #include "queue.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static Queue *q;
 static Queue *q2;
@@ -18,9 +18,9 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    int a = __builtin_annot_intval("symb_int", a);
-    int b = __builtin_annot_intval("symb_int", b);
-    int c = __builtin_annot_intval("symb_int", c);
+    int a = dyn_sym_int32('a');
+    int b = dyn_sym_int32('b');
+    int c = dyn_sym_int32('c');
 
     queue_enqueue(q, &a);
     queue_enqueue(q, &b);
@@ -29,16 +29,16 @@ int main() {
     void *p;
 
     queue_poll(q, &p);
-    ASSERT(&a == p);
+    assert(&a == p);
 
     queue_peek(q, &p);
-    ASSERT(&b == p);
+    assert(&b == p);
 
     queue_poll(q, &p);
-    ASSERT(&b == p);
+    assert(&b == p);
 
     queue_peek(q, &p);
-    ASSERT(&c == p);
+    assert(&c == p);
 
     teardown_test();
     return 0;

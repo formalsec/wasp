@@ -1,5 +1,5 @@
 #include "slist.h"
-#include <gillian-c/gillian-c.h>
+#include "mockups.h" 
 
 static SList *list;
 static SList *list2;
@@ -16,14 +16,14 @@ int a, b, c, d, e, f, g, h;
 void setup_test() {
     slist_new(&list), slist_new(&list2);
 
-    a = __builtin_annot_intval("symb_int", a);
-    b = __builtin_annot_intval("symb_int", b);
-    c = __builtin_annot_intval("symb_int", c);
-    d = __builtin_annot_intval("symb_int", d);
-    e = __builtin_annot_intval("symb_int", e);
-    f = __builtin_annot_intval("symb_int", f);
-    g = __builtin_annot_intval("symb_int", g);
-    h = __builtin_annot_intval("symb_int", h);
+    a = dyn_sym_int32('a');
+    b = dyn_sym_int32('b');
+    c = dyn_sym_int32('c');
+    d = dyn_sym_int32('d');
+    e = dyn_sym_int32('e');
+    f = dyn_sym_int32('f');
+    g = dyn_sym_int32('g');
+    h = dyn_sym_int32('h');
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -64,11 +64,11 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    ASSUME(!pred2(&a) && !pred2(&b) && pred2(&c) && pred2(&d));
+    assume(!pred2(&a) && !pred2(&b) && pred2(&c) && pred2(&d));
 
-    ASSERT(4 == slist_size(list));
+    assert(4 == slist_size(list));
     slist_filter_mut(list, pred2);
-    ASSERT(2 == slist_size(list));
+    assert(2 == slist_size(list));
 
     SListIter iter;
     int *el = NULL;
@@ -76,13 +76,13 @@ int main() {
     slist_iter_init(&iter, list);
     while (slist_iter_next(&iter, (void *)&el) != CC_ITER_END) {
         if (i == 0)
-            ASSERT(*el == c);
+            assert(*el == c);
 
         if (i == 1)
-            ASSERT(*el == d);
+            assert(*el == d);
 
         if (i > 1)
-            ASSERT(false);
+            assert(false);
         i++;
     }
     teardown_test();
