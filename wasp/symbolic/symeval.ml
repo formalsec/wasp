@@ -675,8 +675,7 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
     | None -> Crash.error at "can not symbolically host function" 
   in
   let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
-      !inst_ref.sym_memory) 
-  in
+      !inst_ref.sym_memory) in
   let initial_memory = Symmem2.memcpy !inst_ref.sym_memory in
   (*  ----------------  CONCOLIC EXECUTION  ----------------  *)
   (* Model satisfiability *)

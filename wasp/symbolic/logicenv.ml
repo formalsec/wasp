@@ -61,9 +61,9 @@ let neg_pc (env : logical_env) : sym_expr =
   Hashtbl.fold (fun k v acc ->
     let e = 
       match v with
-      | I32 _ -> I32Relop (Si32.I32Ne, Value v, (Symbolic (SymInt32, k)))
-      | I64 _ -> I64Relop (Si64.I64Neq, Value v, (Symbolic (SymInt64, k)))
-      | F32 _ -> F32Relop (Sf32.F32Neq, Value v, (Symbolic (SymFloat32, k)))
-      | F64 _ -> F64Relop (Sf64.F64Neq, Value v, (Symbolic (SymFloat64, k)))
+      | I32 _ -> I32Relop (Si32.I32Ne, Value v, (Symbolic (SymInt32  , k)))
+      | I64 _ -> I64Relop (Si64.I64Ne, Value v, (Symbolic (SymInt64  , k)))
+      | F32 _ -> F32Relop (Sf32.F32Ne, Value v, (Symbolic (SymFloat32, k)))
+      | F64 _ -> F64Relop (Sf64.F64Ne, Value v, (Symbolic (SymFloat64, k)))
     in BoolOp (Or, e, acc)
-  ) env (I32Relop (Si32.I32Eq, Value (I32 1l), Value (I32 1l)))
+  ) env (I32Relop (Si32.I32Eq, Value (I32 0l), Value (I32 1l)))

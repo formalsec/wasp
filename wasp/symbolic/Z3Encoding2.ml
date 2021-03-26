@@ -18,8 +18,8 @@ let fp64_sort = FloatingPoint.mk_sort_double ctx
 
 let rm = FloatingPoint.RoundingMode.mk_round_nearest_ties_to_even ctx
 
-let bit0 = BitVector.mk_numeral ctx "0" 1
-let bit1 = BitVector.mk_numeral ctx "1" 1
+let bit0 = BitVector.mk_numeral ctx "0" 32
+let bit1 = BitVector.mk_numeral ctx "1" 32
 
 let get_sort (e : value_type) : Sort.sort =
   begin match e with
@@ -43,28 +43,26 @@ struct
 
   let encode_binop (op : binop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
-    (* TODO: fix size difference *)
-    let e1' = extend e1 32
-    and e2' = extend e2 32 in
-    begin match op with
-    | I32Add  -> BitVector.mk_add  ctx e1' e2'
-    | I32Sub  -> BitVector.mk_sub  ctx e1 e2
-    | I32Mul  -> BitVector.mk_mul  ctx e1 e2
-    | I32DivS -> BitVector.mk_sdiv ctx e1 e2
-    | I32DivU -> BitVector.mk_udiv ctx e1 e2
-    | I32And  -> BitVector.mk_and  ctx e1 e2
-    | I32Xor  -> BitVector.mk_xor  ctx e1 e2
-    | I32Or   -> BitVector.mk_or   ctx e1 e2
-    | I32Shl  -> BitVector.mk_shl  ctx e1 e2
-    | I32ShrS -> BitVector.mk_ashr ctx e1 e2
-    | I32ShrU -> BitVector.mk_lshr ctx e1 e2
-    end
+    let op' = begin match op with
+      | I32Add  -> BitVector.mk_add  ctx
+      | I32Sub  -> BitVector.mk_sub  ctx
+      | I32Mul  -> BitVector.mk_mul  ctx
+      | I32DivS -> BitVector.mk_sdiv ctx
+      | I32DivU -> BitVector.mk_udiv ctx
+      | I32And  -> BitVector.mk_and  ctx
+      | I32Xor  -> BitVector.mk_xor  ctx
+      | I32Or   -> BitVector.mk_or   ctx
+      | I32Shl  -> BitVector.mk_shl  ctx
+      | I32ShrS -> BitVector.mk_ashr ctx
+      | I32ShrU -> BitVector.mk_lshr ctx
+      end
+    in op' e1 e2
 
   let encode_relop (op : relop) (e1 : Expr.expr) 
       (e2 : Expr.expr) : Expr.expr = 
     let e1' = extend e1 32
     and e2' = extend e2 32
-    and f   = begin match op with
+    and op' = begin match op with
       | I32Eq  -> Boolean.mk_eq ctx
       | I32Ne  -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
       | I32LtU -> BitVector.mk_ult ctx
@@ -76,7 +74,7 @@ struct
       | I32GeU -> BitVector.mk_uge ctx
       | I32GeS -> BitVector.mk_sge ctx
       end
-    in Boolean.mk_ite ctx (f e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
 end
 
 
@@ -92,7 +90,7 @@ struct
 
   let encode_binop (op : binop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
-    let f = begin match op with
+    let op = begin match op with
       | I64Add  -> BitVector.mk_add  ctx
       | I64Sub  -> BitVector.mk_sub  ctx
       | I64Mul  -> BitVector.mk_mul  ctx
@@ -101,21 +99,26 @@ struct
       | I64Xor  -> BitVector.mk_xor  ctx
       | I64Or   -> BitVector.mk_or   ctx
       end
-    in f e1 e2
+    in op e1 e2
 
   let encode_relop (op : relop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
+    (* Extend to fix these: (I64Eq, (I64Ne, x, y), 1) *)
     let e1' = extend e1 64
     and e2' = extend e2 64
-    and f   = begin match op with
-      | I64Eq   -> Boolean.mk_eq ctx
-      | I64Neq  -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
-      | I64Lt   -> BitVector.mk_slt ctx
-      | I64LtEq -> BitVector.mk_sle ctx
-      | I64Gt   -> BitVector.mk_sgt ctx
-      | I64GtEq -> BitVector.mk_sge ctx
+    and op' = begin match op with
+      | I64Eq  -> Boolean.mk_eq ctx
+      | I64Ne  -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
+      | I64LtU -> BitVector.mk_ult ctx
+      | I64LtS -> BitVector.mk_slt ctx
+      | I64LeU -> BitVector.mk_ule ctx
+      | I64LeS -> BitVector.mk_sle ctx
+      | I64GtU -> BitVector.mk_ugt ctx
+      | I64GtS -> BitVector.mk_sgt ctx
+      | I64GeU -> BitVector.mk_uge ctx
+      | I64GeS -> BitVector.mk_sge ctx
       end
-    in Boolean.mk_ite ctx (f e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
 end
 
 module Zf32 =
@@ -131,35 +134,37 @@ struct
     FloatingPoint.mk_numeral_f ctx f fp32_sort
 
   let encode_unop (op : unop) (e : Expr.expr) : Expr.expr =
-    begin match op with
-    | F32Neg -> FloatingPoint.mk_neg ctx (to_fp e)
-    end
+    let op' =
+      begin match op with
+      | F32Neg -> FloatingPoint.mk_neg ctx
+      end
+    in op' (to_fp e)
 
   let encode_binop (op : binop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let e1' = to_fp e1
     and e2' = to_fp e2
-    and f   = begin match op with
+    and op' = begin match op with
       | F32Add -> FloatingPoint.mk_add ctx rm
       | F32Sub -> FloatingPoint.mk_sub ctx rm
       | F32Mul -> FloatingPoint.mk_mul ctx rm
       | F32Div -> FloatingPoint.mk_div ctx rm
       end
-    in f e1' e2'
+    in op' e1' e2'
 
   let encode_relop (op : relop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let e1' = to_fp e1
     and e2' = to_fp e2
-    and f   = begin match op with
-      | F32Eq   -> Boolean.mk_eq  ctx
-      | F32Neq  -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
-      | F32Lt   -> FloatingPoint.mk_lt  ctx
-      | F32LtEq -> FloatingPoint.mk_leq ctx
-      | F32Gt   -> FloatingPoint.mk_gt  ctx
-      | F32GtEq -> FloatingPoint.mk_geq ctx
+    and op' = begin match op with
+      | F32Eq -> Boolean.mk_eq  ctx
+      | F32Ne -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
+      | F32Lt -> FloatingPoint.mk_lt  ctx
+      | F32Le -> FloatingPoint.mk_leq ctx
+      | F32Gt -> FloatingPoint.mk_gt  ctx
+      | F32Ge -> FloatingPoint.mk_geq ctx
       end
-    in Boolean.mk_ite ctx (f e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
 end
 
 module Zf64 =
@@ -175,48 +180,49 @@ struct
     FloatingPoint.mk_numeral_f ctx f fp64_sort
 
   let encode_unop (op : unop) (e : Expr.expr) : Expr.expr =
-    let e' = to_fp e 
-    and f  = begin match op with
+    let op'  = begin match op with
       | F64Neg -> FloatingPoint.mk_neg ctx
       end
-    in f e'
+    in op' (to_fp e)
 
   let encode_binop (op : binop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let e1' = to_fp e1
     and e2' = to_fp e2
-    and f   = begin match op with
+    and op' = begin match op with
       | F64Add -> FloatingPoint.mk_add ctx rm
       | F64Sub -> FloatingPoint.mk_sub ctx rm
       | F64Mul -> FloatingPoint.mk_mul ctx rm
       | F64Div -> FloatingPoint.mk_div ctx rm
       end
-    in f e1' e2'
+    in op' e1' e2'
 
   let encode_relop (op : relop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let e1' = to_fp e1
     and e2' = to_fp e2
-    and f   = begin match op with
-      | F64Eq   -> Boolean.mk_eq  ctx
-      | F64Neq  -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
-      | F64Lt   -> FloatingPoint.mk_lt  ctx
-      | F64LtEq -> FloatingPoint.mk_leq ctx
-      | F64Gt   -> FloatingPoint.mk_gt  ctx
-      | F64GtEq -> FloatingPoint.mk_geq ctx
+    and op' = begin match op with
+      | F64Eq -> Boolean.mk_eq  ctx
+      | F64Ne -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
+      | F64Lt -> FloatingPoint.mk_lt  ctx
+      | F64Le -> FloatingPoint.mk_leq ctx
+      | F64Gt -> FloatingPoint.mk_gt  ctx
+      | F64Ge -> FloatingPoint.mk_geq ctx
       end
-    in Boolean.mk_ite ctx (f e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
 end
+
+let encode_value (v : value) : Expr.expr =
+  begin match v with
+  | I32 i -> Zi32.encode_value (Int32.to_int i)
+  | I64 i -> Zi64.encode_value (Int64.to_int i)
+  | F32 f -> Zf32.encode_value (F32.to_float f)
+  | F64 f -> Zf32.encode_value (F64.to_float f)
+  end
 
 let rec encode_sym_expr (e : sym_expr) : Expr.expr =
   begin match e with
-  | Value v -> 
-      begin match v with
-      | I32 i -> Zi32.encode_value (Int32.to_int i)
-      | I64 i -> Zi64.encode_value (Int64.to_int i)
-      | F32 f -> Zf32.encode_value (F32.to_float f)
-      | F64 f -> Zf64.encode_value (F64.to_float f)
-      end
+  | Value v -> encode_value v
   | I32Unop  (op, e) ->
       let e' = encode_sym_expr e in
       Zi32.encode_unop op e'

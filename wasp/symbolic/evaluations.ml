@@ -48,7 +48,7 @@ let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
 			  | Values.I32 Ast.I32Op.Add  -> I32Binop (I32Add , se1, se2)
 				| Values.I32 Ast.I32Op.And  -> I32Binop (I32And , se1, se2)
 				| Values.I32 Ast.I32Op.Or   -> I32Binop (I32Or  , se1, se2)
-        | Values.I32 Ast.I32Op.Sub  -> Printf.printf "sub\n"; I32Binop (I32Sub , se1, se2)
+        | Values.I32 Ast.I32Op.Sub  -> I32Binop (I32Sub , se1, se2)
 				| Values.I32 Ast.I32Op.DivS -> I32Binop (I32DivS, se1, se2)
 				| Values.I32 Ast.I32Op.DivU -> I32Binop (I32DivU, se1, se2)
 				| Values.I32 Ast.I32Op.Xor  -> I32Binop (I32Xor , se1, se2)
@@ -84,8 +84,8 @@ let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
 
 (*  Evaluate a relative operation  *)
 let eval_relop (s1 : sym_value) (s2 : sym_value) (op : Ast.relop) : sym_value =
-	let (v1, se1) = s1 in
-	let (v2, se2) = s2 in 
+	let (v1, se1) = s1
+  and (v2, se2) = s2 in 
 	let v' = Values.value_of_bool (Eval_numeric.eval_relop op v1 v2) in
 	let se' = 
     begin match se1,se2 with
@@ -93,8 +93,8 @@ let eval_relop (s1 : sym_value) (s2 : sym_value) (op : Ast.relop) : sym_value =
 		| _ -> 
         begin match op with
 				(* I32 *)
-        | Values.I32 Ast.I32Op.Eq  -> I32Relop (I32Eq, se1, se2)
-				| Values.I32 Ast.I32Op.Ne  -> I32Relop (I32Ne, se1, se2)
+        | Values.I32 Ast.I32Op.Eq  -> I32Relop (I32Eq , se1, se2)
+				| Values.I32 Ast.I32Op.Ne  -> I32Relop (I32Ne , se1, se2)
 				| Values.I32 Ast.I32Op.LtU -> I32Relop (I32LtU, se1, se2)
 				| Values.I32 Ast.I32Op.LtS -> I32Relop (I32LtS, se1, se2)
 				| Values.I32 Ast.I32Op.GtU -> I32Relop (I32GtU, se1, se2)
@@ -104,30 +104,30 @@ let eval_relop (s1 : sym_value) (s2 : sym_value) (op : Ast.relop) : sym_value =
 				| Values.I32 Ast.I32Op.GeU -> I32Relop (I32GeU, se1, se2)
 				| Values.I32 Ast.I32Op.GeS -> I32Relop (I32GeS, se1, se2)
 				(* I64 *)					  
-				| Values.I64 Ast.I64Op.Eq -> I64Relop (I64Eq, se1, se2)
-				| Values.I64 Ast.I64Op.Ne -> I64Relop (I64Neq, se1, se2)
-				| Values.I64 Ast.I64Op.LtU -> I64Relop (I64Lt, se1, se2)
-				| Values.I64 Ast.I64Op.LtS -> I64Relop (I64Lt, se1, se2)
-				| Values.I64 Ast.I64Op.GtU -> I64Relop (I64Gt, se1, se2)
-				| Values.I64 Ast.I64Op.GtS -> I64Relop (I64Gt, se1, se2)
-				| Values.I64 Ast.I64Op.LeU -> I64Relop (I64LtEq, se1, se2)
-				| Values.I64 Ast.I64Op.LeS -> I64Relop (I64LtEq, se1, se2)
-				| Values.I64 Ast.I64Op.GeU -> I64Relop (I64GtEq, se1, se2)
-				| Values.I64 Ast.I64Op.GeS -> I64Relop (I64GtEq, se1, se2)
+				| Values.I64 Ast.I64Op.Eq  -> I64Relop (I64Eq , se1, se2)
+				| Values.I64 Ast.I64Op.Ne  -> I64Relop (I64Ne , se1, se2)
+				| Values.I64 Ast.I64Op.LtU -> I64Relop (I64LtU, se1, se2)
+				| Values.I64 Ast.I64Op.LtS -> I64Relop (I64LtS, se1, se2)
+				| Values.I64 Ast.I64Op.GtU -> I64Relop (I64GtU, se1, se2)
+				| Values.I64 Ast.I64Op.GtS -> I64Relop (I64GtS, se1, se2)
+				| Values.I64 Ast.I64Op.LeU -> I64Relop (I64LeU, se1, se2)
+				| Values.I64 Ast.I64Op.LeS -> I64Relop (I64LeS, se1, se2)
+				| Values.I64 Ast.I64Op.GeU -> I64Relop (I64GeU, se1, se2)
+				| Values.I64 Ast.I64Op.GeS -> I64Relop (I64GeS, se1, se2)
 				(* F32 *)
-				| Values.F32 Ast.F32Op.Eq -> F32Relop (F32Eq, se1, se2)
-				| Values.F32 Ast.F32Op.Ne -> F32Relop (F32Neq, se1, se2)
-				| Values.F32 Ast.F32Op.Lt -> F32Relop (F32Lt, se1, se2)
-				| Values.F32 Ast.F32Op.Gt -> F32Relop (F32Gt, se1, se2)
-				| Values.F32 Ast.F32Op.Le -> F32Relop (F32LtEq, se1, se2)
-				| Values.F32 Ast.F32Op.Ge -> F32Relop (F32GtEq, se1, se2)
+				| Values.F32 Ast.F32Op.Eq  -> F32Relop (F32Eq, se1, se2)
+				| Values.F32 Ast.F32Op.Ne  -> F32Relop (F32Ne, se1, se2)
+				| Values.F32 Ast.F32Op.Lt  -> F32Relop (F32Lt, se1, se2)
+				| Values.F32 Ast.F32Op.Gt  -> F32Relop (F32Gt, se1, se2)
+				| Values.F32 Ast.F32Op.Le  -> F32Relop (F32Le, se1, se2)
+				| Values.F32 Ast.F32Op.Ge  -> F32Relop (F32Ge, se1, se2)
 				(* F64 *)					  
-				| Values.F64 Ast.F64Op.Eq -> F64Relop (F64Eq, se1, se2)
-				| Values.F64 Ast.F64Op.Ne -> F64Relop (F64Neq, se1, se2)
-				| Values.F64 Ast.F64Op.Lt -> F64Relop (F64Lt, se1, se2)
-				| Values.F64 Ast.F64Op.Gt -> F64Relop (F64Gt, se1, se2)
-				| Values.F64 Ast.F64Op.Le -> F64Relop (F64LtEq, se1, se2)
-				| Values.F64 Ast.F64Op.Ge -> F64Relop (F64GtEq, se1, se2)
+				| Values.F64 Ast.F64Op.Eq  -> F64Relop (F64Eq, se1, se2)
+				| Values.F64 Ast.F64Op.Ne  -> F64Relop (F64Ne, se1, se2)
+				| Values.F64 Ast.F64Op.Lt  -> F64Relop (F64Lt, se1, se2)
+				| Values.F64 Ast.F64Op.Gt  -> F64Relop (F64Gt, se1, se2)
+				| Values.F64 Ast.F64Op.Le  -> F64Relop (F64Le, se1, se2)
+				| Values.F64 Ast.F64Op.Ge  -> F64Relop (F64Ge, se1, se2)
         end
     end
   in (v', se')

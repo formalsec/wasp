@@ -1,15 +1,21 @@
-type binop = I64Add | I64And | I64Or | I64Sub | I64Mul | I64Div | I64Xor (*  Falta: | Shl | ShrS | ShrU | Rotl | Rotr  *)
+type binop = I64Add | I64Mul | I64And | (*  Falta: | Shl | ShrS | ShrU | Rotl | Rotr  *)
+             I64Sub | I64Div | I64Or  | I64Xor 
 type unop  = I64Clz (*  Falta: | Clz | Ctz | Popcnt *)
-type relop = I64Eq | I64Neq | I64Lt | I64LtEq | I64Gt | I64GtEq (*  All done, except Unsigned operations  *)
+type relop = I64Eq | I64LtU | I64LtS | I64LeU | I64LeS |
+             I64Ne | I64GtU | I64GtS | I64GeU | I64GeS
 
 let neg_relop (op : relop) : relop =
   begin match op with
-  | I64Eq   -> I64Neq
-  | I64Neq  -> I64Eq
-  | I64Lt   -> I64GtEq
-  | I64Gt   -> I64LtEq
-  | I64LtEq -> I64Gt
-  | I64GtEq -> I64Lt
+  | I64Eq  -> I64Ne
+  | I64Ne  -> I64Eq
+  | I64LtU -> I64GeU
+  | I64LtS -> I64GeS
+  | I64GtU -> I64LeU
+  | I64GtS -> I64LeS
+  | I64LeU -> I64GtU
+  | I64LeS -> I64GtS
+  | I64GeU -> I64LtU
+  | I64GeS -> I64LtS
   end
 
 (*  String representation of an i64 binary operation  *)
@@ -45,18 +51,26 @@ let pp_string_of_unop (op : unop) : string =
 (*  String representation of an i64 relative operation  *)
 let string_of_relop (op : relop) : string =
 	match op with 
-	| I64Eq   -> "I64Eq"
-	| I64Neq  -> "I64Neq"
-	| I64Lt   -> "I64Lt"
-	| I64Gt   -> "I64Gt"
-	| I64LtEq -> "I64LtEq"
-	| I64GtEq -> "I64GtEq"
+	| I64Eq  -> "I64Eq"
+	| I64Ne  -> "I64Ne"
+	| I64LtU -> "I64LtU"
+	| I64LtS -> "I64LtS"
+	| I64GtU -> "I64GtU"
+	| I64GtS -> "I64GtS"
+	| I64LeU -> "I64LeU"
+	| I64LeS -> "I64LeS"
+	| I64GeU -> "I64GeU"
+	| I64GeS -> "I64GeS"
 
 let pp_string_of_relop (op : relop) : string =
 	match op with 
-	| I64Eq   -> "=="
-	| I64Neq  -> "!="
-	| I64Lt   -> "<"
-	| I64Gt   -> ">"
-	| I64LtEq -> "<="
-	| I64GtEq -> ">="
+	| I64Eq  -> "=="
+	| I64Ne  -> "!="
+	| I64LtU -> "<"
+	| I64LtS -> "<"
+	| I64GtU -> ">"
+	| I64GtS -> ">"
+	| I64LeU -> "<="
+	| I64LeS -> "<="
+	| I64GeU -> ">="
+	| I64GeS -> ">="
