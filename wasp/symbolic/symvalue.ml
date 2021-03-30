@@ -47,25 +47,33 @@ let type_of_symbolic = function
 let rec type_of (e : sym_expr) : value_type  =
   let rec concat_length (e : sym_expr) : int =
     begin match e with
-    | Concat (e1, e2) -> 1 + (concat_length e1) + (concat_length e2)
-    | _ -> 0
+    | Concat (e1, e2) -> (concat_length e1) + (concat_length e2)
+    | _ -> 1
     end
   in
   begin match e with
-  | Value v -> Values.type_of v
-  | I32Unop _ | I32Binop _ | I32Relop _ -> I32Type
-  | I64Unop _ | I64Binop _ | I64Relop _ -> I64Type
-  | F32Unop _ | F32Binop _ | F32Relop _ -> F32Type
-  | F64Unop _ | F64Binop _ | F64Relop _ -> F64Type
+  | Value v    -> Values.type_of v
+  | I32Unop  _ -> I32Type
+  | I32Binop _ -> I32Type
+  | I32Relop _ -> I32Type
+  | I64Unop  _ -> I64Type
+  | I64Binop _ -> I64Type
+  | I64Relop _ -> I64Type
+  | F32Unop  _ -> F32Type
+  | F32Binop _ -> F32Type
+  | F32Relop _ -> F32Type
+  | F64Unop  _ -> F64Type
+  | F64Binop _ -> F64Type
+  | F64Relop _ -> F64Type
   | Symbolic (e, _)    -> type_of_symbolic e
   | Extract  (e, _, _) -> type_of e
-  | Concat   (_, _)    ->
-      begin match concat_length e with
-      | 4 -> I32Type
-      | 8 -> I64Type
-      | _ -> failwith "unsupported type length"
-      end
-  | BoolOp  (_, _, _) -> I32Type
+  | Concat _ ->
+    begin match concat_length e with
+    | 4 -> I32Type
+    | 8 -> I64Type
+    | _ -> failwith "unsupported type length"
+    end
+  | BoolOp _ -> I32Type
   end
 
 (*  Negates a sym_expr  *)
@@ -429,15 +437,10 @@ let rec simplify (e : sym_expr) : sym_expr =
           let v' = Eval_numeric.eval_binop (I64 Ast.I32Op.Or) (I64 v1) (I64 v2) in
           Value v'
       | Extract (e1'', h1, l1), Extract (e2'', h2, l2) ->
-          (* TODO: Generic eq expr in extract *)
-          begin match e1'', e2'' with
-          | Symbolic (t1, x1), Symbolic (t2, x2) ->
-              if (t1 = t2) && (x1 = x2) then (
-                if (h1 - l2) = (Types.size (type_of_symbolic t1)) then e1''
-                else Extract (e1'', h1, l2)
-              ) else Concat (e1, e2)
-          | _ -> Concat (e1, e2)
-          end
+          if e1''= e2'' then begin
+            if (h1 - l2) = (Types.size (type_of e1'')) then e1''
+            else Extract (e1'', h1, l2)
+          end else Concat (e1, e2)
       | _ -> Concat (e1, e2)
       end
   | BoolOp (op, e1, e2) ->

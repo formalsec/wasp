@@ -41,6 +41,9 @@ int main() {
     int e = __builtin_annot_intval("symb_int", e);
     int f = __builtin_annot_intval("symb_int", f);
     int *ptr;
+ 
+    ASSUME(e < 8388608 && e > -8388608);
+    ASSUME(f < 8388608 && f > -8388608);
 
     pqueue_push(p1, (void *)&f);
     pqueue_top(p1, (void *)&ptr);

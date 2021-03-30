@@ -318,10 +318,11 @@ let check_sat_core (pc : path_conditions) : Model.model option =
   let pc' = List.map (fun c -> Boolean.mk_eq ctx c bit1) pc_as_bv in
   let solver = Solver.mk_solver ctx None in
   List.iter (fun c -> Solver.add solver [c]) pc';
+  (*
   Printf.printf "\n\nDEBUG ASSERTIONS:\n";
   List.iter (fun a -> Printf.printf "%s\n" (Expr.to_string a)) 
             (Solver.get_assertions solver);
-
+  *)
   begin match Solver.check solver [] with
   | Solver.UNSATISFIABLE -> None
   | Solver.UNKNOWN       -> failwith ("unknown: " ^ (Solver.get_reason_unknown solver)) (* fail? *)

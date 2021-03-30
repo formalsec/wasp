@@ -669,11 +669,8 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
 (*  Symbolic invoke  *)
 let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
   let at = match func with Func.AstFunc (_,_, f) -> f.at | _ -> no_region in
-  let inst_ref =
-    match Func.get_inst func with
-    | Some inst -> inst
-    | None -> Crash.error at "can not symbolically host function" 
-  in
+  let inst_ref = try Option.get (Func.get_inst func) with Invalid_argument s ->
+    Crash.error at ("sym_invoke: " ^ s) in
   let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
       !inst_ref.sym_memory) in
   let initial_memory = Symmem2.memcpy !inst_ref.sym_memory in
@@ -689,9 +686,7 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
   Printf.printf "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
   (* 2. Check if the global path conditions is satisfiable *)
   while !satisfiable do
-
     Printf.printf "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ITERATION NUMBER %s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n" (string_of_int !iterations);
-
     (* 4. Execute the concolic interpreter with the obtained model *)
     let {sym_frame = frame; 
          sym_code = vs, es; 
@@ -718,7 +713,6 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
       big_pi_list := [pi_i] @ !big_pi_list;
 
       Printf.printf "\n\n$$$$$$ BIG PI REPRESENTATION $$$$$$\n";
-      Printf.printf "%s\n\n" (pp_string_of_pc !big_pi_list);
       Printf.printf "%s\n" (pp_string_of_pc [!big_pi]);
       Printf.printf "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n\n";
 

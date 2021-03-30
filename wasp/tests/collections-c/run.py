@@ -7,7 +7,7 @@ def getDirEntry(basename : str):
                 filter(lambda e : e.name.endswith(('.wat', '.wast')), \
                 os.scandir(basename))))
         return dict(dirPath=basename, testLst=lst, \
-                size=len(lst), okCnt=0, errorLst=list())
+                size=len(lst), okCnt=0, errorLst=list(), totalTime=0)
 
 def runTestsInDir(dirEntry : dict):
     print('Entering ' + dirEntry['dirPath'])
@@ -23,13 +23,15 @@ def runTestsInDir(dirEntry : dict):
             subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
             t1 = time.time()
             dirEntry['okCnt'] += 1
+            dirEntry['totalTime'] += t1-t0
             print(f'OK (time={t1-t0}s)')
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             print('NOK')
             dirEntry['errorLst'].append(testPath)
 
-    print('\nRESULTS: {}/{}'.format(dirEntry['okCnt'], \
-            dirEntry['size']))
+    print(f"\nRESULTS: {dirEntry['okCnt']}/{dirEntry['size']} " \
+          f"(total={dirEntry['totalTime']}, " \
+          f"avg={dirEntry['totalTime']/dirEntry['size']})")
     if len(dirEntry['errorLst']):
         print('TESTS NOT OK:')
         list(map(lambda t : print(t), dirEntry['errorLst']))
@@ -48,7 +50,10 @@ def runBenchmarks(basename : str):
             tests))
     c = reduce(lambda a, b: a + b, map(lambda d : d['okCnt'], \
             tests))
-    print('FINAL RESULTS: {}/{} OKs'.format(c, t))
+    time = reduce (lambda a, b: a + b, map(lambda d : d['totalTime'], \
+            tests))
+    avg = time / t
+    print(f'FINAL RESULTS: {c}/{t} OKs\n total={time}, avg={avg}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -60,5 +65,7 @@ if __name__ == '__main__':
         print('-' * 0x41)
         runTestsInDir(getDirEntry(args.dir + '/'))
     else:
-        print('Running GillianBenchmarks...')
+        print('Running Normal GillianBenchmarks...')
         runBenchmarks('tests/collections-c/_build/for-wasp/normal/')
+        print('Running Bug GillianBenchmarks...')
+        runTestsInDir(getDirEntry('tests/collections-c/_build/for-wasp/bugs/'))

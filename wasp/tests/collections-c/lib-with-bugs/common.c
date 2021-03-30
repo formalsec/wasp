@@ -57,12 +57,16 @@ unsigned int bump_pointer = &__heap_base;
 
 void *malloc(unsigned int size) {
   unsigned int r = bump_pointer;
+  for (int i = 0; i < size; ++i)
+    *((unsigned char *)bump_pointer + i) = 'i';
   bump_pointer += size;
   return (void*)r;
 }
 
 void *calloc(unsigned int nmemb, unsigned int size) {
   unsigned int r = bump_pointer;
+  for (int i = 0; i < nmemb * size; ++i)
+    *((unsigned char *)bump_pointer + i) = 0;
   bump_pointer += (nmemb * size);
   return (void*)r;
 }
@@ -106,21 +110,16 @@ void *memcpy(void *dst, const void *src, unsigned int n) {
 }
 
 void *memmove(void *dst, const void *src, unsigned int n) {
-  int i, op;
-  size_t end, cur;
+  char *dst_ptr = (char*)dst;
+  const char *src_ptr = (const char*)src;
 
-  unsigned long *dst_ptr = (unsigned long*)dst;
-  const unsigned long *src_ptr = (const unsigned long*)src;
+  char tmp[n];
 
-  n = n / sizeof(void*);
+  for (int i = 0; i < n; ++i)
+    tmp[i] = src_ptr[i];
 
-  if (dst < src)
-    op = 1, cur = 0, end = n;
-  else
-    op = -1, cur = n - 1, end = -1;
-
-  for (i = 0; cur < end; cur += op)
-    *(dst_ptr + cur) = *(src_ptr + cur);
+  for (int i = 0; i < n; ++i)
+    dst_ptr[i] = tmp[i];
 
   return dst;
 }

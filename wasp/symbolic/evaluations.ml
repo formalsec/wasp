@@ -34,11 +34,9 @@ let eval_unop (s1 : sym_value) (op : Ast.unop) : sym_value =
 
 (*  Evaluate a binary operation *) 
 let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
-	let (v1, se1) = s1 in
-	let (v2, se2) = s2 in 
-  Printf.printf "(v1, se1)=(%s, %s), (v2, se2)=(%s, %s)" (Values.string_of_value v1) (pp_to_string se1) (Values.string_of_value v2) (pp_to_string se2);
+	let (v1, se1) = s1
+  and (v2, se2) = s2 in 
 	let v' = Eval_numeric.eval_binop op v1 v2 in
-  Printf.printf " result=%s" (Values.string_of_value v');
 	let se' = 
     begin match se1, se2 with
     | Value _, Value _ -> Value v'

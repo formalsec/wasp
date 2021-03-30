@@ -41,6 +41,9 @@ int main() {
     int e = dyn_sym_int32('e');
     int f = dyn_sym_int32('f');
     int *ptr;
+ 
+    assume(e < 8388608 && e > -8388608);
+    assume(f < 8388608 && f > -8388608);
 
     pqueue_push(p1, (void *)&f);
     pqueue_top(p1, (void *)&ptr);
