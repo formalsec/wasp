@@ -33,16 +33,16 @@ void teardown_tests() {
 int main() {
     setup_tests();
 
-    int a = dyn_sym_int32('a');
-    int b = dyn_sym_int32('b');
-    int c = dyn_sym_int32('c');
-    int d = dyn_sym_int32('d');
-    int e = dyn_sym_int32('e');
-    int f = dyn_sym_int32('f');
+    int a = sym_int("a", 32);
+    int b = sym_int("b", 32);
+    int c = sym_int("c", 32);
+    int d = sym_int("d", 32);
+    int e = sym_int("e", 32);
+    int f = sym_int("f", 32);
 
-    int x = dyn_sym_int32('x');
-    int y = dyn_sym_int32('y');
-    int z = dyn_sym_int32('z');
+    int x = sym_int("x", 32);
+    int y = sym_int("y", 32);
+    int z = sym_int("z", 32);
     int *ptr;
 
     assume(x < 8388608 && x > -8388608);

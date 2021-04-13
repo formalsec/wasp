@@ -3,6 +3,6 @@
 
 void assume(int expr);
 void assert(int expr);
-int dyn_sym_int32(char);
+int sym_int(char*, int);
 
 #endif

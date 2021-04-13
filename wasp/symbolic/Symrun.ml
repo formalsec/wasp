@@ -334,7 +334,7 @@ let run_action act : Values.value list =
     let inst = lookup_instance x_opt act.at in
     (match Instance.export inst name with
     | Some (Instance.ExternFunc f) ->
-      let res = Symeval.sym_invoke f (List.map (fun v -> (v.it, Symvalue.Value v.it)) vs) in
+      let res = Symeval.sym_invoke' f (List.map (fun v -> (v.it, Symvalue.Value v.it)) vs) in
       (List.map (fun (b,c) -> b) res)
     | Some _ -> Assert.error act.at "export is not a function"
     | None -> Assert.error act.at "undefined export"

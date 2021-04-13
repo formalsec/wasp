@@ -4,11 +4,11 @@
 #include "mockups.h" 
 
 #define symb_str(X)                                                            \
-    int X = dyn_sym_int32('X');                      \
+    int X = sym_int("X", 32);                      \
     char str_##X[] = {X, '\0'}
 
 #define symb_uint(X)                                                           \
-    uint64_t X = dyn_sym_int32('X');
+    uint64_t X = sym_int("X", 32);
 
 void CHECK_EQUAL_C_STRING(char *s1, char *s2);
 

@@ -8,7 +8,7 @@ static int stat;
 
 int main() {
     stat = array_new(&v1);
-    int n = dyn_sym_int32('n');
+    int n = sym_int("n", 32);
     assume(n > 2);
     assume(n < 16);
 

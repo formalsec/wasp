@@ -5,18 +5,20 @@ open Sf64
 open Symvalue
 
 (*  Evaluate a test operation  *)
-let eval_testop (s1 : sym_value) (op : Ast.testop) : sym_value =
-	let (v, se) = s1 in 
-	let v' = Values.value_of_bool (Eval_numeric.eval_testop op v) in
-	let se' = 
-		(match se with
-    | Value _ -> Value v'
+let eval_testop (e : sym_value) (op : Ast.testop) : sym_value =
+	let (c, s) = e in 
+	let c' = Values.value_of_bool (Eval_numeric.eval_testop op c) in
+	let s' =
+		begin match s with
+    | Value _ -> Value c'
 		| _ -> 
-        (match op with
-				| Values.I32 Ast.I32Op.Eqz -> I32Relop (I32Eq, se, Value (Values.I32 (Int32.of_int 0)))
-				| Values.I64 Ast.I64Op.Eqz -> I64Relop (I64Eq, se, Value (Values.I64 (Int64.of_int 0)))
-				| _ -> failwith "Operation not supported yet"))
-  in (v', se')
+        begin match op with
+				| Values.I32 Ast.I32Op.Eqz -> I32Relop (I32Eq, s, Value (Values.I32 0l))
+				| Values.I64 Ast.I64Op.Eqz -> I64Relop (I64Eq, s, Value (Values.I64 0L))
+				| _ -> failwith "eval_testop: Operation not supported yet"
+        end
+    end
+  in (c', s')
 
 (*  Evaluate a unary operation  *)
 let eval_unop (s1 : sym_value) (op : Ast.unop) : sym_value =
@@ -29,7 +31,7 @@ let eval_unop (s1 : sym_value) (op : Ast.unop) : sym_value =
         (match op with
 				| Values.F32 Ast.F32Op.Neg -> F32Unop (F32Neg, se)
 				| Values.F64 Ast.F64Op.Neg -> F64Unop (F64Neg, se)
-				| _ -> failwith "Operation not supported yet")) 
+				| _ -> failwith "eval_unop: Operation not supported yet")) 
   in (v', se')
 
 (*  Evaluate a binary operation *) 
@@ -54,7 +56,10 @@ let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
         | Values.I32 Ast.I32Op.Shl  -> I32Binop (I32Shl , se1, se2)
         | Values.I32 Ast.I32Op.ShrS -> I32Binop (I32ShrS, se1, se2)
         | Values.I32 Ast.I32Op.ShrU -> I32Binop (I32ShrU, se1, se2)
-        | Values.I32 _ -> failwith "I32 binop not implemented"
+        | Values.I32 Ast.I32Op.RemS -> I32Binop (I32RemS, se1, se2)
+        | Values.I32 Ast.I32Op.RemU -> I32Binop (I32RemU, se1, se2)
+        | Values.I32 Ast.I32Op.Rotl -> failwith "eval I32Binop: TODO Rotl"
+        | Values.I32 Ast.I32Op.Rotr -> failwith "eval I32Binop: TODO Rotr"
 				(* I64 *)
 				| Values.I64 Ast.I64Op.Add  -> I64Binop (I64Add, se1, se2)
 				| Values.I64 Ast.I64Op.And  -> I64Binop (I64And, se1, se2)
@@ -63,19 +68,30 @@ let eval_binop (s1 : sym_value) (s2 : sym_value) (op : Ast.binop) : sym_value =
 				| Values.I64 Ast.I64Op.DivS -> I64Binop (I64Div, se1, se2)
 				| Values.I64 Ast.I64Op.Xor  -> I64Binop (I64Xor, se1, se2)
 				| Values.I64 Ast.I64Op.Mul  -> I64Binop (I64Mul, se1, se2)
-        | Values.I64 _ -> failwith "I64 binop not implemented"
+        | Values.I64 Ast.I64Op.DivU -> failwith "eval I64Binop: TODO DivU"
+        | Values.I64 Ast.I64Op.RemS -> failwith "eval I64Binop: TODO RemS"
+        | Values.I64 Ast.I64Op.RemU -> failwith "eval I64Binop: TODO RemU"
+        | Values.I64 Ast.I64Op.Shl  -> failwith "eval I64Binop: TODO Shl"
+        | Values.I64 Ast.I64Op.ShrS -> failwith "eval I64Binop: TODO ShrS"
+        | Values.I64 Ast.I64Op.ShrU -> failwith "eval I64Binop: TODO ShrU"
+        | Values.I64 Ast.I64Op.Rotl -> failwith "eval I64Binop: TODO Rotl"
+        | Values.I64 Ast.I64Op.Rotr -> failwith "eval I64Binop: TODO Rotr"
 				(* F32 *)
 				| Values.F32 Ast.F32Op.Add  -> F32Binop (F32Add, se1, se2)
 				| Values.F32 Ast.F32Op.Sub  -> F32Binop (F32Sub, se1, se2)
 				| Values.F32 Ast.F32Op.Div  -> F32Binop (F32Div, se1, se2)
 				| Values.F32 Ast.F32Op.Mul  -> F32Binop (F32Mul, se1, se2)
-				| Values.F32 _ -> failwith "F32 binop not implemented"
+				| Values.F32 Ast.F32Op.Min  -> failwith "eval F32Binop: TODO Min"
+				| Values.F32 Ast.F32Op.Max  -> failwith "eval F32Binop: TODO Max"
+				| Values.F32 Ast.F32Op.CopySign -> failwith "eval F32Binop: TODO CopySign"
 				(* F64 *)
 				| Values.F64 Ast.F64Op.Add  -> F64Binop (F64Add, se1, se2)
 				| Values.F64 Ast.F64Op.Sub  -> F64Binop (F64Sub, se1, se2)
 				| Values.F64 Ast.F64Op.Div  -> F64Binop (F64Div, se1, se2)
 				| Values.F64 Ast.F64Op.Mul  -> F64Binop (F64Mul, se1, se2)
-				| Values.F64 _ -> failwith "F64 binop not implemented"
+				| Values.F64 Ast.F64Op.Min  -> failwith "eval F64Binop: TODO Min"
+				| Values.F64 Ast.F64Op.Max  -> failwith "eval F64Binop: TODO Max"
+				| Values.F64 Ast.F64Op.CopySign -> failwith "eval F64Binop: TODO CopySign"
         end
     end
   in (v', se')

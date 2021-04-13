@@ -17,9 +17,9 @@ int main() {
     int *b = malloc(sizeof(int));
     int *c = malloc(sizeof(int));
 
-    int x = dyn_sym_int32('x');
-    int y = dyn_sym_int32('y');
-    int z = dyn_sym_int32('z');
+    int x = sym_int("x", 32);
+    int y = sym_int("y", 32);
+    int z = sym_int("z", 32);
 
     *a = x;
     *b = y;

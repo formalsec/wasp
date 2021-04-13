@@ -45,6 +45,7 @@ let compare_expr = CompareExpr
 (*  SYMBOLIC EXECUTION  *)
 let sym_assert = SymAssert
 let sym_assume = SymAssume
+let sym_int     = SymInt
 let sym_int32 x = SymInt32 x
 let sym_int64 x = SymInt64 x
 let dyn_sym_int32 = DynSymInt32

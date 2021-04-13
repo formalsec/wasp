@@ -9,14 +9,14 @@ int a, b, c, d, e, f, g, h;
 void setup_tests() {
     list_new(&list1), list_new(&list2);
 
-    a = dyn_sym_int32('a');
-    b = dyn_sym_int32('b');
-    c = dyn_sym_int32('c');
-    d = dyn_sym_int32('d');
-    e = dyn_sym_int32('e');
-    f = dyn_sym_int32('f');
-    g = dyn_sym_int32('g');
-    h = dyn_sym_int32('h');
+    a = sym_int("a", 32);
+    b = sym_int("b", 32);
+    c = sym_int("c", 32);
+    d = sym_int("d", 32);
+    e = sym_int("e", 32);
+    f = sym_int("f", 32);
+    g = sym_int("g", 32);
+    h = sym_int("h", 32);
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -58,7 +58,7 @@ int main() {
     setup_tests();
 
     int *rr = (int *)malloc(sizeof(int));
-    int r = dyn_sym_int32('r');
+    int r = sym_int("r", 32);
 
     *rr = r;
 

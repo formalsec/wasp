@@ -10,9 +10,9 @@ void teardown_tests() { stack_destroy(s); }
 int main() {
     setup_tests();
 
-    int a = dyn_sym_int32('a');
-    int b = dyn_sym_int32('b');
-    int c = dyn_sym_int32('c');
+    int a = sym_int("a", 32);
+    int b = sym_int("b", 32);
+    int c = sym_int("c", 32);
 
     stack_push(s, (void *)&a);
     stack_push(s, (void *)&b);

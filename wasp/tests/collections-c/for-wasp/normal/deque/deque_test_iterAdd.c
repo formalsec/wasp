@@ -12,13 +12,13 @@ void teardown_tests() { deque_destroy(deque); }
 int main() {
     setup_tests();
 
-    int a = dyn_sym_int32('a');
-    int b = dyn_sym_int32('b');
-    int c = dyn_sym_int32('c');
-    int d = dyn_sym_int32('d');
-    int e = dyn_sym_int32('e');
-    int f = dyn_sym_int32('f');
-    int g = dyn_sym_int32('g');
+    int a = sym_int("a", 32);
+    int b = sym_int("b", 32);
+    int c = sym_int("c", 32);
+    int d = sym_int("d", 32);
+    int e = sym_int("e", 32);
+    int f = sym_int("f", 32);
+    int g = sym_int("g", 32);
 
     deque_add(deque, &a);
     deque_add(deque, &b);

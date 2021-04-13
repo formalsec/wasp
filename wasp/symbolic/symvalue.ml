@@ -44,6 +44,16 @@ let type_of_symbolic = function
   | SymFloat32 -> F32Type
   | SymFloat64 -> F64Type
 
+let to_symbolic (t : value_type) (x : string) : sym_expr =
+  let symb = begin match t with
+    | I32Type -> SymInt32
+    | I64Type -> SymInt64
+    | F32Type -> SymFloat32
+    | F64Type -> SymFloat64
+    end
+  in Symbolic (symb, x)
+
+
 let rec type_of (e : sym_expr) : value_type  =
   let rec concat_length (e : sym_expr) : int =
     begin match e with
@@ -392,6 +402,8 @@ let rec simplify (e : sym_expr) : sym_expr =
       *)
       | I32ShrS -> I32Binop (I32ShrS, e1', e2')
       | I32ShrU -> I32Binop (I32ShrU, e1', e2')
+      | I32RemS -> I32Binop (I32RemS, e1', e2')
+      | I32RemU -> I32Binop (I32RemU, e1', e2')
       end
   | I32Unop  (op, e) -> I32Unop (op, simplify e)
   | I32Relop (op, e1, e2) ->

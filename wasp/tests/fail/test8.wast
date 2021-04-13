@@ -3,9 +3,22 @@
 (module 
     (memory $0 1)
 
+    (func $constraints (param i64) (result i64)
+        (local.get 0)
+        (i64.const 0)
+        (i64.gt_s)
+        (local.get 0)
+        (i64.const 9_999)
+        (i64.le_s)
+        (i32.and)
+        (sym_assume)
+        (local.get 0))
+
     (func $main (result i32)
         (sym_int64 "x")
+        (call $constraints)
         (sym_int64 "y")
+        (call $constraints)
         (get_sym_int64 "y")
         (i64.mul)
         (i64.eq)

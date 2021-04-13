@@ -7,7 +7,7 @@ def getDirEntry(basename : str):
                 filter(lambda e : e.name.endswith(('.wat', '.wast')), \
                 os.scandir(basename))))
         return dict(dirPath=basename, testLst=lst, \
-                size=len(lst), okCnt=0, errorLst=list(), totalTime=0)
+                size=len(lst), okCnt=0, errorLst=list(), totalTime=0, lines=0)
 
 def runTestsInDir(dirEntry : dict):
     print('Entering ' + dirEntry['dirPath'])
@@ -20,18 +20,25 @@ def runTestsInDir(dirEntry : dict):
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")']
             t0 = time.time()
-            subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
             t1 = time.time()
+            str_out = map(lambda l : l.decode("utf-8"), out.split(b'\n'))
+            lines = 0
+            for line in str_out:
+                if "TOTAL LINES EVALUATED: " in line:
+                    lines = int(line[23:].rstrip())
+            dirEntry['lines'] += lines
             dirEntry['okCnt'] += 1
             dirEntry['totalTime'] += t1-t0
-            print(f'OK (time={t1-t0}s)')
+            print(f'OK (time={t1-t0}s, lines={lines})')
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             print('NOK')
             dirEntry['errorLst'].append(testPath)
 
     print(f"\nRESULTS: {dirEntry['okCnt']}/{dirEntry['size']} " \
           f"(total={dirEntry['totalTime']}, " \
-          f"avg={dirEntry['totalTime']/dirEntry['size']})")
+          f"avg={dirEntry['totalTime']/dirEntry['size']})"
+          f"avg_lines={dirEntry['lines']/dirEntry['size']}")
     if len(dirEntry['errorLst']):
         print('TESTS NOT OK:')
         list(map(lambda t : print(t), dirEntry['errorLst']))
@@ -52,8 +59,13 @@ def runBenchmarks(basename : str):
             tests))
     time = reduce (lambda a, b: a + b, map(lambda d : d['totalTime'], \
             tests))
+    lines = reduce (lambda a, b: a + b, map(lambda d : d['lines'], \
+            tests))
     avg = time / t
-    print(f'FINAL RESULTS: {c}/{t} OKs\n total={time}, avg={avg}')
+    avg_lines = lines / t
+
+    print(f'FINAL RESULTS: {c}/{t} OKs\n total={time}, avg={avg}'
+          f', avg_lines={avg_lines}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

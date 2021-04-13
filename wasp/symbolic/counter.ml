@@ -1,0 +1,35 @@
+type name = string
+type count = int
+
+type counter = (name, count) Hashtbl.t
+type t = counter
+
+let create () : counter =
+  let cnt : counter = Hashtbl.create 512 in
+  cnt
+
+let clear (cnt : counter) : unit =
+  Hashtbl.clear cnt
+
+let reset (cnt : counter) : unit =
+  Seq.iter (fun (k, _) ->
+    Hashtbl.replace cnt k 0
+  ) (Hashtbl.to_seq cnt)
+
+let add (cnt : counter) (key : name) (data : count) : unit =
+  Hashtbl.add cnt key data
+
+let find (cnt : counter) (x : name) : count =
+  Hashtbl.find cnt x
+
+let exists (cnt : counter) (x : name) : bool =
+  Hashtbl.mem cnt x
+
+let replace (cnt : counter) (key : name) (data : count) : unit =
+  Hashtbl.replace cnt key data
+
+let to_string (cnt : counter) : string =
+  Seq.fold_left (fun a b ->
+    let (k, c) = b in
+    a ^ "(" ^ k ^ "-> cnt=" ^ (string_of_int c) ^ ")\n"
+  ) "" (Hashtbl.to_seq cnt)

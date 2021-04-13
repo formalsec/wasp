@@ -9,12 +9,12 @@ static int stat;
 int main() {
     stat = array_new(&v1);
 
-    int a = dyn_sym_int32('a');
-    int b = dyn_sym_int32('b');
-    int c = dyn_sym_int32('c');
-    int d = dyn_sym_int32('d');
+    int a = sym_int("a", 32);
+    int b = sym_int("b", 32);
+    int c = sym_int("c", 32);
+    int d = sym_int("d", 32);
 
-    int N = dyn_sym_int32('N');
+    int N = sym_int("N", 32);
 
     assume(c != a && c != b && c != d && c != N);
 

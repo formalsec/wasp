@@ -19,47 +19,47 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    int a = dyn_sym_int32('a');
+    int a = sym_int("a", 32);
     assume(a > 0); assume(a < 127);
     char str_a[] = {a, '\0'};
 
-    int b = dyn_sym_int32('b');
+    int b = sym_int("b", 32);
     assume(b > 0); assume(b < 127);
     char str_b[] = {b, '\0'};
 
-    int c = dyn_sym_int32('c');
+    int c = sym_int("c", 32);
     assume(c > 0); assume(c < 127);
     char str_c[] = {c, '\0'};
 
-    int d = dyn_sym_int32('d');
+    int d = sym_int("d", 32);
     assume(d > 0); assume(d < 127);
     char str_d[] = {d, '\0'};
 
-    int e = dyn_sym_int32('e');
+    int e = sym_int("e", 32);
     assume(e > 0); assume(e < 127);
     char str_e[] = {e, '\0'};
 
-    int f = dyn_sym_int32('f');
+    int f = sym_int("f", 32);
     assume(f > 0); assume(f < 127);
     char str_f[] = {f, '\0'};
 
-    int g = dyn_sym_int32('g');
+    int g = sym_int("g", 32);
     assume(g > 0); assume(g < 127);
     char str_g[] = {g, '\0'};
 
-    int h = dyn_sym_int32('h');
+    int h = sym_int("h", 32);
     assume(h > 0); assume(h < 127);
     char str_h[] = {h, '\0'};
 
-    int i = dyn_sym_int32('i');
+    int i = sym_int("i", 32);
     assume(i > 0); assume(i < 127);
     char str_i[] = {i, '\0'};
 
-    int x = dyn_sym_int32('x');
+    int x = sym_int("x", 32);
     assume(x > 0); assume(x < 127);
     char str_x[] = {x, '\0'};
 
-    int y = dyn_sym_int32('y');
+    int y = sym_int("y", 32);
     assume(y > 0); assume(y < 127);
     char str_y[] = {y, '\0'};
 

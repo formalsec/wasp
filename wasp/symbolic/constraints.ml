@@ -1,3 +1,4 @@
+open Symvalue
 (*
 ░█████╗░░█████╗░███╗░░██╗░██████╗████████╗██████╗░░█████╗░██╗███╗░░██╗████████╗░██████╗
 ██╔══██╗██╔══██╗████╗░██║██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██║████╗░██║╚══██╔══╝██╔════╝
@@ -8,22 +9,21 @@
 
 
 (*  Stores the AssumeFail constraints  *)
-type constraints = (int, Symvalue.sym_expr list) Hashtbl.t
+type constraints = (int, path_conditions) Hashtbl.t
+type t = constraints
 
 (*  Creates a hashtable to store the AssumeFail constraints  *)
-let create_constraints : constraints = 
-	let const : constraints = Hashtbl.create 510 in
-	const
+let create : constraints =
+  let c : constraints = Hashtbl.create 512 in
+  c
 
-(*  Adds a variable to the AssumeFail constraints  *)
-let set_constraint (const : constraints) (iteration : int) 
-    (lst : Symvalue.sym_expr list) : unit =
-  Hashtbl.replace const iteration lst
+let add (c : constraints) (i : int) (pc : path_conditions) : unit =
+  Hashtbl.replace c i pc
 
-(*  String representation of the AssumeFail constraints  *)
-let print_constraints (const : constraints) : string = 
-	Hashtbl.fold (fun k v acc -> 
-    "[  Iteration #" ^ (string_of_int k) ^ 
-    "    ---->    "  ^ (Symvalue.pp_string_of_pc v) ^
-    "  ]\n" ^ acc
-  ) const ""
+let to_string (c : constraints) : string =
+  let lst = Hashtbl.fold (fun k v acc -> (k, v) :: acc) c [] in
+  let lst = List.sort (fun (a, _) (b, _) -> compare a b) lst in
+  List.fold_left (fun a (k, v) ->
+    a ^ "[  Iteration #" ^ (string_of_int k) ^
+        "    ---->    "  ^ (Symvalue.pp_string_of_pc v) ^ "]\n"
+  ) "" lst

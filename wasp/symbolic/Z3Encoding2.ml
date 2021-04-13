@@ -43,7 +43,9 @@ struct
 
   let encode_binop (op : binop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
-    let op' = begin match op with
+    let e1' = extend e1 32
+    and e2' = extend e2 32
+    and op' = begin match op with
       | I32Add  -> BitVector.mk_add  ctx
       | I32Sub  -> BitVector.mk_sub  ctx
       | I32Mul  -> BitVector.mk_mul  ctx
@@ -55,8 +57,10 @@ struct
       | I32Shl  -> BitVector.mk_shl  ctx
       | I32ShrS -> BitVector.mk_ashr ctx
       | I32ShrU -> BitVector.mk_lshr ctx
+      | I32RemS -> BitVector.mk_srem ctx
+      | I32RemU -> BitVector.mk_urem ctx
       end
-    in op' e1 e2
+    in op' e1' e2'
 
   let encode_relop (op : relop) (e1 : Expr.expr) 
       (e2 : Expr.expr) : Expr.expr = 
@@ -90,7 +94,9 @@ struct
 
   let encode_binop (op : binop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
-    let op = begin match op with
+    let e1' = extend e1 64
+    and e2' = extend e2 64
+    and op' = begin match op with
       | I64Add  -> BitVector.mk_add  ctx
       | I64Sub  -> BitVector.mk_sub  ctx
       | I64Mul  -> BitVector.mk_mul  ctx
@@ -99,7 +105,7 @@ struct
       | I64Xor  -> BitVector.mk_xor  ctx
       | I64Or   -> BitVector.mk_or   ctx
       end
-    in op e1 e2
+    in op' e1' e2'
 
   let encode_relop (op : relop) (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
@@ -217,7 +223,7 @@ let encode_value (v : value) : Expr.expr =
   | I32 i -> Zi32.encode_value (Int32.to_int i)
   | I64 i -> Zi64.encode_value (Int64.to_int i)
   | F32 f -> Zf32.encode_value (F32.to_float f)
-  | F64 f -> Zf32.encode_value (F64.to_float f)
+  | F64 f -> Zf64.encode_value (F64.to_float f)
   end
 
 let rec encode_sym_expr (e : sym_expr) : Expr.expr =
@@ -331,7 +337,7 @@ let check_sat_core (pc : path_conditions) : Model.model option =
 
 let lift_z3_model (model : Model.model) (sym_int32 : string list)
     (sym_int64 : string list) (sym_float32 : string list)
-    (sym_float64 : string list) : Logicenv.logical_env = 
+    (sym_float64 : string list) : (string * value) list = 
 
   let lift_z3_const (c : sym_expr) : int64 option =
     let recover_numeral (n : Expr.expr) : int64 option =
@@ -344,25 +350,24 @@ let lift_z3_model (model : Model.model) (sym_int32 : string list)
     let v = Model.get_const_interp_e model (encode_sym_expr c) in
     Option.map_default recover_numeral None v
   in
-  let store = Logicenv.create_logic_env [] in
-  List.iter (fun x ->
+  let i32_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymInt32, x)) in
     let v = Option.map (fun y -> I32 (Int64.to_int32 y)) n in
-    Option.map_default (Logicenv.set_sym store x) () v
-  ) sym_int32;
-  List.iter (fun x ->
+    Option.map_default (fun y -> (x, y) :: a) (a) v
+  ) [] sym_int32 in
+  let i64_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymInt64, x)) in
     let v = Option.map (fun y -> I64 y) n in
-    Option.map_default (Logicenv.set_sym store x) () v
-  ) sym_int64;
-  List.iter (fun x ->
+    Option.map_default (fun y -> (x, y) :: a) (a) v
+  ) [] sym_int64 in
+  let f32_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymFloat32, x)) in
     let v = Option.map (fun y -> F32 (F32.of_bits (Int64.to_int32 y))) n in
-    Option.map_default (Logicenv.set_sym store x) () v
-  ) sym_float32;
-  List.iter (fun x ->
+    Option.map_default (fun y -> (x, y) :: a) (a) v
+  ) [] sym_float32 in
+  let f64_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymFloat64, x)) in
     let v = Option.map (fun y -> F64 (F64.of_bits y)) n in
-    Option.map_default (Logicenv.set_sym store x) () v
-  ) sym_float64;
-  store
+    Option.map_default (fun y -> (x, y) :: a) (a) v
+  ) [] sym_float64 in
+  i32_asgn @ (i64_asgn @ (f32_asgn @ f64_asgn))

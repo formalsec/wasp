@@ -48,10 +48,10 @@ comma =		,
 
 .INTERMEDIATE:	_tags
 _tags:
-		echo >$@ "true: thread"
-		echo >>$@ "true: package(z3)"
+		echo >$@ "true: package(z3)"
 		echo >>$@ "true: package(batteries)"
 		echo >>$@ "true: package(extlib)"
+		echo >>$@ "true: thread"
 		echo >>$@ "true: bin_annot"
 		echo >>$@ "true: debug"
 		echo >>$@ "<{$(subst $(space),$(comma),$(DIRS))}/*.cmx>: for-pack($(PACK))"

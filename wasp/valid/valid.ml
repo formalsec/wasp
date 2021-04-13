@@ -286,6 +286,8 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
     let t1, t2 = type_cvtop e.at cvtop in
     [t1] --> [t2]
 
+  | SymInt -> [Some I32Type; Some I32Type] -~> [peek 0 s]
+
   | SymInt32 _ -> [] --> [I32Type]
 
   | SymInt64 _ -> [] --> [I64Type]

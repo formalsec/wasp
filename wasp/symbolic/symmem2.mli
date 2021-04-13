@@ -11,13 +11,17 @@ type store = int * sym_expr
 
 (* TODO(create): replace failwith, with proper exceptions *)
 exception Bounds
-exception InvalidAddress
+exception InvalidAddress of address
 
 val packed_size : Memory.pack_size -> int
 
 val alloc : int -> memory
 val size : memory -> int
+val clear : memory -> unit
 val memcpy : memory -> memory
+val init : memory -> (address * store) list -> unit
+
+val to_list : memory -> (address * store) list
 val to_string : memory -> string
 
 val load_byte : memory -> address -> store

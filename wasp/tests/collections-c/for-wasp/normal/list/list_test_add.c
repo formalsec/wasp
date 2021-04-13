@@ -14,16 +14,16 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    int a = dyn_sym_int32('a');
+    int a = sym_int("a", 32);
     char str_a[] = {a, '\0'};
 
-    int b = dyn_sym_int32('b');
+    int b = sym_int("b", 32);
     char str_b[] = {b, '\0'};
 
-    int c = dyn_sym_int32('c');
+    int c = sym_int("c", 32);
     char str_c[] = {c, '\0'};
 
-    int d = dyn_sym_int32('d');
+    int d = sym_int("d", 32);
     char str_d[] = {d, '\0'};
 
     assert(CC_OK == list_add(list1, str_a));

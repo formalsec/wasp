@@ -10,14 +10,14 @@ int a, b, c, d, e, f, g, h;
 void setup_test() {
     slist_new(&list), slist_new(&list2);
 
-    a = dyn_sym_int32('a');
-    b = dyn_sym_int32('b');
-    c = dyn_sym_int32('c');
-    d = dyn_sym_int32('d');
-    e = dyn_sym_int32('e');
-    f = dyn_sym_int32('f');
-    g = dyn_sym_int32('g');
-    h = dyn_sym_int32('h');
+    a = sym_int("a", 32);
+    b = sym_int("b", 32);
+    c = sym_int("c", 32);
+    d = sym_int("d", 32);
+    e = sym_int("e", 32);
+    f = sym_int("f", 32);
+    g = sym_int("g", 32);
+    h = sym_int("h", 32);
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));
@@ -58,7 +58,7 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    int i = dyn_sym_int32('i');
+    int i = sym_int("i", 32);
     int *i1 = (int *)malloc(sizeof(int));
 
     *i1 = i;
@@ -84,7 +84,7 @@ int main() {
     slist_get_at(list, 4, (void *)&li4);
     assert(d == *li4);
 
-    int x = dyn_sym_int32('x');
+    int x = sym_int("x", 32);
     int *i2 = (int *)malloc(sizeof(int));
 
     *i2 = x;

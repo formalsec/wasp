@@ -13,7 +13,6 @@ open Types
 open Instance
 open Ast
 open Source
-open Logicenv
 open Evaluations
 open Si32
 
@@ -29,8 +28,10 @@ exception Trap = Trap.Error
 exception Crash = Crash.Error (* failure that cannot happen in valid code *)
 exception Exhaustion = Exhaustion.Error
 
+
 let memory_error at = function
-  | Symmem2.InvalidAddress -> "address not found in hashtable"
+  | Symmem2.InvalidAddress a -> 
+      (Int64.to_string a) ^ ":address not found in hashtable"
   | Symmem2.Bounds -> "out of bounds memory access"
   (* TODO: might just remove these *)
   | Memory.SizeOverflow -> "memory size overflow"
@@ -72,6 +73,8 @@ and sym_admin_instr' =
   | SBreaking of int32 * sym_value stack
   | SLabel of int * instr list * sym_code
   | SFrame of int * sym_frame * sym_code
+  | AsmFail of path_conditions
+  | AsrtFail of string
 
 
 (*  Symbolic configuration  *)
@@ -79,9 +82,9 @@ type sym_config =
 {
   sym_frame : sym_frame;
   sym_code : sym_code;
-  mutable logic_env : logical_env;
+  logic_env : Logicenv.t;
   path_cond : path_conditions;
-  mutable sym_mem : Symmem2.t;
+  sym_mem : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
 }
 
@@ -90,24 +93,25 @@ let sym_frame sym_inst sym_locals = {sym_inst; sym_locals}
 let sym_config inst vs es sym_m = {
   sym_frame = sym_frame inst []; 
   sym_code = vs, es; 
-  logic_env = (create_logic_env []);
+  logic_env = Logicenv.create []; 
   path_cond = [];
   sym_mem = sym_m;
   sym_budget = 300
 }
 
-(* AssertFail finish flag *)
-let finish = ref false
+exception AssumeFail of sym_config * path_conditions
+exception AssertFail of region * string
+exception Unsatisfiable
 
-(* To keep track of in which iteration the execution is in *)
-let iterations = ref 1
+let sym_counter = Counter.create ()
+let instr_cnt = ref 0
 
+let iterations  = ref 1
 (* To keep track of the coverage of the test *)
-let lines = ref []
+let lines       = ref []
 let lines_total = ref []
 
-(* AssertFail constraint list *)
-let finish_constraints = Constraints.create_constraints
+let instr_max = 1_000_000
 
 let plain e = SPlain e.it @@ e.at
 
@@ -198,6 +202,9 @@ let fresh_sym_var : (unit -> string) =
 
 (*  Symbolic step  *)
 let rec sym_step (c : sym_config) : sym_config =
+  instr_cnt := !instr_cnt + 1;
+  if !instr_cnt >= instr_max then
+    raise Unsatisfiable;
   let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond; sym_mem; _} = c in
   let e = List.hd es in
   if not (List.memq (Source.get_line e.at) !lines) then
@@ -335,7 +342,6 @@ let rec sym_step (c : sym_config) : sym_config =
             | Global.Type -> Crash.error e.at "type mismatch at global write")
 
       | Load {offset; ty; sz; _}, (I32 i, _) :: vs' -> 
-        (* let mem = memory frame.sym_inst (0l @@ e.at) in *)
         let base = I64_convert.extend_i32_u i in
         begin try
           let (v, e) =
@@ -343,10 +349,11 @@ let rec sym_step (c : sym_config) : sym_config =
             | None -> Symmem2.load_value sym_mem base offset ty
             | Some (sz, ext) -> Symmem2.load_packed sz sym_mem base offset ty
           in (v, e) :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem end
+        with exn -> 
+          vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
+        end
 
       | Store {offset; sz; _}, (v, ex) :: (I32 i, _) :: vs' ->
-        (*let mem = memory frame.sym_inst (0l @@ e.at) in*)
         let base = I64_convert.extend_i32_u i in
         begin try
           begin match sz with
@@ -354,24 +361,10 @@ let rec sym_step (c : sym_config) : sym_config =
           | Some sz -> Symmem2.store_packed sz sym_mem base offset (v, ex)
           end;
           vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem end
-        (*
-        (try
-          (match sz with
-          | None -> 
-              Memory.store_value mem base offset v; 
-              Symmem2.store_value sym_mem base offset (v, ex)
-          | Some sz -> 
-              Memory.store_packed sz mem base offset v; (* assert (packed_size sz <= Types.size (Values.type_of v)); *)
-              (*Symmem.store_value sym_mem (Int64.to_int addr) (v, ex, (Memory.packed_size sz));*)
-              Symmem2.store_packed sz sym_mem base offset (v, ex)
-          );
-          vs', [], logic_env, path_cond, sym_mem
-        with 
-          | Failure f -> Crash.error e.at f
-          | exn -> vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
+        with exn -> 
+          vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
+        end
 
-      *)
       | MemorySize, vs ->
         let mem = memory frame.sym_inst (0l @@ e.at) in
         (I32 (Memory.size mem), Value (I32 (Memory.size mem))) :: vs, [], logic_env, path_cond, sym_mem
@@ -419,70 +412,115 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | Dup, v :: vs' ->
         v :: v :: vs', [], logic_env, path_cond, sym_mem
-      
-      | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
-        Printf.printf "%s\n" (pp_string_of_pc path_cond);
+
+      | SymAssert, (I32 0l, ex) :: vs' -> (* 0 on top of stack *)
         Printf.printf ">>> Assert reached. Checking satisfiability...\n";
-        let ex' = Symvalue.simplify ex in
-        Printf.printf "simplify (%s) = %s\n" (pp_to_string ex) (pp_to_string ex');
-        begin match ex' with 
-        | Value (I32 0l) ->
-            Crash.error e.at (
-              "\n******* Asserted false *******\n" ^ 
-              "Path conditions are:\n"             ^ (pp_string_of_pc path_cond) ^ 
-              "\n\nLogical environment is:\n"      ^ (print_sym_store logic_env) ^ 
-              "\n******************************\n\n")
-        | Value (I32 1l) ->
-            Printf.printf "\n\n###### Assertion passed ######\n";
-            vs', [], logic_env, path_cond, sym_mem
-        | _ ->
-          let query = neg_expr ex' in
-          Printf.printf "Query: %s\n" (pp_to_string query);
-          if (path_cond = []) then begin
-            Printf.printf "\n\n###### Assertion passed ######\n";
-            vs', [], logic_env, path_cond, sym_mem
+        let es' =
+          if path_cond = [] then begin
+            [AsrtFail (Logicenv.to_string logic_env) @@ e.at]
           end else begin
-            begin match Z3Encoding2.check_sat_core [and_list (path_cond @ [query])] with 
-            | None -> (* Not satisfiable, execution can continue *)
-                Printf.printf "\n\n###### Assertion passed ######\n";
-                vs', [], logic_env, path_cond, sym_mem
-            | Some m -> (* Satisfiable, exception raised *)
-                Crash.error e.at (
-                  "\n****** Assertion failed ******" ^
-                  "\nModel is:\n"                    ^ (Z3.Model.to_string m) ^ 
-                  "\n******************************\n\n")
+            let ex' = simplify ex in
+            let cond = match ex' with Value _ -> [] | _ -> [neg_expr ex'] in
+            let query = and_list (cond @ path_cond) in
+            begin match Z3Encoding2.check_sat_core [query] with
+            | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
+            | None ->
+              Printf.printf "\n\n###### Assertion passed ######\n";
+              []
             end
           end
-        end
+        in vs', es', logic_env, path_cond, sym_mem
+      
+      | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
+        Printf.printf ">>> Assert reached. Checking satisfiability...\n";
+        let es' =
+          if path_cond = [] then begin
+            Printf.printf "\n\n###### Assertion passed ######\n";
+            []
+          end else begin
+            let ex' = simplify ex in
+            begin match ex' with
+            | Value (I32 v) when not (v = 0l) ->
+              Printf.printf "\n\n###### Assertion passed ######\n";
+              []
+            | _ ->
+              let cond = neg_expr ex' in
+              let query = and_list (cond :: path_cond) in
+              begin match Z3Encoding2.check_sat_core [query] with
+              | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
+              | None ->
+                  Printf.printf "\n\n###### Assertion passed ######\n";
+                  []
+              end
+            end
+          end
+        in vs', es', logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 0l, ex) :: vs' ->
         Printf.printf ">>> Assumed false. Finishing...\n";
-        let v' = neg_expr ex in
-        let to_add = (match v' with | Value _ -> [] | _ -> [v']) in
-        finish := true;
-        Constraints.set_constraint finish_constraints !iterations (to_add @ path_cond);
-        [], [], logic_env, to_add @ path_cond, sym_mem
+        let to_add = match ex with Value _ -> [] | _ -> [neg_expr ex] in
+        let path_cond = to_add @ path_cond in
+        [], [AsmFail path_cond @@ e.at], logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
         let to_add = (match ex with | Value _ -> [] | _ -> [ex]) in
         Printf.printf ">>> Assume passed. Continuing execution...\n";
         vs', [], logic_env, to_add @ path_cond, sym_mem
 
+      | SymInt, (I32 sz, _) :: (I32 i, _) :: vs' ->
+        (* TODO: if n = 0, error handling on load_byte *)
+        let strlen a =
+          let rec loop a i =
+            let (chr, _) = Symmem2.load_byte sym_mem 
+                              Int64.(add a (of_int i)) in
+            if chr = 0 then i else loop a (i + 1)
+          in loop a 0
+        in
+        let rand len =
+          begin match len with
+          | 32 -> I32 I32.random
+          | 64 -> I64 I64.random
+          | _ -> failwith ("SymInt: TODO length of " ^ (string_of_int len))
+          end
+        in
+        let base = I64_convert.extend_i32_u i in
+        let x = Symmem2.load_bytes sym_mem base (strlen base) in
+        let (x, v) =
+        if Logicenv.exists logic_env x then begin
+          let cnt = Counter.find sym_counter x in
+          let x' = if cnt = 0 then x 
+                   else x ^ (string_of_int cnt) in
+          let v = try Logicenv.find logic_env x' with Not_found ->
+            let v' = rand (Int32.to_int sz) in
+            Logicenv.add logic_env x' v';
+            v'
+          in
+          Counter.replace sym_counter x (cnt + 1);
+          x', v
+        end else begin
+          let v' = rand (Int32.to_int sz) in
+          Counter.add sym_counter x 0;
+          Logicenv.add logic_env x v';
+          x, v'
+        end
+        in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
+           path_cond, sym_mem
+
       | SymInt32 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found ->
             let v' = I32 I32.random in
-            Logicenv.set_sym logic_env x v';
+            Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | SymInt64 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with 
+          try Logicenv.find logic_env x with 
           | Not_found ->
             let v' = I64 I64.random in
-            Logicenv.set_sym logic_env x v';
+            Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
@@ -490,52 +528,52 @@ let rec sym_step (c : sym_config) : sym_config =
         let x = Char.escaped (Char.chr (Int32.to_int i)) in
         (*let x = fresh_sym_var () in *)
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found ->
             let v' = I32 I32.random in
-            Logicenv.set_sym logic_env x v';
+            Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymInt32, x)) :: vs, [], logic_env, path_cond, sym_mem
 
       | SymFloat32 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found ->
             let v' = F32 F32.random in
-            Logicenv.set_sym logic_env x v';
+            Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | SymFloat64 x, vs' ->
         let v = 
-          try Hashtbl.find logic_env x with 
+          try Logicenv.find logic_env x with 
           | Not_found ->
             let v' = F64 F64.random in
-            Logicenv.set_sym logic_env x v';
+            Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | GetSymInt32 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
         in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | GetSymInt64 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
         in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | GetSymFloat32 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
         in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | GetSymFloat64 x, vs' ->
         let v =
-          try Hashtbl.find logic_env x with
+          try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
         in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
@@ -587,6 +625,12 @@ let rec sym_step (c : sym_config) : sym_config =
     | STrapping msg, vs ->
       assert false
 
+    | AsmFail pc, vs ->
+      assert false
+
+    | AsrtFail msg, vs ->
+      assert false
+
     | SReturning vs', vs ->
       Crash.error e.at "undefined frame"
 
@@ -595,6 +639,12 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | SLabel (n, es0, (vs', [])), vs ->
       vs' @ vs, [], logic_env, path_cond, sym_mem
+
+    | SLabel (n, es0, (vs', {it = AsmFail pc; at} :: es')), vs ->
+      vs, [AsmFail pc @@ at], logic_env, path_cond, sym_mem
+
+    | SLabel (n, es0, (vs', {it = AsrtFail msg; at} :: es')), vs ->
+      vs, [AsrtFail msg @@ at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -614,6 +664,12 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | SFrame (n, frame', (vs', [])), vs ->
       vs' @ vs, [], logic_env, path_cond, sym_mem
+
+    | SFrame (n, frame', (vs', {it = AsmFail pc; at} :: es')), vs ->
+      vs, [AsmFail pc @@ at], logic_env, path_cond, sym_mem
+
+    | SFrame (n, frame', (vs', {it = AsrtFail msg; at} :: es')), vs ->
+      vs, [AsrtFail msg @@ at], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -657,16 +713,120 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
   | vs, {it = STrapping msg; at} :: _ ->
     Trap.error at msg
 
+  | vs, {it = AsmFail pc; at} :: _ ->
+    raise (AssumeFail (c, pc))
+
+  | vs, {it = AsrtFail witness; at} :: _ ->
+    raise (AssertFail (at, witness))
+
   | vs, es ->
-    if !finish = true then (
-      finish := false;
-      c
-    ) else (
-      sym_eval (sym_step c)
-    )
+    sym_eval (sym_step c)
 
 (* Functions & Constants *)
+
+let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
+  let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
+  let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
+    Crash.error at ("sym_invoke: " ^ s) in
+  let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
+    !inst.sym_memory) in
+  let initial_memory = Symmem2.to_list !inst.sym_memory in
+  let finish_constraints = Constraints.create in
+
+  (* Concolic execution *)
+  let global_time = ref 0. in
+  let rec loop global_pc =
+    Printf.printf "%s ITERATION NUMBER %s %s\n\n" (String.make 35 '~') 
+        (string_of_int !iterations) (String.make 35 '~');
+    let {logic_env; path_cond = pc; _} = try sym_eval !c with
+      | AssumeFail (conf, cons) -> 
+          Constraints.add finish_constraints !iterations cons;
+          conf
+      | AssertFail (at, wit) ->
+          let err = (string_of_region at) ^ ": Assertion Failure\n" ^ wit in
+          Printf.printf "\n%s\n\n" err;
+          Trap.error at "Assertion Failure"
+      | Trap (at, msg) -> Trap.error at msg
+    in
+    if pc = [] then 
+      raise Unsatisfiable;
+
+    Counter.reset sym_counter;
+
+    (* DEBUG: *)
+    let delim = String.make 6 '$' in
+    Printf.printf "\n\n%s LOGICAL ENVIRONMENT BEFORE Z3 STATE %s\n%s%s\n\n" 
+        delim delim (Logicenv.to_string logic_env) (String.make 48 '$');
+    Printf.printf "\n\n%s PATH CONDITIONS BEFORE Z3 %s\n%s\n%s\n"
+        delim delim (pp_string_of_pc pc) (String.make 38 '$');
+
+    let global_pc' = BoolOp (And, global_pc, neg_expr (and_list pc)) in
+
+    (* DEBUG: *)
+    Printf.printf "\n\n%s GLOBAL PATH CONDITION %s\n%s\n%s\n\n"
+        delim delim (pp_string_of_pc [global_pc']) (String.make 28 '$');
+
+    let start = Sys.time () in
+    let opt_model = Z3Encoding2.check_sat_core [global_pc'] in
+    let curr_time = (Sys.time ()) -. start in
+    global_time := !global_time +. curr_time;
+
+    let model = try Option.get opt_model with _ ->
+      raise Unsatisfiable in
+
+    let li32 = Logicenv.get_vars_by_type I32Type logic_env in
+    let li64 = Logicenv.get_vars_by_type I64Type logic_env in
+    let lf32 = Logicenv.get_vars_by_type F32Type logic_env in
+    let lf64 = Logicenv.get_vars_by_type F64Type logic_env in
+    (* 3. Obtain a concrete model for the global path condition *)
+    let binds = Z3Encoding2.lift_z3_model model li32 li64 lf32 lf64 in
+
+    if binds = [] then
+      raise Unsatisfiable;
+
+    Logicenv.clear logic_env;
+    Logicenv.init logic_env binds;
+
+    Symmem2.clear !c.sym_mem;
+    Symmem2.init !c.sym_mem initial_memory;
+
+    (* DEBUG *)
+    Printf.printf "SATISFIABLE\nMODEL: \n%s\n\n\n%s NEW LOGICAL ENV STATE %s\n%s%s\n\n"
+        (Z3.Model.to_string model) delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
+    Printf.printf "\n%s ITERATION %02d STATISTICS: %s\n" 
+        (String.make 23 '-') !iterations (String.make 23 '-');
+    Printf.printf "PATH CONDITION SIZE: %d\n" (Symvalue.length (and_list pc));
+    Printf.printf "GLOBAL PATH CONDITION SIZE: %d\n" (Symvalue.length global_pc');
+    Printf.printf "TIME TO SOLVE GLOBAL PC: %f\n%s\n\n\n" curr_time (String.make 73 '-');
+
+    Printf.printf "%s\n\n" (String.make 92 '~');
+
+    lines      := [];
+    iterations := !iterations + 1;
+    let env_constraint = neg_expr (Logicenv.to_expr logic_env) in
+    loop (BoolOp (And, global_pc', env_constraint))
+  in 
+  Printf.printf "%s\n\n" (String.make 92 '~');
+  begin try loop (Symvalue.Value (I32 1l)) with
+    | Unsatisfiable ->
+        Printf.printf "Model is no longer satisfiable. All paths have been verified.\n"
+    | e -> raise e 
+  end;
+
+  (* DEBUG: *)
+  Printf.printf "\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n%s\n\n" 
+      (Constraints.to_string finish_constraints);
+  Printf.printf ">>>> TEST COVERAGE LINES:\n%s\n" (Ranges.range_list !lines_total) ;
+  Printf.printf "\n>>>> TOTAL TIME SPEND w/ THE SOLVER: %f\n" !global_time;
+
+  Printf.printf "\n\nTOTAL LINES EVALUATED: %d\n" !instr_cnt;
+
+  let (vs, _) = !c.sym_code in
+  try List.rev vs with Stack_overflow ->
+    Exhaustion.error at "call stack exhausted"
+    
 (*  Symbolic invoke  *)
+(*
 let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
   let at = match func with Func.AstFunc (_,_, f) -> f.at | _ -> no_region in
   let inst_ref = try Option.get (Func.get_inst func) with Invalid_argument s ->
@@ -698,7 +858,7 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
       satisfiable := false
     end else begin
       Printf.printf "\n\n$$$$$$ LOGICAL ENVIRONMENT BEFORE Z3 STATE $$$$$$\n";
-      Printf.printf "%s" (Logicenv.print_sym_store logic_env);
+      Printf.printf "%s" (Logicenv.to_string logic_env);
       Printf.printf "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n\n";
 
       Printf.printf "\n\n$$$$$$ PATH CONDITIONS BEFORE Z3 $$$$$$\n";
@@ -759,7 +919,7 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
             "SATISFIABLE\n" ^ 
             "MODEL: \n" ^ (Z3.Model.to_string m) ^ "\n" ^ 
             "\n\n$$$$$$ NEW LOGICAL ENVIRONMENT STATE $$$$$$\n" ^ 
-            (Logicenv.print_sym_store sym_st) ^ 
+            (Logicenv.to_string sym_st) ^ 
             "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n\n"
       in Printf.printf "%s" print_str;
 
@@ -784,6 +944,7 @@ let sym_invoke (func : func_inst) (vs : sym_value list) : sym_value list =
   let (vs, _) = !c.sym_code in
   try List.rev vs with Stack_overflow ->
     Exhaustion.error at "call stack exhausted"
+*)
 
 
 let eval_const (inst : module_inst) (const : const) : value =
@@ -896,5 +1057,5 @@ let init (m : module_) (exts : extern list) : module_inst =
   let init_datas = List.map (init_memory inst) data in
   List.iter (fun f -> f ()) init_elems;
   List.iter (fun f -> f ()) init_datas;
-  Lib.Option.app (fun x -> ignore (sym_invoke (func inst x) [])) start;
+  Lib.Option.app (fun x -> ignore (sym_invoke' (func inst x) [])) start;
   inst

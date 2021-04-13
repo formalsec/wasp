@@ -7,21 +7,21 @@ static TreeTable *table;
 int main() {
     treetable_new(cmp, &table);
 
-    int x = dyn_sym_int32('x');
-    int y = dyn_sym_int32('y');
-    int z = dyn_sym_int32('z');
+    int x = sym_int("x", 32);
+    int y = sym_int("y", 32);
+    int z = sym_int("z", 32);
 
     assume(x < y && y < z);
 
-    int a = dyn_sym_int32('a');
+    int a = sym_int("a", 32);
 
     char str_a[] = {a, '\0'};
 
-    int b = dyn_sym_int32('b');
+    int b = sym_int("b", 32);
 
     char str_b[] = {b, '\0'};
 
-    int c = dyn_sym_int32('c');
+    int c = sym_int("c", 32);
 
     char str_c[] = {c, '\0'};
 

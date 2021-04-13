@@ -7,10 +7,10 @@ static TreeSet *set;
 int main() {
     treeset_new(cmp, &set);
 
-    int a = dyn_sym_int32('a');
-    int b = dyn_sym_int32('b');
-    int c = dyn_sym_int32('c');
-    int d = dyn_sym_int32('d');
+    int a = sym_int("a", 32);
+    int b = sym_int("b", 32);
+    int c = sym_int("c", 32);
+    int d = sym_int("d", 32);
     assume(a < b && b < c && c < d);
 
     treeset_add(set, &a);

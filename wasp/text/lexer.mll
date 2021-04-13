@@ -358,6 +358,7 @@ rule token = parse
   | "get_sym_float32" { GET_SYM_FLOAT32 }
   | "get_sym_float64" { GET_SYM_FLOAT64 }
 
+  | "sym_int"   { SYM_INT }
   | "sym_int32" { SYM_INT32 }
   | "sym_int64" { SYM_INT64 }
   | "dyn_sym_int32" { DYN_SYM_INT32 }

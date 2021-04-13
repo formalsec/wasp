@@ -100,6 +100,7 @@ and instr' =
   (*  SYMBOLIC EXECUTION  *)
   | SymAssert                         (* Symbolic assertions *)
   | SymAssume                         (* Symbolic assume *)
+  | SymInt
   | SymInt32 of string                  (* Symbolic integer 32 variable *)
   | SymInt64 of string                  (* Symbolic integer 64 variable *)
   | DynSymInt32

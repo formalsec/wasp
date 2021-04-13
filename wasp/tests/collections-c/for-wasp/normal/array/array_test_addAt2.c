@@ -9,7 +9,7 @@ static int stat;
 int main() {
     stat = array_new(&v1);
 
-    int a = dyn_sym_int32('a');
+    int a = sym_int("a", 32);
     assert(0 == array_size(v1));
     assert(CC_ERR_OUT_OF_RANGE == array_add_at(v1, &a, 1));
 

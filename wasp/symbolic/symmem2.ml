@@ -12,7 +12,7 @@ type memory = (address, store) Hashtbl.t
 type t = memory
 
 exception Bounds
-exception InvalidAddress
+exception InvalidAddress of address
 
 let packed_size = function
   | Memory.Pack8  -> 1
@@ -27,27 +27,40 @@ let alloc (sz : int) : memory =
 let size (mem : memory) : int = 
   Hashtbl.length mem
 
+let clear (mem : memory) : unit =
+  Hashtbl.clear mem
+
 let memcpy (mem : memory) : memory =
   Hashtbl.copy mem
 
+let init (mem : memory) (l : (address * store) list) : unit =
+  List.iter (fun (a, s) -> Hashtbl.replace mem a s) l
+
+let to_list (mem : memory) : (address * store) list =
+  Hashtbl.fold (fun a s acc -> (a, s) :: acc) mem []
+
 let to_string (mem : memory) : string = 
-  let l  = Hashtbl.fold (fun a s acc -> [(a, s)] @ acc) mem [] in
-  let l' = List.sort (fun (a, _) (b, _) -> compare a b) l in
+  let lst = List.sort (fun (a, _) (b, _) -> compare a b) (to_list mem) in
   List.fold_right (
     fun (a, (v, e)) b ->
       "(" ^ (Int64.to_string a) ^ "->" ^ 
       "(" ^ (string_of_int v)   ^ ", " ^ (Symvalue.to_string e) ^ ")" ^
       ")\n" ^ b
-  ) l' ""
+  ) lst ""
 
 let load_byte (mem : memory) (a : address) : store =
-  try Hashtbl.find mem a with Not_found -> raise InvalidAddress
+  try Hashtbl.find mem a with Not_found -> raise (InvalidAddress a)
 
 let store_byte (mem : memory) (a : address) (b : store) : unit =
   Hashtbl.replace mem a b
 
-let load_bytes (mem : memory) (a : address) (n : int) : string = (* TODO *)
-  "bytes"
+let load_bytes (mem : memory) (a : address) (n : int) : string =
+  let buf = Buffer.create n in
+  for i = 0 to n - 1 do
+    let (chr, _) = load_byte mem Int64.(add a (of_int i)) in
+    Buffer.add_char buf (Char.chr chr)
+  done;
+  Buffer.contents buf
 
 let store_bytes (mem : memory) (a : address) (bs : string) : unit =
   for i = String.length bs - 1 downto 0 do

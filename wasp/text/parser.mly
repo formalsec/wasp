@@ -176,6 +176,7 @@ let inline_type_explicit (c : context) x ft at =
 %token GET_SYM_FLOAT32
 %token GET_SYM_FLOAT64
 
+%token SYM_INT
 %token SYM_INT32
 %token SYM_INT64
 %token DYN_SYM_INT32
@@ -363,6 +364,7 @@ plain_instr :
   | GET_SYM_FLOAT64 STRING { fun c -> get_sym_float64 $2 }
   | SYM_ASSERT { fun c -> sym_assert }
   | SYM_ASSUME { fun c -> sym_assume }
+  | SYM_INT {fun c -> sym_int}
   | SYM_INT32 STRING { fun c -> sym_int32 $2 }
   | SYM_INT64 STRING { fun c -> sym_int64 $2 }
   | DYN_SYM_INT32 { fun c -> dyn_sym_int32 }
