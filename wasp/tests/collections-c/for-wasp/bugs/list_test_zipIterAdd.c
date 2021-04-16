@@ -1,6 +1,6 @@
 #include "list.h"
 #include "utils.h"
-#include "mockups.h" 
+#include "mockups.h"
 
 static List *list1;
 static List *list2;
@@ -15,47 +15,47 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    int a = sym_int("a", 32);
+    int a = sym_int("a");
 
     char str_a[] = {a, '\0'};
 
-    int b = sym_int("b", 32);
+    int b = sym_int("b");
 
     char str_b[] = {b, '\0'};
 
-    int c = sym_int("c", 32);
+    int c = sym_int("c");
 
     char str_c[] = {c, '\0'};
 
-    int d = sym_int("d", 32);
+    int d = sym_int("d");
 
     char str_d[] = {d, '\0'};
 
-    int e = sym_int("e", 32);
+    int e = sym_int("e");
 
     char str_e[] = {e, '\0'};
 
-    int f = sym_int("f", 32);
+    int f = sym_int("f");
 
     char str_f[] = {f, '\0'};
 
-    int g = sym_int("g", 32);
+    int g = sym_int("g");
 
     char str_g[] = {g, '\0'};
 
-    int h = sym_int("h", 32);
+    int h = sym_int("h");
 
     char str_h[] = {h, '\0'};
 
-    int i = sym_int("i", 32);
+    int i = sym_int("i");
 
     char str_i[] = {i, '\0'};
 
-    int x = sym_int("x", 32);
+    int x = sym_int("x");
 
     char str_x[] = {x, '\0'};
 
-    int y = sym_int("y", 32);
+    int y = sym_int("y");
 
     char str_y[] = {y, '\0'};
 

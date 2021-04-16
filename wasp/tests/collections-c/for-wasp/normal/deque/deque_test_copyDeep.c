@@ -1,6 +1,6 @@
 #include "deque.h"
 #include "utils.h"
-#include "mockups.h" 
+#include "mockups.h"
 
 static Deque *deque;
 static DequeConf conf;
@@ -17,9 +17,9 @@ int main() {
     int *b = malloc(sizeof(int));
     int *c = malloc(sizeof(int));
 
-    int x = sym_int("x", 32);
-    int y = sym_int("y", 32);
-    int z = sym_int("z", 32);
+    int x = sym_int("x");
+    int y = sym_int("y");
+    int z = sym_int("z");
 
     *a = x;
     *b = y;

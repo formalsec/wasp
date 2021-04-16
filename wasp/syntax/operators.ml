@@ -46,15 +46,16 @@ let compare_expr = CompareExpr
 let sym_assert = SymAssert
 let sym_assume = SymAssume
 let sym_int     = SymInt
-let sym_int32 x = SymInt32 x
-let sym_int64 x = SymInt64 x
-let dyn_sym_int32 = DynSymInt32
-let sym_float32 x = SymFloat32 x
-let sym_float64 x = SymFloat64 x
-
+let sym_long    = SymLong
+let sym_float   = SymFloat
+let sym_double  = SymDouble
 (* LIBC SUMM APIs *)
 let is_symbolic = IsSymbolic
 
+let sym_int32 x = SymInt32 x
+let sym_int64 x = SymInt64 x
+let sym_float32 x = SymFloat32 x
+let sym_float64 x = SymFloat64 x
 
 let i32_load align offset = Load {ty = I32Type; align; offset; sz = None}
 let i64_load align offset = Load {ty = I64Type; align; offset; sz = None}

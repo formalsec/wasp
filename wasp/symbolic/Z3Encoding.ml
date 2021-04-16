@@ -243,7 +243,7 @@ let encode_val (v : Values.value) : Expr.expr =
 
 let encode_val_bool (v : Values.value) : Expr.expr = 
   let z3_true   = Boolean.mk_true ctx in
-  let z3_false  = Boolean.mk_true ctx in
+  let z3_false  = Boolean.mk_false ctx in
   let true_app  = Expr.mk_app ctx wasm_lit_operations.bool_constructor [z3_true] in
   let false_app = Expr.mk_app ctx wasm_lit_operations.bool_constructor [z3_false] in
   match v with 
@@ -262,7 +262,7 @@ let encode_val_bool (v : Values.value) : Expr.expr =
 ╚═╝╚═╝░░╚══╝░░░╚═╝░░░  ╚═════╝░╚══════╝    *)
 
 (*  Enconde int32 relative operations into Z3 expressions  *)
-let encode_int32_relop (b_ctx : bool) (op : Symi32.i32ropt) le1 le2 =
+let encode_int32_relop (b_ctx : bool) op le1 le2 =
   (*  Relative operations between integers, that return a boolean  *)
   let binop_ints_to_booleans op le1 le2 =
     let le1' = (Expr.mk_app ctx wasm_lit_operations.int_accessor [le1]) in
@@ -275,46 +275,46 @@ let encode_int32_relop (b_ctx : bool) (op : Symi32.i32ropt) le1 le2 =
     Expr.mk_app ctx axiomatised_operations.bool_to_int [(op le1' le2')]
   in
   (match op, b_ctx with
-    | Symi32.I32Eq, true -> 
+    | Si32.I32Eq, true -> 
         Expr.mk_app ctx wasm_lit_operations.bool_constructor [(Boolean.mk_eq ctx le1 le2)]
-    | Symi32.I32Eq, false -> 
+    | Si32.I32Eq, false -> 
         let le = Boolean.mk_eq ctx le1 le2 in
         let le_app = Expr.mk_app ctx axiomatised_operations.bool_to_int [le] in
         Expr.mk_app ctx wasm_lit_operations.int_constructor [le_app]
-    | Symi32.I32Neq, true ->
+    | Si32.I32Ne, true ->
       let le_b = Expr.mk_app ctx wasm_lit_operations.int_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.int_accessor [le2] in
       let le = Boolean.mk_eq ctx le_b le2_b in 
       let n_le = Boolean.mk_not ctx le in
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [n_le]
-    | Symi32.I32Neq, false ->
+    | Si32.I32Ne, false ->
         let le = Boolean.mk_eq ctx le1 le2 in
         let le_neg = Boolean.mk_not ctx le in
         let le_app = Expr.mk_app ctx axiomatised_operations.bool_to_int [le_neg] in
         Expr.mk_app ctx wasm_lit_operations.int_constructor [le_app]
-    | Symi32.I32Lt, true ->
+    | Si32.I32LtS, true ->
       binop_ints_to_booleans (mk_lt_i ctx) le1 le2
-    | Symi32.I32Lt, false ->
+    | Si32.I32LtS, false ->
         let le_app = mk_axiomatised_le_app (mk_lt_i ctx) le1 le2 in
         Expr.mk_app ctx wasm_lit_operations.int_constructor [le_app]
-    | Symi32.I32LtEq, true -> 
+    | Si32.I32LeS, true -> 
       binop_ints_to_booleans (mk_le_i ctx) le1 le2
-    | Symi32.I32LtEq, false ->
+    | Si32.I32LeS, false ->
         let le_app = mk_axiomatised_le_app (mk_le_i ctx) le1 le2 in
         Expr.mk_app ctx wasm_lit_operations.int_constructor [le_app]
-    | Symi32.I32Gt, true ->
+    | Si32.I32GtS, true ->
       binop_ints_to_booleans (mk_gt_i ctx) le1 le2
-    | Symi32.I32Gt, false ->
+    | Si32.I32GtS, false ->
         let le_app = mk_axiomatised_le_app (mk_gt_i ctx) le1 le2 in
         Expr.mk_app ctx wasm_lit_operations.int_constructor [le_app]
-    | Symi32.I32GtEq, true ->
+    | Si32.I32GeS, true ->
       binop_ints_to_booleans (mk_ge_i ctx) le1 le2
-    | Symi32.I32GtEq, false ->
+    | Si32.I32GeS, false ->
         let le_app = mk_axiomatised_le_app (mk_gt_i ctx) le1 le2 in
         Expr.mk_app ctx wasm_lit_operations.int_constructor [le_app])
 
 (*  Encode int32 binary operations into Z3 expressions  *)
-let encode_int32_binop (b_ctx : bool) (op : Symi32.i32bopt) le1 le2 =
+let encode_int32_binop (b_ctx : bool) op le1 le2 =
   (*  Binary operations between integers, that return an integer  *)
   let binop_ints_to_ints mk_op le1 le2 =
       let n_le1 = (Expr.mk_app ctx wasm_lit_operations.int_accessor [le1]) in
@@ -323,45 +323,45 @@ let encode_int32_binop (b_ctx : bool) (op : Symi32.i32bopt) le1 le2 =
       Expr.mk_app ctx wasm_lit_operations.int_constructor [nle1_op_nle2] in
   (*  According to the binary operation, perform the corresponding action  *)
   (match op with
-    | Symi32.I32Add -> 
+    | Si32.I32Add -> 
       binop_ints_to_ints mk_add_i le1 le2
 
-    | Symi32.I32And -> 
+    | Si32.I32And -> 
       let le1_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le2] in
       let le = Boolean.mk_and ctx [le1_b; le2_b] in 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [le]
 
-    | Symi32.I32Xor -> 
+    | Si32.I32Xor -> 
       let le1_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le2] in
       let le = Boolean.mk_xor ctx le1_b le2_b in 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [le]
 
-    | Symi32.I32Or -> 
+    | Si32.I32Or -> 
       let le1_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le2] in
       let le = Boolean.mk_or ctx [le1_b; le2_b] in 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [le]
 
-    | Symi32.I32Sub -> 
+    | Si32.I32Sub -> 
       binop_ints_to_ints mk_sub_i le1 le2
     
-    | Symi32.I32Div -> 
+    | Si32.I32Div -> 
       binop_ints_to_ints mk_div_i le1 le2
 
-    | Symi32.I32Mul -> 
+    | Si32.I32Mul -> 
       binop_ints_to_ints mk_mul_i le1 le2
 
-    | Symi32.I32Shl ->
+    | Si32.I32Shl ->
       failwith "not encoded"
  
-    | Symi32.I32ShrS ->
+    | Si32.I32ShrS ->
       failwith "not encoded"
   )
 
 (*  Encode int32 unary operations into Z3 expressions *)
-let encode_int32_unop (b_ctx : bool) (op : Symi32.i32uopt) le =
+let encode_int32_unop (b_ctx : bool) op le =
   raise (Failure (Printf.sprintf "SMT encoding: Construct not supported yet - unop"))
 
 
@@ -374,7 +374,7 @@ let encode_int32_unop (b_ctx : bool) (op : Symi32.i32uopt) le =
 ╚═╝╚═╝░░╚══╝░░░╚═╝░░░  ░╚════╝░░░░░░╚═╝     *)
 
 (*  Enconde int64 relative operations into Z3 expressions  *)
-let encode_int64_relop (b_ctx : bool) (op : Symi64.i64ropt) le1 le2 =
+let encode_int64_relop (b_ctx : bool) op le1 le2 =
   (*  Relative operations between integers, that return a boolean  *)
   let binop_ints_to_booleans mk_op le1 le2 =
     let n_le1 = (Expr.mk_app ctx wasm_lit_operations.int_accessor [le1]) in
@@ -383,31 +383,31 @@ let encode_int64_relop (b_ctx : bool) (op : Symi64.i64ropt) le1 le2 =
     Expr.mk_app ctx wasm_lit_operations.bool_constructor [nle1_op_nle2] in 
 
   (match op with
-    | Symi64.I64Eq -> 
+    | Si64.I64Eq -> 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [(Boolean.mk_eq ctx le1 le2)]
 
-    | Symi64.I64Neq ->
+    | Si64.I64Ne ->
       let le_b = Expr.mk_app ctx wasm_lit_operations.int_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.int_accessor [le2] in
       let le = Boolean.mk_eq ctx le_b le2_b in 
       let n_le = Boolean.mk_not ctx le in
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [n_le]
 
-    | Symi64.I64Lt ->
+    | Si64.I64Lt ->
       binop_ints_to_booleans (mk_lt_i ctx) le1 le2
 
-    | Symi64.I64LtEq -> 
+    | Si64.I64Le -> 
       binop_ints_to_booleans (mk_le_i ctx) le1 le2
 
-    | Symi64.I64Gt ->
+    | Si64.I64Gt ->
       binop_ints_to_booleans (mk_gt_i ctx) le1 le2
 
-    | Symi64.I64GtEq ->
+    | Si64.I64Ge ->
       binop_ints_to_booleans (mk_ge_i ctx) le1 le2
   )
 
 (*  Encode int64 binary operations into Z3 expressions  *)
-let encode_int64_binop (b_ctx : bool) (op : Symi64.i64bopt) le1 le2 =
+let encode_int64_binop (b_ctx : bool) op le1 le2 =
   (*  Binary operations between integers, that return an integer  *)
   let binop_ints_to_ints mk_op le1 le2 =
       let n_le1 = (Expr.mk_app ctx wasm_lit_operations.int_accessor [le1]) in
@@ -416,39 +416,39 @@ let encode_int64_binop (b_ctx : bool) (op : Symi64.i64bopt) le1 le2 =
       Expr.mk_app ctx wasm_lit_operations.int_constructor [nle1_op_nle2] in
   (*  According to the binary operation, perform the corresponding action  *)
   (match op with
-    | Symi64.I64Add -> 
+    | Si64.I64Add -> 
       binop_ints_to_ints mk_add_i le1 le2
 
-    | Symi64.I64And -> 
+    | Si64.I64And -> 
       let le1_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le2] in
       let le = Boolean.mk_and ctx [le1_b; le2_b] in 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [le]
 
-    | Symi64.I64Xor -> 
+    | Si64.I64Xor -> 
       let le1_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le2] in
       let le = Boolean.mk_xor ctx le1_b le2_b in 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [le]
 
-    | Symi64.I64Or -> 
+    | Si64.I64Or -> 
       let le1_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.bool_accessor [le2] in
       let le = Boolean.mk_or ctx [le1_b; le2_b] in 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [le]
 
-    | Symi64.I64Sub -> 
+    | Si64.I64Sub -> 
       binop_ints_to_ints mk_sub_i le1 le2
     
-    | Symi64.I64Div -> 
+    | Si64.I64Div -> 
       binop_ints_to_ints mk_div_i le1 le2
 
-    | Symi64.I64Mul -> 
+    | Si64.I64Mul -> 
       binop_ints_to_ints mk_mul_i le1 le2
   )
 
 (*  Encode int64 unary operations into Z3 expressions *)
-let encode_int64_unop (b_ctx : bool) (op : Symi64.i64uopt) le =
+let encode_int64_unop (b_ctx : bool) op le =
   raise (Failure (Printf.sprintf "SMT encoding: Construct not supported yet - unop"))
 
 (* 
@@ -460,7 +460,7 @@ let encode_int64_unop (b_ctx : bool) (op : Symi64.i64uopt) le =
 ╚═╝░░░░░╚══════╝░╚════╝░╚═╝░░╚═╝░░░╚═╝░░░  ╚═════╝░╚══════╝   *)
 
 (*  Enconde float32 relative operations into Z3 expressions  *)
-let encode_num32_relop (b_ctx : bool) (op : Symf32.f32ropt) le1 le2 =
+let encode_num32_relop (b_ctx : bool) op le1 le2 =
   (*  Relative operations between numbers, that return a boolean  *)
   let binop_nums_to_booleans mk_op le1 le2 =
     let n_le1 = (Expr.mk_app ctx wasm_lit_operations.num_accessor [le1]) in
@@ -469,31 +469,31 @@ let encode_num32_relop (b_ctx : bool) (op : Symf32.f32ropt) le1 le2 =
     Expr.mk_app ctx wasm_lit_operations.bool_constructor [nle1_op_nle2] in 
 
   (match op with
-    | Symf32.F32Eq -> 
+    | Sf32.F32Eq -> 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [(Boolean.mk_eq ctx le1 le2)]
 
-    | Symf32.F32Neq ->
+    | Sf32.F32Ne ->
       let le_b = Expr.mk_app ctx wasm_lit_operations.num_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.num_accessor [le2] in
       let le = Boolean.mk_eq ctx le_b le2_b in 
       let n_le = Boolean.mk_not ctx le in
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [n_le]
 
-    | Symf32.F32Lt ->
+    | Sf32.F32Lt ->
       binop_nums_to_booleans (mk_lt ctx) le1 le2
 
-    | Symf32.F32LtEq -> 
+    | Sf32.F32Le -> 
       binop_nums_to_booleans (mk_le ctx) le1 le2
 
-    | Symf32.F32Gt ->
+    | Sf32.F32Gt ->
       binop_nums_to_booleans (mk_gt ctx) le1 le2
 
-    | Symf32.F32GtEq ->
+    | Sf32.F32Ge ->
       binop_nums_to_booleans (mk_ge ctx) le1 le2
   )
 
 (*  Encode float32 binary operations into Z3 expressions  *)
-let encode_num32_binop (b_ctx : bool) (op : Symf32.f32bopt) le1 le2 =
+let encode_num32_binop (b_ctx : bool) op le1 le2 =
   (*  Binary operations between numbers, that return a number  *)
   let binop_nums_to_nums mk_op le1 le2 =
       let n_le1 = (Expr.mk_app ctx wasm_lit_operations.num_accessor [le1]) in
@@ -502,23 +502,23 @@ let encode_num32_binop (b_ctx : bool) (op : Symf32.f32bopt) le1 le2 =
       Expr.mk_app ctx wasm_lit_operations.num_constructor [nle1_op_nle2] in
   (*  According to the binary operation, perform the corresponding action  *)
   (match op with
-    | Symf32.F32Add -> 
+    | Sf32.F32Add -> 
       binop_nums_to_nums mk_add le1 le2
 
-    | Symf32.F32Sub -> 
+    | Sf32.F32Sub -> 
       binop_nums_to_nums mk_sub le1 le2
     
-    | Symf32.F32Div -> 
+    | Sf32.F32Div -> 
       binop_nums_to_nums mk_div le1 le2
 
-    | Symf32.F32Mul -> 
+    | Sf32.F32Mul -> 
       binop_nums_to_nums mk_mul le1 le2
   )
 
 (*  Encode float32 unary operations into Z3 expressions *)
-let encode_num32_unop (b_ctx : bool) (op : Symf32.f32uopt) le =
+let encode_num32_unop (b_ctx : bool) op le =
   (match op with
-    | Symf32.F32Neg -> 
+    | Sf32.F32Neg -> 
       let le_n = Expr.mk_app ctx wasm_lit_operations.num_accessor [le] in
       let op_le_n = Arithmetic.mk_unary_minus ctx le_n in
       Expr.mk_app ctx wasm_lit_operations.num_constructor [op_le_n]
@@ -534,7 +534,7 @@ let encode_num32_unop (b_ctx : bool) (op : Symf32.f32uopt) le =
 ╚═╝░░░░░╚══════╝░╚════╝░╚═╝░░╚═╝░░░╚═╝░░░  ░╚════╝░░░░░░╚═╝    *)
 
 (*  Enconde float64 relative operations into Z3 expressions  *)
-let encode_num64_relop (b_ctx : bool) (op : Symf64.f64ropt) le1 le2 =
+let encode_num64_relop (b_ctx : bool) op le1 le2 =
   (*  Relative operations between numbers, that return a boolean  *)
   let binop_nums_to_booleans mk_op le1 le2 =
     let n_le1 = (Expr.mk_app ctx wasm_lit_operations.num_accessor [le1]) in
@@ -543,31 +543,31 @@ let encode_num64_relop (b_ctx : bool) (op : Symf64.f64ropt) le1 le2 =
     Expr.mk_app ctx wasm_lit_operations.bool_constructor [nle1_op_nle2] in 
 
   (match op with
-    | Symf64.F64Eq -> 
+    | Sf64.F64Eq -> 
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [(Boolean.mk_eq ctx le1 le2)]
 
-    | Symf64.F64Neq ->
+    | Sf64.F64Ne ->
       let le_b = Expr.mk_app ctx wasm_lit_operations.num_accessor [le1] in
       let le2_b = Expr.mk_app ctx wasm_lit_operations.num_accessor [le2] in
       let le = Boolean.mk_eq ctx le_b le2_b in 
       let n_le = Boolean.mk_not ctx le in
       Expr.mk_app ctx wasm_lit_operations.bool_constructor [n_le]
 
-    | Symf64.F64Lt ->
+    | Sf64.F64Lt ->
       binop_nums_to_booleans (mk_lt ctx) le1 le2
 
-    | Symf64.F64LtEq -> 
+    | Sf64.F64Le -> 
       binop_nums_to_booleans (mk_le ctx) le1 le2
 
-    | Symf64.F64Gt ->
+    | Sf64.F64Gt ->
       binop_nums_to_booleans (mk_gt ctx) le1 le2
 
-    | Symf64.F64GtEq ->
+    | Sf64.F64Ge ->
       binop_nums_to_booleans (mk_ge ctx) le1 le2
   )
 
 (*  Encode float64 binary operations into Z3 expressions  *)
-let encode_num64_binop (b_ctx : bool) (op : Symf64.f64bopt) le1 le2 =
+let encode_num64_binop (b_ctx : bool) op le1 le2 =
   (*  Binary operations between numbers, that return a number  *)
   let binop_nums_to_nums mk_op le1 le2 =
       let n_le1 = (Expr.mk_app ctx wasm_lit_operations.num_accessor [le1]) in
@@ -576,38 +576,38 @@ let encode_num64_binop (b_ctx : bool) (op : Symf64.f64bopt) le1 le2 =
       Expr.mk_app ctx wasm_lit_operations.num_constructor [nle1_op_nle2] in
   (*  According to the binary operation, perform the corresponding action  *)
   (match op with
-    | Symf64.F64Add -> 
+    | Sf64.F64Add -> 
       binop_nums_to_nums mk_add le1 le2
 
-    | Symf64.F64Sub -> 
+    | Sf64.F64Sub -> 
       binop_nums_to_nums mk_sub le1 le2
     
-    | Symf64.F64Div -> 
+    | Sf64.F64Div -> 
       binop_nums_to_nums mk_div le1 le2
 
-    | Symf64.F64Mul -> 
+    | Sf64.F64Mul -> 
       binop_nums_to_nums mk_mul le1 le2
   )
 
 (*  Encode float64 unary operations into Z3 expressions *)
-let encode_num64_unop (b_ctx : bool) (op : Symf64.f64uopt) le =
+let encode_num64_unop (b_ctx : bool) op le =
   (match op with
-    | Symf64.F64Neg -> 
+    | Sf64.F64Neg -> 
       let le_n = Expr.mk_app ctx wasm_lit_operations.num_accessor [le] in
       let op_le_n = Arithmetic.mk_unary_minus ctx le_n in
       Expr.mk_app ctx wasm_lit_operations.num_constructor [op_le_n]
   )
 
-let is_boolean_binop (binop : Symi32.i32bopt) : bool =
+let is_boolean_binop binop : bool =
   match binop with
-  | Symi32.I32And
-  | Symi32.I32Xor
-  | Symi32.I32Or -> true
+  | Si32.I32And
+  | Si32.I32Xor
+  | Si32.I32Or -> true
   | _ -> false
 
 
 (*  Encode stack expressions (sym_value) into Z3 expressions *)
-let rec encode_sym_val ?(bool_ctx=false) (e : Symvalue.sym_value) : Expr.expr = 
+let rec encode_sym_val ?(bool_ctx=false) (e : Symvalue.sym_expr) : Expr.expr = 
   match e with 
   (* Value *)
   | Symvalue.Value v ->
@@ -733,7 +733,7 @@ let check_sat_core (es : Symvalue.path_conditions) : Model.model option =
 
 
 (*  Lift the model: Get a new symbolic store, according to the values previously used in the model  *)
-let lift_z3_model (model : Model.model) (sym_int32 : string list) (sym_int64 : string list) (sym_float32 : string list) (sym_float64 : string list) : Logicenv.logical_env = 
+let lift_z3_model (model : Model.model) (sym_int32 : string list) (sym_int64 : string list) (sym_float32 : string list) (sym_float64 : string list) = 
 
   (*  Recover numbers  *)
   let recover_z3_number (n : Expr.expr) : float option = 
@@ -784,34 +784,39 @@ let lift_z3_model (model : Model.model) (sym_int32 : string list) (sym_int64 : s
     in
 
   (*  The new symbolic store  *)
-  let sym_new = (Logicenv.create_logic_env []) in
   (*  Add integer values to the store  *) 
-  List.iter 
-    (fun x -> 
+  let i32_binds = 
+  List.fold_left
+    (fun a x -> 
       let v = lift_z3_val_int32 x in 
       (*Printf.printf "Z3 binding for %s: %s\n" x (Option.map_default Values.string_of_value "NO BINDING!" v); *)
-      Option.map_default (Logicenv.set_sym sym_new x) () v   
-    ) sym_int32;
-  List.iter 
-    (fun x -> 
+      Option.map_default (fun y -> (x, y) :: a) (a) v   
+    ) [] sym_int32
+  in
+  let i64_binds =
+  List.fold_left
+    (fun a x -> 
       let v = lift_z3_val_int64 x in 
       (*Printf.printf "Z3 binding for %s: %s\n" x (Option.map_default Values.string_of_value "NO BINDING!" v); *)
-      Option.map_default (Logicenv.set_sym sym_new x) () v   
-    ) sym_int64;
-   
-  (*  Add float values to the store  *)    
-  List.iter 
-    (fun x -> 
+      Option.map_default (fun y -> (x, y) :: a) (a) v   
+    ) [] sym_int64
+  in
+  let f32_binds =
+  List.fold_left
+    (fun a x -> 
       let v = lift_z3_val_float32 x in 
       (*Printf.printf "Z3 binding for %s: %s\n" x (Option.map_default Values.string_of_value "NO BINDING!" v); *)
-      Option.map_default (Logicenv.set_sym sym_new x) () v   
-    ) sym_float32; 
-  List.iter 
-    (fun x -> 
+      Option.map_default (fun y -> (x, y) :: a) (a) v   
+    ) [] sym_float32 
+  in
+  let f64_binds =
+  List.fold_left
+    (fun a x -> 
       let v = lift_z3_val_float64 x in 
       (*Printf.printf "Z3 binding for %s: %s\n" x (Option.map_default Values.string_of_value "NO BINDING!" v); *)
-      Option.map_default (Logicenv.set_sym sym_new x) () v   
-    ) sym_float64;
-  sym_new
+      Option.map_default (fun y -> (x, y) :: a) (a) v   
+    ) [] sym_float64
+  in
+  i32_binds @ (i64_binds @ (f32_binds @ f64_binds))
 
 

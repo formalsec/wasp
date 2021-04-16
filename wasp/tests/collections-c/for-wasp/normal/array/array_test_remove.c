@@ -1,5 +1,5 @@
 #include "array.h"
-#include "mockups.h" 
+#include "mockups.h"
 
 static Array *v1;
 static Array *v2;
@@ -8,7 +8,7 @@ static int stat;
 
 int main() {
     stat = array_new(&v1);
-    int n = sym_int("n", 32);
+    int n = sym_int("n");
     assume(n > 2);
     assume(n < 16);
 

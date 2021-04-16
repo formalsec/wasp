@@ -176,20 +176,14 @@ let inline_type_explicit (c : context) x ft at =
 %token GET_SYM_FLOAT32
 %token GET_SYM_FLOAT64
 
-%token SYM_INT
-%token SYM_INT32
-%token SYM_INT64
-%token DYN_SYM_INT32
-%token SYM_FLOAT32
-%token SYM_FLOAT64
-%token SYM_ASSERT
-%token SYM_ASSUME
-%token PRINT_STACK
-%token PRINT_MEMORY
-%token PRINT_BTREE
-%token COMPARE_EXPR
-
+%token SYM_INT SYM_LONG SYM_FLOAT SYM_DOUBLE
 %token IS_SYMBOLIC
+
+%token SYM_INT32 SYM_INT64 SYM_FLOAT32 SYM_FLOAT64
+%token SYM_ASSERT SYM_ASSUME
+
+%token PRINT_STACK PRINT_MEMORY PRINT_BTREE COMPARE_EXPR
+
 
 %token<string> NAT
 %token<string> INT
@@ -362,12 +356,16 @@ plain_instr :
   | GET_SYM_INT64 STRING { fun c -> get_sym_int64 $2 }
   | GET_SYM_FLOAT32 STRING { fun c -> get_sym_float32 $2 }
   | GET_SYM_FLOAT64 STRING { fun c -> get_sym_float64 $2 }
+
   | SYM_ASSERT { fun c -> sym_assert }
   | SYM_ASSUME { fun c -> sym_assume }
-  | SYM_INT {fun c -> sym_int}
+  | SYM_INT    { fun c -> sym_int }
+  | SYM_LONG   { fun c -> sym_long }
+  | SYM_FLOAT  { fun c -> sym_float }
+  | SYM_DOUBLE { fun c -> sym_double }
+
   | SYM_INT32 STRING { fun c -> sym_int32 $2 }
   | SYM_INT64 STRING { fun c -> sym_int64 $2 }
-  | DYN_SYM_INT32 { fun c -> dyn_sym_int32 }
   | SYM_FLOAT32 STRING { fun c -> sym_float32 $2 }
   | SYM_FLOAT64 STRING { fun c -> sym_float64 $2 }
   | PRINT_STACK { fun c -> print_stack }

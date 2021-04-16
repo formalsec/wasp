@@ -111,6 +111,7 @@ let iterations  = ref 1
 let lines       = ref []
 let lines_total = ref []
 
+let complete  = ref true
 let instr_max = 1_000_000
 
 let plain e = SPlain e.it @@ e.at
@@ -203,8 +204,10 @@ let fresh_sym_var : (unit -> string) =
 (*  Symbolic step  *)
 let rec sym_step (c : sym_config) : sym_config =
   instr_cnt := !instr_cnt + 1;
-  if !instr_cnt >= instr_max then
+  if !instr_cnt >= instr_max then begin
+    complete := false; 
     raise Unsatisfiable;
+  end;
   let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond; sym_mem; _} = c in
   let e = List.hd es in
   if not (List.memq (Source.get_line e.at) !lines) then
@@ -467,50 +470,71 @@ let rec sym_step (c : sym_config) : sym_config =
         Printf.printf ">>> Assume passed. Continuing execution...\n";
         vs', [], logic_env, to_add @ path_cond, sym_mem
 
-      | SymInt, (I32 sz, _) :: (I32 i, _) :: vs' ->
-        (* TODO: if n = 0, error handling on load_byte *)
-        let strlen a =
-          let rec loop a i =
-            let (chr, _) = Symmem2.load_byte sym_mem 
-                              Int64.(add a (of_int i)) in
-            if chr = 0 then i else loop a (i + 1)
-          in loop a 0
-        in
-        let rand len =
-          begin match len with
-          | 32 -> I32 I32.random
-          | 64 -> I64 I64.random
-          | _ -> failwith ("SymInt: TODO length of " ^ (string_of_int len))
-          end
-        in
+      | SymInt, (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        let x = Symmem2.load_bytes sym_mem base (strlen base) in
+        let x = Symmem2.load_string sym_mem base in
         let (x, v) =
-        if Logicenv.exists logic_env x then begin
-          let cnt = Counter.find sym_counter x in
-          let x' = if cnt = 0 then x 
-                   else x ^ (string_of_int cnt) in
-          let v = try Logicenv.find logic_env x' with Not_found ->
-            let v' = rand (Int32.to_int sz) in
-            Logicenv.add logic_env x' v';
-            v'
-          in
+          let cnt = try Counter.find sym_counter x with Not_found -> 0 in
+          let x' = if cnt = 0 then x
+                              else x ^ "_" ^ (string_of_int cnt) in
+          let v = try Logicenv.find logic_env x' 
+                  with Not_found -> I32 (I32.rand 1000) in
+          Logicenv.add logic_env x' v;
           Counter.replace sym_counter x (cnt + 1);
           x', v
-        end else begin
-          let v' = rand (Int32.to_int sz) in
-          Counter.add sym_counter x 0;
-          Logicenv.add logic_env x v';
-          x, v'
-        end
         in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
            path_cond, sym_mem
+
+      | SymLong, (I32 i, _) :: vs' ->
+        let base = I64_convert.extend_i32_u i in
+        let x = Symmem2.load_string sym_mem base in
+        let (x, v) =
+          let cnt = try Counter.find sym_counter x with Not_found -> 0 in
+          let x' = if cnt = 0 then x
+                              else x ^ "_" ^ (string_of_int cnt) in
+          let v = try Logicenv.find logic_env x' 
+                  with Not_found -> I64 (I64.rand 1000) in
+          Logicenv.add logic_env x' v;
+          Counter.replace sym_counter x (cnt + 1);
+          x', v
+        in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
+          path_cond, sym_mem
+
+      | SymFloat, (I32 i, _) :: vs' ->
+          let base = I64_convert.extend_i32_u i in
+          let x = Symmem2.load_string sym_mem base in
+          let (x, v) =
+            let cnt = try Counter.find sym_counter x with Not_found -> 0 in
+            let x' = if cnt = 0 then x 
+                                else x ^ "_" ^ (string_of_int cnt) in
+            let v = try Logicenv.find logic_env x' 
+                    with Not_found -> F32 (F32.rand 1000.0) in
+            Logicenv.add logic_env x' v;
+            Counter.replace sym_counter x (cnt + 1);
+            x', v
+          in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
+                path_cond, sym_mem
+
+      | SymDouble, (I32 i, _) :: vs' ->
+          let base = I64_convert.extend_i32_u i in
+          let x = Symmem2.load_string sym_mem base in
+          let (x, v) =
+            let cnt = try Counter.find sym_counter x with Not_found -> 0 in
+            let x' = if cnt = 0 then x 
+                                else x ^ "_" ^ (string_of_int cnt) in
+            let v = try Logicenv.find logic_env x' 
+                    with Not_found -> F64 (F64.rand 1000.0) in
+            Logicenv.add logic_env x' v;
+            Counter.replace sym_counter x (cnt + 1);
+            x', v
+          in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
+                path_cond, sym_mem
 
       | SymInt32 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
           | Not_found ->
-            let v' = I32 I32.random in
+            let v' = I32 (I32.rand 1000) in
             Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, path_cond, sym_mem
@@ -519,27 +543,16 @@ let rec sym_step (c : sym_config) : sym_config =
         let v =
           try Logicenv.find logic_env x with 
           | Not_found ->
-            let v' = I64 I64.random in
+            let v' = I64 (I64.rand 1000) in
             Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, path_cond, sym_mem
-
-      | DynSymInt32, (I32 i, _) :: vs ->
-        let x = Char.escaped (Char.chr (Int32.to_int i)) in
-        (*let x = fresh_sym_var () in *)
-        let v =
-          try Logicenv.find logic_env x with
-          | Not_found ->
-            let v' = I32 I32.random in
-            Logicenv.add logic_env x v';
-            v'
-        in (v, Symvalue.Symbolic (SymInt32, x)) :: vs, [], logic_env, path_cond, sym_mem
 
       | SymFloat32 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
           | Not_found ->
-            let v' = F32 F32.random in
+            let v' = F32 (F32.rand 1000.0) in
             Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, path_cond, sym_mem
@@ -548,7 +561,7 @@ let rec sym_step (c : sym_config) : sym_config =
         let v = 
           try Logicenv.find logic_env x with 
           | Not_found ->
-            let v' = F64 F64.random in
+            let v' = F64 (F64.rand 1000.0) in
             Logicenv.add logic_env x v';
             v'
         in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
@@ -820,6 +833,9 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   Printf.printf "\n>>>> TOTAL TIME SPEND w/ THE SOLVER: %f\n" !global_time;
 
   Printf.printf "\n\nTOTAL LINES EVALUATED: %d\n" !instr_cnt;
+
+  if not !complete then
+    Printf.printf "\nINCOMPLETE\n";
 
   let (vs, _) = !c.sym_code in
   try List.rev vs with Stack_overflow ->

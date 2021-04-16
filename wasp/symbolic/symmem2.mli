@@ -26,6 +26,7 @@ val to_string : memory -> string
 
 val load_byte : memory -> address -> store
 val store_byte : memory -> address -> store -> unit
+val load_string : memory -> address -> string
 val load_bytes : memory -> address -> int -> string
 val store_bytes : memory -> address -> string -> unit
 

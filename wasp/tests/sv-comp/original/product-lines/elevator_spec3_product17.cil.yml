@@ -1,0 +1,15 @@
+format_version: '2.0'
+
+# old file name: elevator_spec3_product17_true-unreach-call_true-termination.cil.c
+input_files: 'elevator_spec3_product17.cil.c'
+
+properties:
+  - property_file: ../properties/termination.prp
+    expected_verdict: true
+  - property_file: ../properties/unreach-call.prp
+    expected_verdict: true
+  - property_file: ../properties/coverage-branches.prp
+
+options:
+  language: C
+  data_model: ILP32

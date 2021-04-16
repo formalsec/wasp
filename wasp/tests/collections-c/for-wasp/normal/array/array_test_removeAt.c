@@ -1,5 +1,5 @@
 #include "array.h"
-#include "mockups.h" 
+#include "mockups.h"
 
 static Array *v1;
 static Array *v2;
@@ -8,10 +8,10 @@ static int stat;
 
 int main() {
     stat = array_new(&v1);
-    int a = sym_int("a", 32);
-    int b = sym_int("b", 32);
-    int c = sym_int("c", 32);
-    int e = sym_int("e", 32);
+    int a = sym_int("a");
+    int b = sym_int("b");
+    int c = sym_int("c");
+    int e = sym_int("e");
 
     array_add(v1, &a);
     array_add(v1, &b);

@@ -1,6 +1,6 @@
 #include "list.h"
 #include "utils.h"
-#include "mockups.h" 
+#include "mockups.h"
 
 static List *list1;
 static List *list2;
@@ -10,14 +10,14 @@ int a, b, c, d, e, f, g, h;
 void setup_tests() {
     list_new(&list1), list_new(&list2);
 
-    a = sym_int("a", 32);
-    b = sym_int("b", 32);
-    c = sym_int("c", 32);
-    d = sym_int("d", 32);
-    e = sym_int("e", 32);
-    f = sym_int("f", 32);
-    g = sym_int("g", 32);
-    h = sym_int("h", 32);
+    a = sym_int("a");
+    b = sym_int("b");
+    c = sym_int("c");
+    d = sym_int("d");
+    e = sym_int("e");
+    f = sym_int("f");
+    g = sym_int("g");
+    h = sym_int("h");
 
     int *va = (int *)malloc(sizeof(int));
     int *vb = (int *)malloc(sizeof(int));

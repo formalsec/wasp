@@ -77,7 +77,7 @@ sig
   val of_string : string -> t
   val to_string_s : t -> string
   val to_string_u : t -> string
-  val random : t 
+  val rand : int -> t
 end
 
 module Make (Rep : RepType) : S with type bits = Rep.t and type t = Rep.t =
@@ -300,5 +300,5 @@ struct
     else
       group_digits (Rep.to_string (div_u i ten) ^ Rep.to_string (rem_u i ten))
 
-  let random = Random.self_init(); Rep.of_int (Random.int 1000)
+  let rand upper = Random.self_init(); Rep.of_int (Random.int upper)
 end

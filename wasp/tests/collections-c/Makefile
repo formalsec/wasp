@@ -36,7 +36,7 @@ default: all
 all: pre normal bug wat post clean-up
 
 pre:
-	@./for_wasp.sh
+	@python for_wasp.py
 
 bug: $(testbugswasm)
 

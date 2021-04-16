@@ -358,10 +358,14 @@ rule token = parse
   | "get_sym_float32" { GET_SYM_FLOAT32 }
   | "get_sym_float64" { GET_SYM_FLOAT64 }
 
-  | "sym_int"   { SYM_INT }
+  | "sym_int"    { SYM_INT }
+  | "sym_long"   { SYM_LONG }
+  | "sym_float"  { SYM_FLOAT }
+  | "sym_double" { SYM_DOUBLE }
+  | "is_symbolic" { IS_SYMBOLIC }
+
   | "sym_int32" { SYM_INT32 }
   | "sym_int64" { SYM_INT64 }
-  | "dyn_sym_int32" { DYN_SYM_INT32 }
   | "sym_float32" { SYM_FLOAT32 }
   | "sym_float64" { SYM_FLOAT64 }
   | "sym_assert" { SYM_ASSERT }
@@ -371,7 +375,6 @@ rule token = parse
   | "print_memory" { PRINT_MEMORY }
   | "print_btree" { PRINT_BTREE }
   | "compare_expr" { COMPARE_EXPR }
-  | "is_symbolic" { IS_SYMBOLIC }
 
   | name as s { VAR s }
 

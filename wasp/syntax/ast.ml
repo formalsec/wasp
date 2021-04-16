@@ -101,9 +101,13 @@ and instr' =
   | SymAssert                         (* Symbolic assertions *)
   | SymAssume                         (* Symbolic assume *)
   | SymInt
+  | SymLong
+  | SymFloat
+  | SymDouble
+  (* LIBC SUMM APIs *)
+  | IsSymbolic
   | SymInt32 of string                  (* Symbolic integer 32 variable *)
   | SymInt64 of string                  (* Symbolic integer 64 variable *)
-  | DynSymInt32
   | SymFloat32 of string                (* Symbolic float 32 variable *)
   | SymFloat64 of string                (* Symbolic float 64 variable *)
   (*  NEW OPERATIONS  *)
@@ -116,8 +120,6 @@ and instr' =
   | PrintMemory
   | PrintBtree
   | CompareExpr
-  (* LIBC SUMM APIs *)
-  | IsSymbolic
 
 (* Globals & Functions *)
 

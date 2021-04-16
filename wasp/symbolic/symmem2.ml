@@ -62,6 +62,13 @@ let load_bytes (mem : memory) (a : address) (n : int) : string =
   done;
   Buffer.contents buf
 
+let load_string (mem : memory) (a : address) : string =
+  let rec loop a acc =
+    let (c, _) = load_byte mem a in
+    if c = 0 then acc 
+             else loop (Int64.add a 1L) (acc ^ Char.(escaped (chr c)))
+  in loop a ""
+
 let store_bytes (mem : memory) (a : address) (bs : string) : unit =
   for i = String.length bs - 1 downto 0 do
     let b = Char.code bs.[i] in

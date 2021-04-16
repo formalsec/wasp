@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from functools import reduce
-import os, sys, argparse, subprocess, time
+import os, sys, argparse, subprocess, time, yaml, csv
+
+csv_report = [['name', 'ans', 'verdict', 'complete', 'time', 'timeout', 'crash']]
 
 def getDirEntry(basename : str):
         lst = list(map(lambda f : f.name, \
@@ -12,22 +14,57 @@ def getDirEntry(basename : str):
 def runTestsInDir(dirEntry : dict):
     print('Entering ' + dirEntry['dirPath'])
 
+    ret = ''
     for testName in dirEntry['testLst']:
+        ret      = ''
+        crash    = False
+        timeout  = False
+        complete = False
+        unreach  = True
+
         testPath = dirEntry['dirPath'] + testName
         print('Running ' + testPath, end='... ')
         sys.stdout.flush()
+        yml = testPath.replace('.wat', '.yml')
+        with open(yml, 'r') as y:
+            data = yaml.safe_load(y)
+            for prop in data['properties']:
+                if 'unreach-call' in prop['property_file']:
+                    unreach = prop['expected_verdict']
         try:
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")']
             t0 = time.time()
-            subprocess.check_output(cmd, timeout=100, stderr=subprocess.STDOUT)
-            t1 = time.time()
-            dirEntry['okCnt'] += 1
-            dirEntry['totalTime'] += t1-t0
-            print(f'OK (time={t1-t0}s)')
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, KeyboardInterrupt) as e:
-            print('NOK')
+            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
+            if 'INCOMPLETE' not in out.decode('utf-8'):
+                complete = True
+            if unreach:
+                ret = 'OK'
+                dirEntry['okCnt'] += 1
+            else:
+                ret = 'NOK'
+                dirEntry['errorLst'].append(testPath)
+        except subprocess.CalledProcessError  as e:
+            if unreach:
+                ret = 'NOK'
+                crash = True
+                dirEntry['errorLst'].append(testPath)
+            else:
+                ret = 'OK'
+                dirEntry['okCnt'] += 1
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
+            ret = 'NOK'
+            timeout = True
             dirEntry['errorLst'].append(testPath)
+        finally:
+            verdict = 'OK' if unreach else 'NOK'
+            t1 = time.time()
+            interval = t1-t0
+            dirEntry['totalTime'] += interval
+            print(f'{ret} (time={t1-t0}s)')
+            csv_report.append([testPath, ret, verdict, complete, interval, timeout, crash])
+
+
 
     print(f"\nRESULTS: {dirEntry['okCnt']}/{dirEntry['size']} " \
           f"(total={dirEntry['totalTime']}, " \
@@ -67,3 +104,7 @@ if __name__ == '__main__':
     else:
         print('Running SV-COMP...')
         runBenchmarks('tests/sv-comp/_build/')
+
+    with open("tests/sv-comp/report.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerows(csv_report)

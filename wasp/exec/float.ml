@@ -59,7 +59,7 @@ sig
   val gt : t -> t -> bool
   val ge : t -> t -> bool
   val zero : t
-  val random : t 
+  val rand : float -> t 
 end
 
 module Make (Rep : RepType) : S with type bits = Rep.t =
@@ -355,5 +355,5 @@ struct
       let s = Printf.sprintf "%.17g" (to_float (abs x)) in
       group_digits (if s.[String.length s - 1] = '.' then s ^ "0" else s)
   
-  let random =  Random.self_init(); of_float (Random.float 1000.0)
+  let rand upper =  Random.self_init(); of_float (Random.float upper)
 end

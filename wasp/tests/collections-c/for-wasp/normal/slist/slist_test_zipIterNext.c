@@ -1,6 +1,6 @@
 #include "slist.h"
 #include "utils.h"
-#include "mockups.h" 
+#include "mockups.h"
 
 static SList *list;
 static SList *list2;
@@ -19,31 +19,31 @@ void teardown_test() {
 int main() {
     setup_test();
 
-    int a = sym_int("a", 32);
+    int a = sym_int("a");
     assume(a > 0); assume(a < 127);
     char str_a[] = {a, '\0'};
 
-    int b = sym_int("b", 32);
+    int b = sym_int("b");
     assume(b > 0); assume(b < 127);
     char str_b[] = {b, '\0'};
 
-    int c = sym_int("c", 32);
+    int c = sym_int("c");
     assume(c > 0); assume(c < 127);
     char str_c[] = {c, '\0'};
 
-    int d = sym_int("d", 32);
+    int d = sym_int("d");
     assume(d > 0); assume(d < 127);
     char str_d[] = {d, '\0'};
 
-    int e = sym_int("e", 32);
+    int e = sym_int("e");
     assume(e > 0); assume(e < 127);
     char str_e[] = {e, '\0'};
 
-    int f = sym_int("f", 32);
+    int f = sym_int("f");
     assume(f > 0); assume(f < 127);
     char str_f[] = {f, '\0'};
 
-    int g = sym_int("g", 32);
+    int g = sym_int("g");
     assume(g > 0); assume(g < 127);
     char str_g[] = {g, '\0'};
 
