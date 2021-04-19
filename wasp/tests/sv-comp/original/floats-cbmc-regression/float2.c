@@ -21,4 +21,6 @@ int main()
   // hex
   a=0x1.4p+4;
   if(!(a==20)) {reach_error();abort();}
+
+  return 0;
 }

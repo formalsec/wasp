@@ -101,10 +101,14 @@ if __name__ == '__main__':
         print('Running tests in \'{}\'...'.format(args.dir))
         print('-' * 0x41)
         runTestsInDir(getDirEntry(args.dir + '/'))
+
+        with open("tests/sv-comp/report.csv", "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerows(csv_report)
     else:
         print('Running SV-COMP...')
         runBenchmarks('tests/sv-comp/_build/')
 
-    with open("tests/sv-comp/report.csv", "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerows(csv_report)
+        with open("tests/sv-comp/report.csv", "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerows(csv_report)

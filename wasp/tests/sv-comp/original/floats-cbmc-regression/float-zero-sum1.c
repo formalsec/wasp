@@ -1,11 +1,10 @@
 extern void abort(void);
 #include <assert.h>
 void reach_error() { assert(0); }
-#include <stdint.h>
 
 union mix {
   float f;
-  uint32_t i;
+  unsigned int i;
 };
 
 int f00 (float a, float b) {

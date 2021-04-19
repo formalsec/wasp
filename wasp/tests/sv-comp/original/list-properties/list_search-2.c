@@ -8,7 +8,6 @@ void __VERIFIER_assert(int cond) {
   }
   return;
 }
-#include <stdio.h>
 #include<stdlib.h>
 
 typedef struct list {

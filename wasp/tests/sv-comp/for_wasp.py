@@ -1,6 +1,5 @@
 import os, threading
 from comby import CombyBinary
-from functools import reduce
 
 
 patterns = [
@@ -22,7 +21,9 @@ patterns = [
         (':[[cond]]:[~\s*](:[h2]__VERIFIER_nondet_:[h1]():[h3])', \
                 ':[cond] (:[h2]__VERIFIER_nondet_:[h1](\":[cond]_:[id()]\"):[h3])'),
         ('void assume(...) {...}', ''),
-        ('void assert(...) {...}', '')
+        ('void assert(...) {...}', ''),
+        ('void abort(...) {...}' , '')
+
 ]
 
 dirs = [
@@ -42,15 +43,15 @@ dirs = [
         'for-wasp/combinations',
         'for-wasp/float-benchs',
         'for-wasp/float-newlib',
-        #'for-wasp/floats-cbmc-regression'
+        'for-wasp/floats-cbmc-regression'
         'for-wasp/floats-cdfpl',
-        #'for-wasp/floats-esbmc-regression'
+        'for-wasp/floats-esbmc-regression'
         'for-wasp/forester-heap',
         'for-wasp/heap-data',
         #'for-wasp/list-ext-properties',
         'for-wasp/list-ext2-properties',
         'for-wasp/list-ext3-properties',
-        #'for-wasp/list-properties',
+        'for-wasp/list-properties',
         'for-wasp/list-simple',
         'for-wasp/locks',
         'for-wasp/loop-crafted',
@@ -72,15 +73,16 @@ dirs = [
         'for-wasp/recursive-simple',
         #'for-wasp/recursive-with-pointer',
         'for-wasp/reducercommutativity'
-        #'for-wasp/verifythis',
-        #'for-wasp/xcsp'
+        'for-wasp/verifythis',
+        'for-wasp/xcsp'
 ]
 
+dirs2 = [ 'for-wasp/floats-esbmc-regression' ]
 
 nthreads = 4
 
 src = []
-for d in dirs:
+for d in dirs2:
     src = src + list( \
             map(lambda f : f'{d}/{f.name}', \
                 filter(lambda f : f.name.endswith('.c'), \
@@ -90,6 +92,7 @@ def thread_main(id, vec, n):
     length = len(vec)
     low    = int((id * length) / n)
     high   = int(((id + 1) * length) / n)
+
     comby  = CombyBinary()
     for i in range(low, high):
         path = vec[i]

@@ -1,3 +1,4 @@
+#include <assert.h>
 // This file is part of the SV-Benchmarks collection of verification tasks:
 // https://github.com/sosy-lab/sv-benchmarks
 //

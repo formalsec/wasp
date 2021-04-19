@@ -12,8 +12,6 @@ void reach_error() { assert(0); }
 **
 */
 
-#include <stdint.h>
-
 typedef struct _components {
   unsigned int negative:1;
   unsigned int exponent:8;
@@ -26,7 +24,7 @@ typedef union _ieee754_float {
 } ieee754_float;
 
 
-float returnsField (uint32_t index) {
+float returnsField (unsigned int index) {
     ieee754_float c;
 
     c.ieee.negative = index & 0x1;
@@ -36,7 +34,7 @@ float returnsField (uint32_t index) {
     return c.f;
 }
 
-ieee754_float returnsStructure (uint32_t index) {
+ieee754_float returnsStructure (unsigned int index) {
     ieee754_float c;
 
     c.ieee.negative = index & 0x1;
