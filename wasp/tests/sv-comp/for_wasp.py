@@ -43,9 +43,9 @@ dirs = [
         'for-wasp/combinations',
         'for-wasp/float-benchs',
         'for-wasp/float-newlib',
-        'for-wasp/floats-cbmc-regression'
+        'for-wasp/floats-cbmc-regression',
         'for-wasp/floats-cdfpl',
-        'for-wasp/floats-esbmc-regression'
+        'for-wasp/floats-esbmc-regression',
         'for-wasp/forester-heap',
         'for-wasp/heap-data',
         #'for-wasp/list-ext-properties',
@@ -72,7 +72,7 @@ dirs = [
         'for-wasp/recursive',
         'for-wasp/recursive-simple',
         #'for-wasp/recursive-with-pointer',
-        'for-wasp/reducercommutativity'
+        'for-wasp/reducercommutativity',
         'for-wasp/verifythis',
         'for-wasp/xcsp'
 ]
