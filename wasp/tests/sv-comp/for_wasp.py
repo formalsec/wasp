@@ -77,12 +77,10 @@ dirs = [
         'for-wasp/xcsp'
 ]
 
-dirs2 = [ 'for-wasp/floats-esbmc-regression' ]
-
 nthreads = 4
 
 src = []
-for d in dirs2:
+for d in dirs:
     src = src + list( \
             map(lambda f : f'{d}/{f.name}', \
                 filter(lambda f : f.name.endswith('.c'), \
