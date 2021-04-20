@@ -77,7 +77,7 @@ dirs = [
         'for-wasp/verifythis',
         'for-wasp/xcsp',
         'for-wasp/nla-digbench',
-        'for-wasp/nla-digbench-scaling'
+        'for-wasp/nla-digbench-scaling',
         'for-wasp/psyco',
         'for-wasp/systemc',
         'for-wasp/termination-crafted',
@@ -85,7 +85,6 @@ dirs = [
         'for-wasp/termination-numeric'
 ]
 
-dirs = [ 'for-wasp/termination-numeric' ]
 nthreads = 4
 
 src = []
