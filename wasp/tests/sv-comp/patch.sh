@@ -6,4 +6,6 @@ for t in $(find "./_build" -name "*.wat"); do
   sed -i'' -e 's/call $sym_long/sym_long/' $t
   sed -i'' -e 's/call $sym_float/sym_float/' $t
   sed -i'' -e 's/call $sym_double/sym_double/' $t
+  sed -i'' -e 's/call $is_symbolic/is_symbolic/' $t
+  sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $t
 done

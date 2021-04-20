@@ -74,7 +74,7 @@ void q1(int argc, char* argv[])
    for(i=0; i < N; ++i) a[i] = i;
 
     for (i=0; i<N; i++) {
-        int r = i + (__VERIFIER_nondet_int() % (N-i));
+        int r = i + (__VERIFIER_nondet_int("r") % (N-i));
         int temp = a[i];
         a[i] = a[r];
         a[r] = temp;

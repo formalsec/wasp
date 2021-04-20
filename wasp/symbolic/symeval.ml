@@ -105,7 +105,7 @@ exception AssertFail of region * string
 exception Unsatisfiable
 
 let sym_counter = Counter.create ()
-let instr_cnt = ref 0
+let instr_cnt   = ref 0
 
 let iterations  = ref 1
 (* To keep track of the coverage of the test *)
@@ -619,14 +619,15 @@ let rec sym_step (c : sym_config) : sym_config =
         in
         res :: vs', [], logic_env, path_cond, sym_mem
 
-      | IsSymbolic, (I32 sz, _) :: (I32 i, _) :: vs' ->
-        let addr = I64_convert.extend_i32_u i in
-        let (_, v) = Symmem2.load_value sym_mem addr 0l I32Type in
-        let ans = begin
-          match v with
-          | Symbolic _ -> I32 (Int32.of_int 1)
+      | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
+        let base = I64_convert.extend_i32_u i in
+        let (_, v) = Symmem2.load_bytes sym_mem base (Int32.to_int n) in
+        (* TODO: Better symbolic matcher (deal with extract of symbolics) *)
+        let ans = 
+          begin match v with
+          | Symbolic _ -> I32 1l
           | _ -> I32 0l
-        end
+          end
         in
         (*Printf.printf "%d %d\n" (Int32.to_int i) (Int64.to_int addr);*)
         (ans, Value ans) :: vs', [], logic_env, path_cond, sym_mem

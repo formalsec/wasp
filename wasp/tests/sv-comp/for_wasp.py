@@ -37,6 +37,8 @@ dirs = [
         'for-wasp/array-multidimensional',
         'for-wasp/array-patterns',
         'for-wasp/array-programs',
+        #'for-wasp/array-memsafety',
+        #'for-wasp/array-memsafety-realloc',
         'for-wasp/array-tiling',
         'for-wasp/bitvector',
         'for-wasp/bitvector-loops',
@@ -49,7 +51,7 @@ dirs = [
         'for-wasp/floats-esbmc-regression',
         'for-wasp/forester-heap',
         'for-wasp/heap-data',
-        #'for-wasp/list-ext-properties',
+        'for-wasp/list-ext-properties',
         'for-wasp/list-ext2-properties',
         'for-wasp/list-ext3-properties',
         'for-wasp/list-properties',
@@ -57,7 +59,7 @@ dirs = [
         'for-wasp/locks',
         'for-wasp/loop-crafted',
         'for-wasp/loop-floats-scientific-comp',
-        #'for-wasp/loop-industry-pattern',
+        'for-wasp/loop-industry-pattern',
         'for-wasp/loop-invariants',
         'for-wasp/loop-invgen',
         'for-wasp/loop-lit',
@@ -68,11 +70,11 @@ dirs = [
         #'for-wasp/loops-crafted-1'
         #'for-wasp/ntdrivers',
         'for-wasp/ntdrivers-simplified',
-        #'for-wasp/openssl',
+        'for-wasp/openssl',
         'for-wasp/openssl-simplified',
         'for-wasp/recursive',
         'for-wasp/recursive-simple',
-        #'for-wasp/recursive-with-pointer',
+        'for-wasp/recursive-with-pointer',
         'for-wasp/reducercommutativity',
         'for-wasp/verifythis',
         'for-wasp/xcsp',
@@ -82,8 +84,14 @@ dirs = [
         'for-wasp/systemc',
         'for-wasp/termination-crafted',
         'for-wasp/termination-crafted-lit',
+        #'for-wasp/memsafety',
+        #'for-wasp/memsafety-bftpd',
+        #'for-wasp/memsafety-ext',
+        #'for-wasp/memsafety-ext2',
         'for-wasp/termination-numeric'
 ]
+
+dirs = [ 'for-wasp/recursive-with-pointer' ]
 
 nthreads = 4
 

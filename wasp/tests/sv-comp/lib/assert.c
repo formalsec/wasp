@@ -2,6 +2,8 @@
 
 void assume(int expr) { /* EMPTY*/ }
 void assert(int expr) { /* EMPTY*/ }
+int is_symbolic(void *sym_var, unsigned int length) { return 0; }
+
 
 int    sym_int    (char *name)   { return (int)    0; }
 long long  sym_long   (char *name)   { return (long long)   0; }

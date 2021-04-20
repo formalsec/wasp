@@ -35,7 +35,7 @@ def runTestsInDir(dirEntry : dict):
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")']
             t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=100, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             if unreach:

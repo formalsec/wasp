@@ -19,6 +19,19 @@ let packed_size = function
   | Memory.Pack16 -> 2
   | Memory.Pack32 -> 4
 
+(*
+let fresh_sth (x : string) : (unit -> string) =
+  let counter = ref 0 in
+  let f () =
+    let v = x ^ (string_of_int !counter) in
+    counter := !counter + 1;
+    v
+  in f
+
+let fresh_sym : (unit -> string) =
+  fresh_sth "undef"
+*)
+
 (*  Create an empty symbolic memory  *)
 let alloc (sz : int) : memory = 
   let mem : memory = Hashtbl.create sz in
@@ -49,19 +62,26 @@ let to_string (mem : memory) : string =
   ) lst ""
 
 let load_byte (mem : memory) (a : address) : store =
-  try Hashtbl.find mem a with Not_found -> raise (InvalidAddress a)
+  try Hashtbl.find mem a with Not_found -> (0, Extract (Value (I32 0l), 7, 0))
+    (* raise (InvalidAddress a) *)
 
 let store_byte (mem : memory) (a : address) (b : store) : unit =
   Hashtbl.replace mem a b
 
-let load_bytes (mem : memory) (a : address) (n : int) : string =
+let load_bytes (mem : memory) (a : address) (n : int) : string * sym_expr =
   let buf = Buffer.create n in
-  for i = 0 to n - 1 do
-    let (chr, _) = load_byte mem Int64.(add a (of_int i)) in
-    Buffer.add_char buf (Char.chr chr)
-  done;
-  Buffer.contents buf
-
+  let rec loop i acc =
+    if i = (n - 1) then acc else begin
+      let (chr, schr) = load_byte mem Int64.(add a (of_int i)) in
+      Buffer.add_char buf (Char.chr chr);
+      loop (i + 1) (schr :: acc)
+    end
+  in
+  let lst = List.rev (loop 0 []) in
+  let se = simplify 
+    (List.fold_left (fun a b -> Concat (b, a)) (List.hd lst) (List.tl lst))
+  in (Buffer.contents buf, se)
+    
 let load_string (mem : memory) (a : address) : string =
   let rec loop a acc =
     let (c, _) = load_byte mem a in
@@ -88,7 +108,7 @@ let loadn (mem : memory) (a : address) (o : offset) (n : int) =
       let (x, lacc) = acc
       and (cv, se) = load_byte mem a in
       let x' = Int64.(logor (of_int cv) (shift_left x 8)) in
-      loop (Int64.sub a 1L) (n - 1) (x', [se] @ lacc)
+      loop (Int64.sub a 1L) (n - 1) (x', se :: lacc)
     )
   in loop Int64.(add (effective_address a o) (of_int (n - 1))) n (0L, [])
 

@@ -22,7 +22,7 @@ int linear_search(int *a, int n, int q) {
   else return 0;
 }
 int main() { 
-  SIZE=(__VERIFIER_nondet_uint()/2)+1;
+  SIZE=(__VERIFIER_nondet_uint("SIZE")/2)+1;
 
   if (SIZE > 1 && SIZE < MAX) {
     int *a = calloc(SIZE,sizeof(int));
