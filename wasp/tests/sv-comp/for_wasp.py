@@ -15,6 +15,7 @@ patterns = [
                 ':[h1] = (:[cast]) __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
         (':[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]:[ops]:[~\s*]__VERIFIER_nondet_:[h2]()', \
                 ':[h1] = :[ops] __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
+        (':[[h1]] = __VERIFIER_nondet_:[h2]()', ':[h1] = __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
 
         ('if:[~\s*](:[~\s*]__VERIFIER_nondet_:[h1]():[~\s*])', \
                 'if (__VERIFIER_nondet_:[h1](\"if_:[id()])\"))'),
@@ -74,9 +75,17 @@ dirs = [
         #'for-wasp/recursive-with-pointer',
         'for-wasp/reducercommutativity',
         'for-wasp/verifythis',
-        'for-wasp/xcsp'
+        'for-wasp/xcsp',
+        'for-wasp/nla-digbench',
+        'for-wasp/nla-digbench-scaling'
+        'for-wasp/psyco',
+        'for-wasp/systemc',
+        'for-wasp/termination-crafted',
+        'for-wasp/termination-crafted-lit',
+        'for-wasp/termination-numeric'
 ]
 
+dirs = [ 'for-wasp/termination-numeric' ]
 nthreads = 4
 
 src = []
@@ -100,7 +109,7 @@ def thread_main(id, vec, n):
             data = f.read()
 
         for patt in patterns:
-            data = comby.rewrite(data, patt[0], patt[1])
+            data = comby.rewrite(data, patt[0], patt[1], language='.c')
 
         with open(path, 'w') as f:
             f.write(data)

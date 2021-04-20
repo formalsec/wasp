@@ -1,0 +1,14 @@
+format_version: '2.0'
+
+# old file name: cstrncpy_unsafe_false-valid-deref.c
+input_files: 'cstrncpy_unsafe.c'
+
+properties:
+  - property_file: ../properties/valid-memsafety.prp
+    expected_verdict: false
+    subproperty: valid-deref
+  - property_file: ../properties/coverage-branches.prp
+
+options:
+  language: C
+  data_model: ILP32

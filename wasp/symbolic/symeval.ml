@@ -40,6 +40,7 @@ let memory_error at = function
   | exn -> raise exn
 
 let numeric_error at = function
+  | Evaluations.UnsupportedOp m ->  m ^ ": unsupported operation"
   | Numeric_error.IntegerOverflow -> "integer overflow"
   | Numeric_error.IntegerDivideByZero -> "integer divide by zero"
   | Numeric_error.InvalidConversionToInteger -> "invalid conversion to integer"

@@ -4,6 +4,8 @@ open Sf32
 open Sf64
 open Symvalue
 
+exception UnsupportedOp of string
+
 (*  Evaluate a test operation  *)
 let eval_testop (e : sym_value) (op : Ast.testop) : sym_value =
 	let (c, s) = e in 
@@ -25,13 +27,15 @@ let eval_unop (s1 : sym_value) (op : Ast.unop) : sym_value =
 	let (v, se) = s1 in 
 	let v' = Eval_numeric.eval_unop op v in
 	let se' = 
-		(match se with
+		begin match se with
     | Value _ -> Value v'
 	  | _ -> 
-        (match op with
+        begin match op with
 				| Values.F32 Ast.F32Op.Neg -> F32Unop (F32Neg, se)
 				| Values.F64 Ast.F64Op.Neg -> F64Unop (F64Neg, se)
-				| _ -> failwith "eval_unop: Operation not supported yet")) 
+				| _ -> raise (UnsupportedOp "eval_unop")
+        end
+    end
   in (v', se')
 
 (*  Evaluate a binary operation *) 
