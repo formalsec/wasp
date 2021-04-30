@@ -1,5 +1,5 @@
 type binop = F64Add | F64Sub | F64Mul | F64Div (*  Falta: | Min | Max | CopySign *)
-type unop  = F64Neg (*  Falta: | Abs | Ceil | Floor | Trunc | Nearest | Sqrt *)
+type unop  = F64Neg | F64Abs (*  Falta: Ceil | Floor | Trunc | Nearest | Sqrt *)
 type relop = F64Eq | F64Ne | F64Lt | F64Le | F64Gt | F64Ge
 
 let neg_relop (op : relop) : relop =
@@ -31,10 +31,12 @@ let pp_string_of_binop (op : binop) : string =
 let string_of_unop (op : unop) : string =
 	match op with 
 	| F64Neg -> "F64Neg"
+  | F64Abs -> "F64Abs"
 
 let pp_string_of_unop (op : unop) : string =
 	match op with 
 	| F64Neg -> "-"
+	| F64Abs -> "F64Abs"
 
 (*  String representation of an f64 relative operation  *)
 let string_of_relop (op : relop) : string =

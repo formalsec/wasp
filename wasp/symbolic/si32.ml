@@ -1,6 +1,6 @@
 type binop = I32Add | I32Mul | I32DivU | I32RemU | I32ShrU | I32And |
              I32Sub | I32Shl | I32DivS | I32RemS | I32ShrS | I32Or  | I32Xor
-type unop  = I32Clz (*  Falta: | Clz | Ctz | Popcnt *)
+type unop  = I32Clz (*  Falta:  Ctz | Popcnt *)
 type relop = I32Eq | I32LtU | I32LtS | I32LeU | I32LeS |
              I32Ne | I32GtU | I32GtS | I32GeU | I32GeS
 
@@ -42,14 +42,14 @@ let pp_string_of_binop (op : binop) : string =
 	| I32Or   -> "|"
 	| I32Sub  -> "-"
 	| I32DivS -> "/"
-	| I32DivU -> "/"
+	| I32DivU -> "/u"
 	| I32Xor  -> "^"
 	| I32Mul  -> "*"
   | I32Shl  -> "<<"
-  | I32ShrS -> "s>>"
-  | I32ShrU -> "u>>"
-  | I32RemS -> "/s"
-  | I32RemU -> "/u"
+  | I32ShrS -> ">>"
+  | I32ShrU -> ">>u"
+  | I32RemS -> "%"
+  | I32RemU -> "%u"
 
 (*  String representation of an i32 unary operation  *)
 let string_of_unop (op : unop) : string =

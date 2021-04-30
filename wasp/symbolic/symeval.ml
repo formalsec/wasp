@@ -81,22 +81,22 @@ and sym_admin_instr' =
 (*  Symbolic configuration  *)
 type sym_config =
 {
-  sym_frame : sym_frame;
-  sym_code : sym_code;
-  logic_env : Logicenv.t;
-  path_cond : path_conditions;
-  sym_mem : Symmem2.t;
+  sym_frame  : sym_frame;
+  sym_code   : sym_code;
+  logic_env  : Logicenv.t;
+  path_cond  : path_conditions;
+  sym_mem    : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
 }
 
 (*  Symbolic frame and configuration  *)
 let sym_frame sym_inst sym_locals = {sym_inst; sym_locals}
 let sym_config inst vs es sym_m = {
-  sym_frame = sym_frame inst []; 
-  sym_code = vs, es; 
-  logic_env = Logicenv.create []; 
-  path_cond = [];
-  sym_mem = sym_m;
+  sym_frame  = sym_frame inst []; 
+  sym_code   = vs, es; 
+  logic_env  = Logicenv.create []; 
+  path_cond  = [];
+  sym_mem    = sym_m;
   sym_budget = 300
 }
 
@@ -408,10 +408,10 @@ let rec sym_step (c : sym_config) : sym_config =
           new_conf :: vs', [], logic_env, path_cond, sym_mem
         with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
 
-      | Convert cvtop, (v,_) :: vs' ->
+      | Convert cvtop, v :: vs' ->
         (try 
-          let v' = Eval_numeric.eval_cvtop cvtop v in 
-          (v', Value v'):: vs', [], logic_env, path_cond, sym_mem
+          let v' = eval_cvtop cvtop v in 
+          v' :: vs', [], logic_env, path_cond, sym_mem
         with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
 
       | Dup, v :: vs' ->
@@ -424,9 +424,8 @@ let rec sym_step (c : sym_config) : sym_config =
             [AsrtFail (Logicenv.to_string logic_env) @@ e.at]
           end else begin
             let ex' = simplify ex in
-            let cond = match ex' with Value _ -> [] | _ -> [neg_expr ex'] in
-            let query = and_list (cond @ path_cond) in
-            begin match Z3Encoding2.check_sat_core [query] with
+            let assertion = match ex' with Value _ -> [] | _ -> [neg_expr ex'] in
+            begin match Z3Encoding2.check_sat_core (assertion @ path_cond) with
             | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
             | None ->
               Printf.printf "\n\n###### Assertion passed ######\n";
@@ -448,9 +447,8 @@ let rec sym_step (c : sym_config) : sym_config =
               Printf.printf "\n\n###### Assertion passed ######\n";
               []
             | _ ->
-              let cond = neg_expr ex' in
-              let query = and_list (cond :: path_cond) in
-              begin match Z3Encoding2.check_sat_core [query] with
+              let assertion = neg_expr ex' in
+              begin match Z3Encoding2.check_sat_core (assertion :: path_cond) with
               | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
               | None ->
                   Printf.printf "\n\n###### Assertion passed ######\n";

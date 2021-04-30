@@ -160,8 +160,12 @@ let load_packed (sz : Memory.pack_size) (mem : memory) (a : address)
     | I64Type -> I64 cv
     | _ -> raise Memory.Type
     end
-  (* TODO: fix for other sizes *)
-  in (x', List.hd sv)
+  in
+  let sv' =
+    if (List.length sv) > 1 then 
+      simplify (List.fold_left (fun a b -> Concat (b, a)) (List.hd sv) (List.tl sv))
+    else (List.hd sv)
+  in (x', sv')
 
 let store_packed (sz : Memory.pack_size) (mem : memory) (a : address) 
     (o : offset) (v : sym_value) : unit =

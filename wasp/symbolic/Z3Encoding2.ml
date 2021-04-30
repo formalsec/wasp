@@ -18,8 +18,8 @@ let fp64_sort = FloatingPoint.mk_sort_double ctx
 
 let rm = FloatingPoint.RoundingMode.mk_round_nearest_ties_to_even ctx
 
-let bit0 = BitVector.mk_numeral ctx "0" 32
-let bit1 = BitVector.mk_numeral ctx "1" 32
+let bv_false = BitVector.mk_numeral ctx "0" 32
+let bv_true  = BitVector.mk_numeral ctx "1" 32
 
 let get_sort (e : value_type) : Sort.sort =
   begin match e with
@@ -27,9 +27,12 @@ let get_sort (e : value_type) : Sort.sort =
   | I64Type | F64Type -> bv64_sort
   end
 
-let extend (e : Expr.expr) (sz : int) : Expr.expr =
-  let sz' = BitVector.get_size (Expr.get_sort e) in
-  if sz' < sz then BitVector.mk_zero_ext ctx (sz - sz') e else e
+let extend (e : Expr.expr) (target : int) : Expr.expr =
+  let e' = FloatingPoint.(if is_fp e then mk_to_ieee_bv ctx e
+                                     else e) in
+  let curr = BitVector.get_size (Expr.get_sort e') in
+  if  curr < target then BitVector.mk_zero_ext ctx (target - curr) e'
+                    else e'
 
 module Zi32 = 
 struct
@@ -78,7 +81,7 @@ struct
       | I32GeU -> BitVector.mk_uge ctx
       | I32GeS -> BitVector.mk_sge ctx
       end
-    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
 end
 
 
@@ -100,10 +103,16 @@ struct
       | I64Add  -> BitVector.mk_add  ctx
       | I64Sub  -> BitVector.mk_sub  ctx
       | I64Mul  -> BitVector.mk_mul  ctx
-      | I64Div  -> BitVector.mk_sdiv ctx
+      | I64DivS -> BitVector.mk_sdiv ctx
+      | I64DivU -> BitVector.mk_udiv ctx
       | I64And  -> BitVector.mk_and  ctx
       | I64Xor  -> BitVector.mk_xor  ctx
       | I64Or   -> BitVector.mk_or   ctx
+      | I64Shl  -> BitVector.mk_shl  ctx
+      | I64ShrS -> BitVector.mk_ashr ctx
+      | I64ShrU -> BitVector.mk_lshr ctx
+      | I64RemS -> BitVector.mk_srem ctx
+      | I64RemU -> BitVector.mk_urem ctx
       end
     in op' e1' e2'
 
@@ -124,7 +133,7 @@ struct
       | I64GeU -> BitVector.mk_uge ctx
       | I64GeS -> BitVector.mk_sge ctx
       end
-    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
 end
 
 module Zf32 =
@@ -163,14 +172,14 @@ struct
     let e1' = to_fp e1
     and e2' = to_fp e2
     and op' = begin match op with
-      | F32Eq -> Boolean.mk_eq  ctx
-      | F32Ne -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
+      | F32Eq -> FloatingPoint.mk_eq  ctx
+      | F32Ne -> (fun x1 x2 -> Boolean.mk_not ctx (FloatingPoint.mk_eq ctx x1 x2))
       | F32Lt -> FloatingPoint.mk_lt  ctx
       | F32Le -> FloatingPoint.mk_leq ctx
       | F32Gt -> FloatingPoint.mk_gt  ctx
       | F32Ge -> FloatingPoint.mk_geq ctx
       end
-    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
 end
 
 module Zf64 =
@@ -188,6 +197,7 @@ struct
   let encode_unop (op : unop) (e : Expr.expr) : Expr.expr =
     let op'  = begin match op with
       | F64Neg -> FloatingPoint.mk_neg ctx
+      | F64Abs -> FloatingPoint.mk_abs ctx
       end
     in op' (to_fp e)
 
@@ -208,14 +218,14 @@ struct
     let e1' = to_fp e1
     and e2' = to_fp e2
     and op' = begin match op with
-      | F64Eq -> Boolean.mk_eq  ctx
-      | F64Ne -> (fun x1 x2 -> Boolean.mk_not ctx (Boolean.mk_eq ctx x1 x2))
+      | F64Eq -> FloatingPoint.mk_eq  ctx
+      | F64Ne -> (fun x1 x2 -> Boolean.mk_not ctx (FloatingPoint.mk_eq ctx x1 x2))
       | F64Lt -> FloatingPoint.mk_lt  ctx
       | F64Le -> FloatingPoint.mk_leq ctx
       | F64Gt -> FloatingPoint.mk_gt  ctx
       | F64Ge -> FloatingPoint.mk_geq ctx
       end
-    in Boolean.mk_ite ctx (op' e1' e2') bit1 bit0
+    in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
 end
 
 let encode_value (v : value) : Expr.expr =
@@ -289,39 +299,17 @@ let rec encode_sym_expr (e : sym_expr) : Expr.expr =
       BitVector.mk_concat ctx e1' e2'
   | BoolOp (op, e1, e2) ->
       let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
-      begin match op with
-      | And -> BitVector.mk_and ctx e1' e2'
-      | Or  -> BitVector.mk_or  ctx e1' e2'
-      end
+      and e2' = encode_sym_expr e2
+      and op' = match op with
+        | And -> BitVector.mk_and ctx
+        | Or  -> BitVector.mk_or  ctx
+      in op' e1' e2'
   end
-
-let encode_top_level_expr (e : sym_expr) : Expr.expr =
-  let encode_float_constraints (t : symbolic) (x : string) : Expr.expr list =
-    begin match t with
-    | SymFloat32 -> 
-        let bv = Expr.mk_const_s ctx x bv32_sort in
-        let fp = FloatingPoint.mk_to_fp_bv ctx bv fp32_sort in
-        let c1 = Boolean.mk_not ctx (FloatingPoint.mk_is_nan ctx fp)
-        and c2 = Boolean.mk_not ctx (FloatingPoint.mk_is_infinite ctx fp) in
-        [c1; c2]
-    | SymFloat64 ->
-        let bv = Expr.mk_const_s ctx x bv64_sort in
-        let fp = FloatingPoint.mk_to_fp_bv ctx bv fp64_sort in
-        let c1 = Boolean.mk_not ctx (FloatingPoint.mk_is_nan ctx fp)
-        and c2 = Boolean.mk_not ctx (FloatingPoint.mk_is_infinite ctx fp) in
-        [c1; c2]
-    | _ -> []
-    end
-  in
-  let syms' = List.map (fun (x, t) -> encode_float_constraints t x) 
-      (List.sort_uniq (fun (x1, _) (x2, _) -> String.compare x1 x2) (get_symbols e)) in
-  Boolean.mk_and ctx ([encode_sym_expr e] @ (List.concat syms'))
 
 let check_sat_core (pc : path_conditions) : Model.model option =
   assert (not (pc = []));
   let pc_as_bv = List.map encode_sym_expr pc in
-  let pc' = List.map (fun c -> Boolean.mk_eq ctx c bit1) pc_as_bv in
+  let pc' = List.map (fun c -> Boolean.mk_not ctx (Boolean.mk_eq ctx c bv_false)) pc_as_bv in
   let solver = Solver.mk_solver ctx None in
   List.iter (fun c -> Solver.add solver [c]) pc';
   (*

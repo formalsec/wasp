@@ -1,6 +1,6 @@
-type binop = I64Add | I64Mul | I64And | (*  Falta: | Shl | ShrS | ShrU | Rotl | Rotr  *)
-             I64Sub | I64Div | I64Or  | I64Xor 
-type unop  = I64Clz (*  Falta: | Clz | Ctz | Popcnt *)
+type binop = I64Add | I64Mul | I64DivU | I64RemU | I64ShrU | I64And |
+             I64Sub | I64Shl | I64DivS | I64RemS | I64ShrS | I64Or  | I64Xor 
+type unop  = I64Clz (*  Falta: | Ctz | Popcnt *)
 type relop = I64Eq | I64LtU | I64LtS | I64LeU | I64LeS |
              I64Ne | I64GtU | I64GtS | I64GeU | I64GeS
 
@@ -21,13 +21,19 @@ let neg_relop (op : relop) : relop =
 (*  String representation of an i64 binary operation  *)
 let string_of_binop (op : binop) : string =
 	match op with
-  | I64Add  -> "I64Add"
+	| I64Add  -> "I64Add"
 	| I64And  -> "I64And"
 	| I64Or   -> "I64Or"
 	| I64Sub  -> "I64Sub"
-	| I64Div  -> "I64Div"
+	| I64DivS -> "I64DivS"
+  | I64DivU -> "I64DivU"
 	| I64Xor  -> "I64Xor"
 	| I64Mul  -> "I64Mul"
+  | I64Shl  -> "I64Shl"
+  | I64ShrS -> "I64ShrS"
+  | I64ShrU -> "I64ShrU"
+  | I64RemS -> "I64RemS"
+  | I64RemU -> "I64RemU"
 
 let pp_string_of_binop (op : binop) : string =
 	match op with
@@ -35,10 +41,16 @@ let pp_string_of_binop (op : binop) : string =
 	| I64And  -> "&"
 	| I64Or   -> "|"
 	| I64Sub  -> "-"
-	| I64Div  -> "/"
+	| I64DivS -> "/"
+	| I64DivU -> "/u"
 	| I64Xor  -> "^"
 	| I64Mul  -> "*"
-
+  | I64Shl  -> "<<"
+  | I64ShrS -> ">>"
+  | I64ShrU -> ">>u"
+  | I64RemS -> "%"
+  | I64RemU -> "%u"
+  
 (*  String representation of an i64 unary operation  *)
 let string_of_unop (op : unop) : string =
 	match op with 

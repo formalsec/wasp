@@ -91,8 +91,6 @@ dirs = [
         'for-wasp/termination-numeric'
 ]
 
-dirs = [ 'for-wasp/recursive-with-pointer' ]
-
 nthreads = 4
 
 src = []
