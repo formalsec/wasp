@@ -16,7 +16,8 @@ let bv64_sort = BitVector.mk_sort ctx 64
 let fp32_sort = FloatingPoint.mk_sort_single ctx
 let fp64_sort = FloatingPoint.mk_sort_double ctx
 
-let rm = FloatingPoint.RoundingMode.mk_round_nearest_ties_to_even ctx
+let rne = FloatingPoint.RoundingMode.mk_rne ctx
+let rtz = FloatingPoint.RoundingMode.mk_rtz ctx
 
 let bv_false = BitVector.mk_numeral ctx "0" 32
 let bv_true  = BitVector.mk_numeral ctx "1" 32
@@ -82,6 +83,16 @@ struct
       | I32GeS -> BitVector.mk_sge ctx
       end
     in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
+
+  let encode_cvtop (op : cvtop) (e : Expr.expr) : Expr.expr =
+    let op' = begin match op with
+      | I32TruncSF32 -> (fun f -> FloatingPoint.mk_to_sbv ctx rtz f 32)
+      | I32TruncUF32 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 32)
+      | I32TruncSF64 -> (fun f -> FloatingPoint.mk_to_sbv ctx rtz f 32)
+      | I32TruncUF64 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 32)
+      | I32ReinterpretFloat -> FloatingPoint.mk_to_ieee_bv ctx 
+      end
+    in op' e
 end
 
 
@@ -134,6 +145,19 @@ struct
       | I64GeS -> BitVector.mk_sge ctx
       end
     in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
+
+  let encode_cvtop (op : cvtop) (e : Expr.expr) : Expr.expr =
+    let op' = begin match op with
+      | I64ExtendSI32 -> BitVector.mk_sign_ext ctx 32
+      | I64ExtendUI32 -> BitVector.mk_zero_ext ctx 32
+      (* rounding towards zero (aka truncation) *)
+      | I64TruncSF32 -> (fun f -> FloatingPoint.mk_to_sbv ctx rtz f 64)
+      | I64TruncUF32 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 64)
+      | I64TruncSF64 -> (fun f -> FloatingPoint.mk_to_sbv ctx rtz f 64)
+      | I64TruncUF64 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 64)
+      | I64ReinterpretFloat -> FloatingPoint.mk_to_ieee_bv ctx 
+      end
+    in op' e
 end
 
 module Zf32 =
@@ -160,10 +184,10 @@ struct
     let e1' = to_fp e1
     and e2' = to_fp e2
     and op' = begin match op with
-      | F32Add -> FloatingPoint.mk_add ctx rm
-      | F32Sub -> FloatingPoint.mk_sub ctx rm
-      | F32Mul -> FloatingPoint.mk_mul ctx rm
-      | F32Div -> FloatingPoint.mk_div ctx rm
+      | F32Add -> FloatingPoint.mk_add ctx rne
+      | F32Sub -> FloatingPoint.mk_sub ctx rne
+      | F32Mul -> FloatingPoint.mk_mul ctx rne
+      | F32Div -> FloatingPoint.mk_div ctx rne
       end
     in op' e1' e2'
 
@@ -180,6 +204,21 @@ struct
       | F32Ge -> FloatingPoint.mk_geq ctx
       end
     in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
+
+  let encode_cvtop (op : cvtop) (e : Expr.expr) : Expr.expr =
+    let op' = begin match op with
+      | F32ConvertSI32 -> 
+          (fun bv -> FloatingPoint.mk_to_fp_signed ctx rne bv fp32_sort)
+      | F32ConvertUI32 ->
+          (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp32_sort)
+      | F32ConvertSI64 ->
+          (fun bv -> FloatingPoint.mk_to_fp_signed ctx rne bv fp32_sort)
+      | F32ConvertUI64 ->
+          (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp32_sort)
+      | F32ReinterpretInt -> 
+          (fun bv -> FloatingPoint.mk_to_fp_bv ctx bv fp32_sort)
+      end
+    in op' e
 end
 
 module Zf64 =
@@ -187,9 +226,9 @@ struct
   open Sf64
 
   let to_fp (e : Expr.expr) : Expr.expr =
-    if BitVector.is_bv e then
+    if BitVector.is_bv e then begin
       FloatingPoint.mk_to_fp_bv ctx e fp64_sort
-    else e
+    end else e
 
   let encode_value (f : float) : Expr.expr =
     FloatingPoint.mk_numeral_f ctx f fp64_sort
@@ -206,10 +245,10 @@ struct
     let e1' = to_fp e1
     and e2' = to_fp e2
     and op' = begin match op with
-      | F64Add -> FloatingPoint.mk_add ctx rm
-      | F64Sub -> FloatingPoint.mk_sub ctx rm
-      | F64Mul -> FloatingPoint.mk_mul ctx rm
-      | F64Div -> FloatingPoint.mk_div ctx rm
+      | F64Add -> FloatingPoint.mk_add ctx rne
+      | F64Sub -> FloatingPoint.mk_sub ctx rne
+      | F64Mul -> FloatingPoint.mk_mul ctx rne
+      | F64Div -> FloatingPoint.mk_div ctx rne
       end
     in op' e1' e2'
 
@@ -226,6 +265,22 @@ struct
       | F64Ge -> FloatingPoint.mk_geq ctx
       end
     in Boolean.mk_ite ctx (op' e1' e2') bv_true bv_false
+
+  let encode_cvtop (op : cvtop) (e : Expr.expr) : Expr.expr =
+    let op' = begin match op with
+      | F64ConvertSI32 -> 
+          (fun bv -> FloatingPoint.mk_to_fp_signed ctx rne bv fp64_sort)
+      | F64ConvertUI32 ->
+          (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp64_sort)
+      | F64ConvertSI64 ->
+          (fun bv -> FloatingPoint.mk_to_fp_signed ctx rne bv fp64_sort)
+      | F64ConvertUI64 ->
+          (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp64_sort)
+      | F64ReinterpretInt -> 
+          (fun bv -> FloatingPoint.mk_to_fp_bv ctx bv fp64_sort)
+      end
+    in op' e
+
 end
 
 let encode_value (v : value) : Expr.expr =
@@ -239,6 +294,7 @@ let encode_value (v : value) : Expr.expr =
 let rec encode_sym_expr (e : sym_expr) : Expr.expr =
   begin match e with
   | Value v -> encode_value v
+  | Ptr p   -> encode_value p
   | I32Unop  (op, e) ->
       let e' = encode_sym_expr e in
       Zi32.encode_unop op e'
@@ -250,6 +306,9 @@ let rec encode_sym_expr (e : sym_expr) : Expr.expr =
       let e1' = encode_sym_expr e1
       and e2' = encode_sym_expr e2 in
       Zi32.encode_relop op e1' e2'
+  | I32Cvtop (op, e) ->
+      let e' = encode_sym_expr e in
+      Zi32.encode_cvtop op e'
   | I64Unop  (op, e) ->
       let e' = encode_sym_expr e in
       Zi64.encode_unop op e'
@@ -261,6 +320,9 @@ let rec encode_sym_expr (e : sym_expr) : Expr.expr =
       let e1' = encode_sym_expr e1
       and e2' = encode_sym_expr e2 in
       Zi64.encode_relop op e1' e2'
+  | I64Cvtop (op, e) ->
+      let e' = encode_sym_expr e in
+      Zi64.encode_cvtop op e'
   | F32Unop (op, e) ->
       let e' = encode_sym_expr e in
       Zf32.encode_unop op e'
@@ -272,6 +334,9 @@ let rec encode_sym_expr (e : sym_expr) : Expr.expr =
       let e1' = encode_sym_expr e1
       and e2' = encode_sym_expr e2 in
       Zf32.encode_relop op e1' e2'
+  | F32Cvtop (op, e) ->
+      let e' = encode_sym_expr e in
+      Zf32.encode_cvtop op e'
   | F64Unop (op, e) ->
       let e' = encode_sym_expr e in
       Zf64.encode_unop op e'
@@ -283,6 +348,9 @@ let rec encode_sym_expr (e : sym_expr) : Expr.expr =
       let e1' = encode_sym_expr e1
       and e2' = encode_sym_expr e2 in
       Zf64.encode_relop op e1' e2'
+  | F64Cvtop (op, e) ->
+      let e' = encode_sym_expr e in
+      Zf64.encode_cvtop op e'
   | Symbolic (t, x) ->
       Expr.mk_const_s ctx x (get_sort (type_of_symbolic t))
   | Extract  (e, h, l) -> 

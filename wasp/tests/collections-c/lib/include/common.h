@@ -21,6 +21,8 @@
 #ifndef COLLECTIONS_C_COMMON_H
 #define COLLECTIONS_C_COMMON_H
 
+#include "mockups.h"
+
 #ifdef ARCH_64
 #define MAX_POW_TWO (((size_t) 1) << 63)
 #else

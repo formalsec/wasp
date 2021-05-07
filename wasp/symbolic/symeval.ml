@@ -113,7 +113,8 @@ let lines       = ref []
 let lines_total = ref []
 
 let complete  = ref true
-let instr_max = 1_000_000
+
+let chunk_table = Hashtbl.create 512
 
 let plain e = SPlain e.it @@ e.at
 
@@ -205,7 +206,7 @@ let fresh_sym_var : (unit -> string) =
 (*  Symbolic step  *)
 let rec sym_step (c : sym_config) : sym_config =
   instr_cnt := !instr_cnt + 1;
-  if !instr_cnt >= instr_max then begin
+  if !instr_cnt >= !Flags.instr_max then begin
     complete := false; 
     raise Unsatisfiable;
   end;
@@ -236,7 +237,7 @@ let rec sym_step (c : sym_config) : sym_config =
         let ex' = simplify ex in
         let to_add =
           begin match ex with
-          | Value _ -> []
+          | Value _ | Ptr _ -> []
           | _       -> 
               let ex'' =
                 if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
@@ -251,7 +252,7 @@ let rec sym_step (c : sym_config) : sym_config =
         let ex' = simplify ex in
         let to_add =
           begin match ex' with
-          | Value _ -> []
+          | Value _ | Ptr _ -> []
           | _ ->
               let ex'' = 
                 if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
@@ -269,7 +270,7 @@ let rec sym_step (c : sym_config) : sym_config =
         let ex' = simplify ex in
         let to_add =
           begin match ex' with
-          | Value _ -> []
+          | Value _ | Ptr _ -> []
           | _ ->
               let ex'' = 
                 if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
@@ -285,7 +286,7 @@ let rec sym_step (c : sym_config) : sym_config =
         let ex' = simplify ex in
         let to_add = 
           begin match ex' with
-          | Value _ -> []
+          | Value _ | Ptr _ -> []
           | _ ->
               let ex'' = 
                 if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
@@ -318,11 +319,13 @@ let rec sym_step (c : sym_config) : sym_config =
       | Drop, v :: vs' ->
         vs', [], logic_env, path_cond, sym_mem
 
-      | Select, (I32 0l, _) :: v2 :: v1 :: vs' ->
-        v2 :: vs', [], logic_env, path_cond, sym_mem
+      | Select, (I32 0l, ex) :: v2 :: v1 :: vs' ->
+          let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [neg_expr ex] in
+          v2 :: vs', [], logic_env, to_add @ path_cond, sym_mem
 
-      | Select, (I32 i, _) :: v2 :: v1 :: vs' ->
-        v1 :: vs', [], logic_env, path_cond, sym_mem
+      | Select, (I32 i, ex) :: v2 :: v1 :: vs' ->
+          let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [ex] in
+          v1 :: vs', [], logic_env, to_add @ path_cond , sym_mem
 
       | LocalGet x, vs ->
         !(local frame x) :: vs, [], logic_env, path_cond, sym_mem
@@ -345,8 +348,25 @@ let rec sym_step (c : sym_config) : sym_config =
         with  Global.NotMutable -> Crash.error e.at "write to immutable global"
             | Global.Type -> Crash.error e.at "type mismatch at global write")
 
-      | Load {offset; ty; sz; _}, (I32 i, _) :: vs' -> 
+      | Load {offset; ty; sz; _}, (I32 i, sym_ptr) :: vs' -> 
         let base = I64_convert.extend_i32_u i in
+        (* overflow check *)
+        let ptr = get_ptr (simplify sym_ptr) in
+        if Option.is_some ptr then begin
+          let low = I32Value.of_value (Option.get ptr) in
+          let chunk_size = try Hashtbl.find chunk_table low with 
+                           | Not_found -> failwith "uaf" in (* TODO: Make Vuln Crash*)
+          let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
+          and ptr_val = Int64.(add base (of_int32 offset)) in
+          if (Int64.of_int32 low) > ptr_val || ptr_val >= high then (
+            Printf.printf "low: %ld\n" low;
+            Printf.printf "high: %Ld\n" high;
+            Printf.printf "ptr_val: %Ld\n" ptr_val;
+            Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
+            (* TODO: Make Vuln Crash*)
+            failwith "overflow:load"
+          )
+        end;
         begin try
           let (v, e) =
             match sz with
@@ -357,8 +377,25 @@ let rec sym_step (c : sym_config) : sym_config =
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
         end
 
-      | Store {offset; sz; _}, (v, ex) :: (I32 i, _) :: vs' ->
+      | Store {offset; sz; _}, (v, ex) :: (I32 i, sym_ptr) :: vs' ->
         let base = I64_convert.extend_i32_u i in
+        (* overflow check *)
+        let ptr = get_ptr (simplify sym_ptr) in
+        if Option.is_some ptr then begin
+          let low = I32Value.of_value (Option.get ptr) in
+          let chunk_size = try Hashtbl.find chunk_table low with 
+                           | Not_found -> failwith "uaf" in (* TODO: Make Vuln Crash*)
+          let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
+          and ptr_val = Int64.(add base (of_int32 offset)) in
+          if (Int64.of_int32 low) > ptr_val || ptr_val >= high then (
+            Printf.printf "low: %ld\n" low;
+            Printf.printf "high: %Ld\n" high;
+            Printf.printf "ptr_val: %Ld\n" ptr_val;
+            Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
+            (* TODO: Make Vuln Crash*)
+            failwith "overflow:store"
+          )
+        end;
         begin try
           begin match sz with
           | None -> Symmem2.store_value sym_mem base offset (v, ex)
@@ -460,12 +497,12 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | SymAssume, (I32 0l, ex) :: vs' ->
         Printf.printf ">>> Assumed false. Finishing...\n";
-        let to_add = match ex with Value _ -> [] | _ -> [neg_expr ex] in
+        let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [neg_expr ex] in
         let path_cond = to_add @ path_cond in
         [], [AsmFail path_cond @@ e.at], logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
-        let to_add = (match ex with | Value _ -> [] | _ -> [ex]) in
+        let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [ex] in
         Printf.printf ">>> Assume passed. Continuing execution...\n";
         vs', [], logic_env, to_add @ path_cond, sym_mem
 
@@ -477,7 +514,7 @@ let rec sym_step (c : sym_config) : sym_config =
           let x' = if cnt = 0 then x
                               else x ^ "_" ^ (string_of_int cnt) in
           let v = try Logicenv.find logic_env x' 
-                  with Not_found -> I32 (I32.rand 1000) in
+                  with Not_found -> I32 (I32.rand 255) in
           Logicenv.add logic_env x' v;
           Counter.replace sym_counter x (cnt + 1);
           x', v
@@ -492,7 +529,7 @@ let rec sym_step (c : sym_config) : sym_config =
           let x' = if cnt = 0 then x
                               else x ^ "_" ^ (string_of_int cnt) in
           let v = try Logicenv.find logic_env x' 
-                  with Not_found -> I64 (I64.rand 1000) in
+                  with Not_found -> I64 (I64.rand 255) in
           Logicenv.add logic_env x' v;
           Counter.replace sym_counter x (cnt + 1);
           x', v
@@ -507,7 +544,7 @@ let rec sym_step (c : sym_config) : sym_config =
             let x' = if cnt = 0 then x 
                                 else x ^ "_" ^ (string_of_int cnt) in
             let v = try Logicenv.find logic_env x' 
-                    with Not_found -> F32 (F32.rand 1000.0) in
+                    with Not_found -> F32 (F32.rand 255.0) in
             Logicenv.add logic_env x' v;
             Counter.replace sym_counter x (cnt + 1);
             x', v
@@ -522,12 +559,23 @@ let rec sym_step (c : sym_config) : sym_config =
             let x' = if cnt = 0 then x 
                                 else x ^ "_" ^ (string_of_int cnt) in
             let v = try Logicenv.find logic_env x' 
-                    with Not_found -> F64 (F64.rand 1000.0) in
+                    with Not_found -> F64 (F64.rand 255.0) in
             Logicenv.add logic_env x' v;
             Counter.replace sym_counter x (cnt + 1);
             x', v
           in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
                 path_cond, sym_mem
+
+      | Alloc, (I32 a, _) :: (I32 b, _) :: vs' ->
+          Printf.printf "Alloc %ld %ld\n" b a;
+          Hashtbl.add chunk_table b a;
+          (I32 b, Ptr (I32 b)) :: vs', [], logic_env, path_cond, sym_mem
+
+      | Free, (I32 i, _) :: vs' ->
+          (* TODO: Make Vuln Crash*)
+          if not (Hashtbl.mem chunk_table i) then failwith "invalid free"
+                                             else Hashtbl.remove chunk_table i;
+          vs', [], logic_env, path_cond, sym_mem
 
       | SymInt32 x, vs' ->
         let v =
@@ -765,6 +813,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       raise Unsatisfiable;
 
     Counter.reset sym_counter;
+    Hashtbl.reset chunk_table;
 
     (* DEBUG: *)
     let delim = String.make 6 '$' in
@@ -804,8 +853,9 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Symmem2.init !c.sym_mem initial_memory;
 
     (* DEBUG *)
+    let z3_model_str = Z3.Model.to_string model in
     Printf.printf "SATISFIABLE\nMODEL: \n%s\n\n\n%s NEW LOGICAL ENV STATE %s\n%s%s\n\n"
-        (Z3.Model.to_string model) delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
+        z3_model_str delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
     Printf.printf "\n%s ITERATION %02d STATISTICS: %s\n" 
         (String.make 23 '-') !iterations (String.make 23 '-');
     Printf.printf "PATH CONDITION SIZE: %d\n" (Symvalue.length (and_list pc));

@@ -131,6 +131,7 @@ let eval_testop (e : sym_value) (op : testop) : sym_value =
 	let s' =
 		begin match s with
     | Value _ -> Value c'
+    | Ptr   _ -> Value c'
 		| _ -> 
         begin match op with
 				| Values.I32 I32Op.Eqz -> I32Relop (I32Eq, s, Value (Values.I32 0l))
@@ -211,68 +212,73 @@ let eval_cvtop (op : Ast.cvtop) (e : sym_value) : sym_value =
   let i32_cvtop op e =
     let (c, s) = e in
     match op with
+    (* 64bit integer is taken modulo 2^32 i.e., top 32 bits are lost *)
     | I32Op.WrapI64 -> Extract (s, 4, 0)
-    | I32Op.TruncSF32 -> s
-    | I32Op.TruncUF32 -> s
-    | I32Op.TruncSF64 -> Extract (s, 4, 0)
-    | I32Op.TruncUF64 -> Extract (s, 4, 0)
-    | I32Op.ReinterpretFloat -> s
+    | I32Op.TruncSF32 -> I32Cvtop (I32TruncSF32, s)
+    | I32Op.TruncUF32 -> I32Cvtop (I32TruncUF32, s)
+    | I32Op.TruncSF64 -> I32Cvtop (I32TruncSF64, s)
+    | I32Op.TruncUF64 -> I32Cvtop (I32TruncUF64, s)
+    | I32Op.ReinterpretFloat -> I32Cvtop (I32ReinterpretFloat, s)
     | I32Op.ExtendSI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type))
     | I32Op.ExtendUI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type))
   in
   let i64_cvtop op e =
     let (c, s) = e in
     match op with
-    | I64Op.ExtendSI32 -> Concat (Value (Values.I32 0l), s)
-    | I64Op.ExtendUI32 -> Concat (Value (Values.I32 0l), s)
-    | I64Op.TruncSF32 -> Concat (Value (Values.I32 0l), Extract (s, 4, 0))
-    | I64Op.TruncUF32 -> Concat (Value (Values.I32 0l), Extract (s, 4, 0))
-    | I64Op.TruncSF64 -> s
-    | I64Op.TruncUF64 -> s
-    | I64Op.ReinterpretFloat -> s
+    | I64Op.ExtendSI32 -> I64Cvtop (I64ExtendSI32, s)
+    | I64Op.ExtendUI32 -> I64Cvtop (I64ExtendUI32, s)
+    | I64Op.TruncSF32  -> I64Cvtop (I64TruncSF32, s)
+    | I64Op.TruncUF32  -> I64Cvtop (I64TruncUF32, s)
+    | I64Op.TruncSF64  -> I64Cvtop (I64TruncSF64, s)
+    | I64Op.TruncUF64  -> I64Cvtop (I64TruncUF64, s)
+    | I64Op.ReinterpretFloat -> I64Cvtop (I64ReinterpretFloat, s)
     | I64Op.WrapI64 -> raise (Eval_numeric.TypeError (1, c, Types.I64Type))
   in
   let f32_cvtop op e =
     let (c, s) = e in
     match op with
     | F32Op.DemoteF64 ->
-        (*
+        (* FIXME: use Z3 ops? *)
+        let nan64bits = I64Cvtop (I64ReinterpretFloat, s) in
         let sign_field = I64Binop (I64Shl, 
-                                   I64Binop (I64ShrU, s, Value (Values.I64 63L)), 
+                                   I64Binop (I64ShrU, nan64bits, Value (Values.I64 63L)), 
                                    Value (Values.I64 31L)) in
         let significant_field = I64Binop (I64ShrU,
-                                          I64Binop (I64Shl, s, Value (Values.I64 12L)),
-                                          Value (Values.I64 41L)) in*)
-         raise (UnsupportedOp "eval_cvtop: DemoteF64")
-    | F32Op.ConvertSI32 -> s
-    | F32Op.ConvertUI32 -> s
-    | F32Op.ConvertSI64 -> Extract (s, 4, 0)
-    | F32Op.ConvertUI64 -> Extract (s, 4, 0)
-    | F32Op.ReinterpretInt -> s
+                                          I64Binop (I64Shl, nan64bits, Value (Values.I64 12L)),
+                                          Value (Values.I64 41L)) in
+        let fields = I64Binop (I64Or, sign_field, significant_field) in
+        let nan32bits = I32Binop (I32Or, Value (Values.I32 0x7fc0_0000l), Extract (fields, 4, 0)) in
+        F32Cvtop (F32ReinterpretInt, nan32bits)
+    | F32Op.ConvertSI32 -> F32Cvtop (F32ConvertSI32, s)
+    | F32Op.ConvertUI32 -> F32Cvtop (F32ConvertUI32, s)
+    | F32Op.ConvertSI64 -> F32Cvtop (F32ConvertSI64, s)
+    | F32Op.ConvertUI64 -> F32Cvtop (F32ConvertUI64, s)
+    | F32Op.ReinterpretInt -> F32Cvtop (F32ReinterpretInt, s)
     | F32Op.PromoteF32 -> raise (Eval_numeric.TypeError (1, c, Types.F32Type))
   in
   let f64_cvtop op e =
     let (c, s) = e in
     match op with
     | F64Op.PromoteF32  -> 
-        let s' = Concat (Value (Values.I32 0l), Extract (s, 4, 0)) in
+        (* FIXME: use Z3 ops? *)
+        let nan32bits = I64Cvtop (I64ExtendUI32, (I32Cvtop (I32ReinterpretFloat, s))) in
         let sign_field = I64Binop (I64Shl,
-                                   I64Binop (I64ShrU, s', Value (Values.I64 31L)),
+                                   I64Binop (I64ShrU, nan32bits, Value (Values.I64 31L)),
                                    Value (Values.I64 63L)) in
         let significant_field = I64Binop (I64ShrU,
-                                          I64Binop (I64Shl, s', Value (Values.I64 41L)),
+                                          I64Binop (I64Shl, nan32bits, Value (Values.I64 41L)),
                                           Value (Values.I64 12L)) in
         let fields = I64Binop (I64Or, sign_field, significant_field) in
-        I64Binop (I64Or, Value (Values.I64 0x7ff8_0000_0000_0000L), fields)
-    | F64Op.ConvertSI32 -> Concat (Value (Values.I32 0l), s)
-    | F64Op.ConvertUI32 -> Concat (Value (Values.I32 0l), s)
-    | F64Op.ConvertSI64 -> s 
-    | F64Op.ConvertUI64 -> s
-    | F64Op.ReinterpretInt -> s
+        let nan64bits = I64Binop (I64Or, Value (Values.I64 0x7ff8_0000_0000_0000L), fields) in
+        F64Cvtop(F64ReinterpretInt, nan64bits)
+    | F64Op.ConvertSI32 -> F64Cvtop (F64ConvertSI32, s)
+    | F64Op.ConvertUI32 -> F64Cvtop (F64ConvertUI32, s)
+    | F64Op.ConvertSI64 -> F64Cvtop (F64ConvertSI64, s)
+    | F64Op.ConvertUI64 -> F64Cvtop (F64ConvertUI64, s)
+    | F64Op.ReinterpretInt -> F64Cvtop (F64ReinterpretInt, s)
     | F64Op.DemoteF64 -> raise (Eval_numeric.TypeError (1, c, Types.F64Type))
   in
   let (c, s) = e in
-  Printf.printf "CONVERT: %s\n" (Symvalue.to_string s);
   let c = Eval_numeric.eval_cvtop op c in
   let s = 
     begin match s with

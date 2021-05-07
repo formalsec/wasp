@@ -91,6 +91,8 @@ dirs = [
         'for-wasp/termination-numeric'
 ]
 
+dirs = [ 'for-wasp/loops' ]
+
 nthreads = 4
 
 src = []

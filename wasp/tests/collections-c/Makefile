@@ -111,20 +111,20 @@ $(BUILD_DIR)/for-wasp/mockups/mockups.o: $(BUILD_DIR)/for-wasp/mockups/mockups.b
 
 # LIBS
 
-$(BUILD_DIR)/lib/%.bc: lib/%.c
+$(BUILD_DIR)/lib/%.bc: lib/%.c $(BUILD_DIR)/for-wasp/mockups/mockups.bc
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(LIB_DIR)/include -o $@ $^ > /dev/null 2>&1
+	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(LIB_DIR)/include $< -o $@ > /dev/null 2>&1
 
 $(BUILD_DIR)/lib/%.o: $(BUILD_DIR)/lib/%.bc
 	@echo "Building $@"
 	@opt -O1 $< -o $<
 	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
 
-$(BUILD_DIR)/lib-with-bugs/%.bc: lib-with-bugs/%.c
+$(BUILD_DIR)/lib-with-bugs/%.bc: lib-with-bugs/%.c $(BUILD_DIR)/for-wasp/mockups/mockups.bc
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(BUG_LIB_DIR)/include -o $@ $^ > /dev/null 2>&1
+	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(BUG_LIB_DIR)/include $< -o $@ 
 
 $(BUILD_DIR)/lib-with-bugs/%.o: $(BUILD_DIR)/lib-with-bugs/%.bc
 	@echo "Building $@"

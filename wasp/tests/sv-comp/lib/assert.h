@@ -3,6 +3,8 @@
 
 void assume(int);
 void assert(int);
+void *alloc(void *, unsigned int);
+void dealloc(void *);
 int is_symbolic(void *, unsigned int);
 
 int    sym_int    (char*);

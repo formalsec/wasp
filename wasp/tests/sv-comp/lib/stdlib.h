@@ -3,6 +3,8 @@
 
 #define NULL 0
 
+#include "assert.h"
+
 typedef unsigned long size_t;
 
 void *malloc(size_t);

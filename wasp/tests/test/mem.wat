@@ -61,12 +61,12 @@
     local.tee 0
     i32.const -272716322
     i32.eq
-    call $assume
+    sym_assume
     local.get 0
     call $stack_swap
     i32.const -559038737
     i32.eq
-    call $assert
+    sym_assert
     i32.const 4
     call $malloc
     i32.const 4
@@ -78,7 +78,7 @@
     i32.load
     i32.const -559038737
     i32.eq
-    call $assert
+    sym_assert
     i32.const 4)
   (func $dyn_sym_int32 (type 1) (param i32) (result i32)
     local.get 0

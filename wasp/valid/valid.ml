@@ -294,6 +294,10 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
 
   | SymDouble -> [I32Type] --> [F64Type]
 
+  | Alloc -> [I32Type; I32Type] --> [I32Type]
+
+  | Free -> [I32Type] --> []
+
   | SymInt32 _ -> [] --> [I32Type]
 
   | SymInt64 _ -> [] --> [I64Type]

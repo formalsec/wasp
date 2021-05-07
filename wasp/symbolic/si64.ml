@@ -3,6 +3,8 @@ type binop = I64Add | I64Mul | I64DivU | I64RemU | I64ShrU | I64And |
 type unop  = I64Clz (*  Falta: | Ctz | Popcnt *)
 type relop = I64Eq | I64LtU | I64LtS | I64LeU | I64LeS |
              I64Ne | I64GtU | I64GtS | I64GeU | I64GeS
+type cvtop = I64ExtendSI32 | I64ExtendUI32 | I64TruncSF32 | I64TruncUF32 |
+             I64TruncSF64 | I64TruncUF64 | I64ReinterpretFloat
 
 let neg_relop (op : relop) : relop =
   begin match op with
@@ -86,3 +88,16 @@ let pp_string_of_relop (op : relop) : string =
 	| I64LeS -> "<="
 	| I64GeU -> ">="
 	| I64GeS -> ">="
+
+let string_of_cvtop (op : cvtop) : string =
+  match op with
+  | I64ExtendSI32 -> "I64ExtendSI32"
+  | I64ExtendUI32 -> "I64ExtendUI32"
+  | I64TruncSF32  -> "I64TruncSF32"
+  | I64TruncUF32  -> "I64TruncUF32"
+  | I64TruncSF64  -> "I64TruncSF64"
+  | I64TruncUF64  -> "I64TruncUF64"
+  | I64ReinterpretFloat -> "I64ReinterpretFloat"
+
+let pp_string_of_cvtop (op : cvtop) : string = 
+  string_of_cvtop op

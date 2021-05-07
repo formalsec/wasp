@@ -43,7 +43,7 @@ void *malloc(unsigned int size) {
   for (int i = 0; i < size; ++i)
     *((unsigned char *)bump_pointer + i) = 'i';
   bump_pointer += size;
-  return (void*)r;
+  return (void*)alloc(r, size);
 }
 
 void *calloc(unsigned int nmemb, unsigned int size) {
@@ -51,11 +51,11 @@ void *calloc(unsigned int nmemb, unsigned int size) {
   for (int i = 0; i < nmemb * size; ++i)
     *((unsigned char *)bump_pointer + i) = 0;
   bump_pointer += (nmemb * size);
-  return (void*)r;
+  return (void*)alloc(r, nmemb * size);
 }
 
 void free(void *ptr) {
-  // EMPTY
+  dealloc(ptr);
 }
 
 void *memset(void *s, int c, size_t n) {

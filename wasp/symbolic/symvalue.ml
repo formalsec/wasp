@@ -9,22 +9,27 @@ type boolop   = And | Or
 type sym_expr =
   (* Value *)
   | Value    of value
+  | Ptr      of value
 	(* I32 operations *)
   | I32Binop of Si32.binop * sym_expr * sym_expr
 	| I32Unop  of Si32.unop  * sym_expr
 	| I32Relop of Si32.relop * sym_expr * sym_expr
+  | I32Cvtop of Si32.cvtop * sym_expr
 	(* I64 operations *)
 	| I64Binop of Si64.binop * sym_expr * sym_expr
 	| I64Unop  of Si64.unop  * sym_expr
 	| I64Relop of Si64.relop * sym_expr * sym_expr
+  | I64Cvtop of Si64.cvtop * sym_expr
 	(* F32 operations *)
 	| F32Binop of Sf32.binop * sym_expr * sym_expr
 	| F32Unop  of Sf32.unop  * sym_expr
 	| F32Relop of Sf32.relop * sym_expr * sym_expr
+  | F32Cvtop of Sf32.cvtop * sym_expr
 	(* F64 operations *)
 	| F64Binop of Sf64.binop * sym_expr * sym_expr
 	| F64Unop  of Sf64.unop  * sym_expr
 	| F64Relop of Sf64.relop * sym_expr * sym_expr
+  | F64Cvtop of Sf64.cvtop * sym_expr
 	(* Symbolic *)
 	| Symbolic of symbolic * string
   (* Encoding Auxiliary *)
@@ -58,23 +63,29 @@ let rec type_of (e : sym_expr) : value_type  =
   let rec concat_length (e : sym_expr) : int =
     begin match e with
     | Concat (e1, e2) -> (concat_length e1) + (concat_length e2)
-    | _ -> 1
+    | Extract (_, h, l) -> h - l
+    | e' -> (Types.size (type_of e'))
     end
   in
   begin match e with
   | Value v    -> Values.type_of v
+  | Ptr _      -> I32Type
   | I32Unop  _ -> I32Type
   | I32Binop _ -> I32Type
   | I32Relop _ -> I32Type
+  | I32Cvtop _ -> I32Type
   | I64Unop  _ -> I64Type
   | I64Binop _ -> I64Type
   | I64Relop _ -> I64Type
+  | I64Cvtop _ -> I64Type
   | F32Unop  _ -> F32Type
   | F32Binop _ -> F32Type
   | F32Relop _ -> F32Type
+  | F32Cvtop _ -> F32Type
   | F64Unop  _ -> F64Type
   | F64Binop _ -> F64Type
   | F64Relop _ -> F64Type
+  | F64Cvtop _ -> F64Type
   | Symbolic (e, _)    -> type_of_symbolic e
   | Extract  (e, _, _) -> type_of e
   | Concat (e1, e2) ->
@@ -121,22 +132,27 @@ let and_list (lst : sym_expr list ) : sym_expr =
 let rec length (e : sym_expr) : int = 
   begin match e with
   | Value v -> 1
+  | Ptr p   -> 1
 	(* I32 *)
 	| I32Unop  (op, e)      -> 1 + (length e)
 	| I32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
 	| I32Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | I32Cvtop (op, e)      -> 1 + (length e)
 	(* I64 *)
 	| I64Unop  (op, e)      -> 1 + (length e)
 	| I64Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
 	| I64Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | I64Cvtop (op, e)      -> 1 + (length e)
 	(* F32 *)
 	| F32Unop  (op, e)      -> 1 + (length e)
 	| F32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
 	| F32Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | F32Cvtop (op, e)      -> 1 + (length e)
 	(* F64 *)
 	| F64Unop  (op, e)      -> 1 + (length e)
 	| F64Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
 	| F64Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | F64Cvtop (op, e)      -> 1 + (length e)
   (* Symbol *)
 	| Symbolic (s, x)       -> 1
   | Extract  (e, _, _)    -> 1 + (length e)
@@ -148,23 +164,28 @@ let rec length (e : sym_expr) : int =
 let rec get_symbols (e : sym_expr) : (string * symbolic) list = 
 	begin match e with
   (* Value - holds no symbols *)
-	| Value v -> []
+	| Value _ -> []
+  | Ptr _   -> []
   (* I32 *)
   | I32Unop  (op, e1)     -> (get_symbols e1)
   | I32Binop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
   | I32Relop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
+  | I32Cvtop (op, e)      -> (get_symbols e)
   (* I64 *)
   | I64Unop  (op, e1)     -> (get_symbols e1)
   | I64Binop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
   | I64Relop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
+  | I64Cvtop (op, e)      -> (get_symbols e)
   (* F32 *)
   | F32Unop  (op, e1)     -> (get_symbols e1)
   | F32Binop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
   | F32Relop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
+  | F32Cvtop (op, e)      -> (get_symbols e)
   (* F64 *)
   | F64Unop  (op, e1)     -> (get_symbols e1)
   | F64Binop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
   | F64Relop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
+  | F64Cvtop (op, e)      -> (get_symbols e)
   (* Symbol *)
   | Symbolic (t, x)       -> [(x, t)]
   | Extract  (e, _, _)    -> (get_symbols e)
@@ -186,6 +207,9 @@ let rec to_string (e : sym_expr) : string =
 	begin match e with
   | Value v ->
       string_of_value v
+  | Ptr p ->
+      let str_p = string_of_value p in
+      "(Ptr " ^ str_p ^ ")"
 	(* I32 *)
   | I32Unop  (op, e) -> 
       let str_e = to_string e
@@ -201,6 +225,10 @@ let rec to_string (e : sym_expr) : string =
       and str_e2 = to_string e2
       and str_op = Si32.string_of_relop op in
       "(" ^ str_op ^ " " ^ str_e1 ^ ", " ^ str_e2 ^ ")"
+  | I32Cvtop (op, e) ->
+      let str_e = to_string e
+      and str_op = Si32.string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
 	(* I64 *)
   | I64Unop  (op, e) ->
       let str_e = to_string e
@@ -216,6 +244,10 @@ let rec to_string (e : sym_expr) : string =
       and str_e2 = to_string e2
       and str_op = Si64.string_of_relop op in
       "(" ^ str_op ^ " " ^ str_e1 ^ ", " ^ str_e2 ^ ")"
+  | I64Cvtop (op, e) ->
+      let str_e = to_string e
+      and str_op = Si64.string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
 	(* F32 *)
   | F32Unop  (op, e) ->
       let str_e = to_string e
@@ -231,6 +263,10 @@ let rec to_string (e : sym_expr) : string =
       and str_e2 = to_string e2
       and str_op = Sf32.string_of_relop op in
       "(" ^ str_op ^ " " ^ str_e1 ^ ", " ^ str_e2 ^ ")"
+  | F32Cvtop (op, e) ->
+      let str_e = to_string e
+      and str_op = Sf32.string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
   (* F64 *)
   | F64Unop  (op, e) ->
       let str_e = to_string e
@@ -246,6 +282,10 @@ let rec to_string (e : sym_expr) : string =
       and str_e2 = to_string e2
       and str_op = Sf64.string_of_relop op in
       "(" ^ str_op ^ " " ^ str_e1 ^ ", " ^ str_e2 ^ ")"
+  | F64Cvtop (op, e) ->
+      let str_e = to_string e
+      and str_op = Sf64.string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
 	(* Symbolic *)
   | Symbolic (s, x) -> 
       let str_s = string_of_symbolic s in
@@ -274,6 +314,9 @@ let rec pp_to_string (e : sym_expr) : string =
 	begin match e with
   | Value v -> 
       Values.string_of_value v
+  | Ptr p ->
+      let str_p = string_of_value p in
+      "(Ptr " ^ str_p ^ ")"
   (* I32 *)
   | I32Unop  (op, e) -> 
       let str_e = pp_to_string e
@@ -289,6 +332,10 @@ let rec pp_to_string (e : sym_expr) : string =
       and str_e2 = pp_to_string e2
       and str_op = Si32.pp_string_of_relop op in
       "(" ^ str_e1 ^ " " ^ str_op ^ " " ^ str_e2 ^ ")"
+  | I32Cvtop (op, e) ->
+      let str_e = pp_to_string e
+      and str_op = Si32.pp_string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
   (* I64 *)
   | I64Unop  (op, e) ->
       let str_e = pp_to_string e
@@ -304,6 +351,10 @@ let rec pp_to_string (e : sym_expr) : string =
       and str_e2 = pp_to_string e2
       and str_op = Si64.pp_string_of_relop op in
       "(" ^ str_e1 ^ " " ^ str_op ^ " " ^ str_e2 ^ ")"
+  | I64Cvtop (op, e) ->
+      let str_e = pp_to_string e
+      and str_op = Si64.pp_string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
   (* F32 *)
   | F32Unop  (op, e) ->
       let str_e = pp_to_string e
@@ -319,6 +370,10 @@ let rec pp_to_string (e : sym_expr) : string =
       and str_e2 = pp_to_string e2
       and str_op = Sf32.pp_string_of_relop op in
       "(" ^ str_e1 ^ " " ^ str_op ^ " " ^ str_e2 ^ ")"
+  | F32Cvtop (op, e) ->
+      let str_e = pp_to_string e
+      and str_op = Sf32.pp_string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
   (* F64 *)
   | F64Unop  (op, e) ->
       let str_e = pp_to_string e
@@ -334,6 +389,10 @@ let rec pp_to_string (e : sym_expr) : string =
       and str_e2 = pp_to_string e2
       and str_op = Sf64.pp_string_of_relop op in
       "(" ^ str_e1 ^ " " ^ str_op ^ " " ^ str_e2 ^ ")"
+  | F64Cvtop (op, e) ->
+      let str_e = pp_to_string e
+      and str_op = Sf64.pp_string_of_cvtop op in
+      "(" ^ str_op ^ " " ^ str_e ^ ")"
   | Symbolic (s, x) -> "#" ^ x
   | Extract (e, h, l) ->
       let str_l = string_of_int l
@@ -368,6 +427,57 @@ let string_of_sym_value (el : sym_value list) : string =
       acc ^ (Values.string_of_value v) ^ ", " ^ (pp_to_string s) ^ "\n"
   ) "" el
 
+let rec get_ptr (e : sym_expr) : value option =
+  (* FIXME: this function can be "simplified" *)
+  begin match e with
+  | Ptr p   -> Some p
+  | Value _ -> None
+  | I32Unop (_, e) -> get_ptr e
+  | I32Binop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | I32Relop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | I32Cvtop (_, e) -> get_ptr e
+  | I64Unop (_, e) -> get_ptr e
+  | I64Binop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | I64Relop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | I64Cvtop (_, e) -> get_ptr e
+  | F32Unop (_, e) -> get_ptr e
+  | F32Binop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | F32Relop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | F32Cvtop (_, e) -> get_ptr e
+  | F64Unop (_, e) -> get_ptr e
+  | F64Binop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | F64Relop (_, e1, e2) ->
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | F64Cvtop (_, e) -> get_ptr e
+  | Symbolic _ -> None
+  | Extract (e, _, _) -> get_ptr e
+  | Concat (e1, e2) ->
+      (* assume concatenation of only one ptr *)
+      let p1 = get_ptr e1 in
+      if Option.is_some p1 then p1 else get_ptr e2
+  | _ -> 
+      Printf.printf "ptr expr: %s\n" (to_string e);
+      failwith "unsupported pointer arithmetic"
+  end
+  
+
+
+
 let is_relop (e : sym_expr) : bool =
   begin match e with
   | I32Relop _ | I64Relop _ | F32Relop _ | F64Relop _ -> true
@@ -386,6 +496,8 @@ let rec simplify (e : sym_expr) : sym_expr =
         | Value v1, Value v2 ->
             let v' = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
             Value v'
+        | I32Binop (I32Add, e1'', Value (I32 v1)), Value (I32 v2) ->
+            I32Binop (I32Add, e1'', Value (I32 (Int32.add v1 v2)))
         | _ -> I32Binop (I32Add, e1', e2')
         end
       | I32Sub  -> I32Binop (I32Sub , e1', e2')
@@ -396,14 +508,6 @@ let rec simplify (e : sym_expr) : sym_expr =
       | I32Xor  -> I32Binop (I32Xor , e1', e2')
       | I32Or   -> I32Binop (I32Or  , e1', e2')
       | I32Shl  -> I32Binop (I32Shl , e1', e2')
-      (* (* bvshl *)
-          begin match ex2' with
-          | Value (I32 v) ->
-              let power = int_of_float (2. ** (float_of_int (Int32.to_int v))) in
-              I32Binop (I32Mul, ex1', Value (I32 (Int32.of_int power)))
-          | _ -> I32Binop (I32Shl, ex1', ex2')
-          end
-      *)
       | I32ShrS -> I32Binop (I32ShrS, e1', e2')
       | I32ShrU -> I32Binop (I32ShrU, e1', e2')
       | I32RemS -> I32Binop (I32RemS, e1', e2')
@@ -416,10 +520,19 @@ let rec simplify (e : sym_expr) : sym_expr =
       begin match op with
       | I32Eq ->
           begin match e1', e2' with
+          | Ptr v1, Ptr v2
           | Value v1, Value v2 ->
-              let eval = Eval_numeric.eval_relop (I32 Ast.I32Op.Eq) v1 v2 in
-              Value (I32 (if eval then 1l else 0l))
+              let ret = Eval_numeric.eval_relop (I32 Ast.I32Op.Eq) v1 v2 in
+              Value (Values.value_of_bool ret)
           | _ -> I32Relop (I32Eq, e1', e2')
+          end
+      | I32Ne ->
+          begin match e1', e2' with
+          | Ptr v1, Ptr v2
+          | Value v1, Value v2 ->
+              let ret = Eval_numeric.eval_relop (I32 Ast.I32Op.Ne) v1 v2 in
+              Value (Values.value_of_bool ret)
+          | _ -> I32Relop (I32Ne, e1', e2')
           end
       | _ -> I32Relop (op, e1', e2')
       end
@@ -427,37 +540,40 @@ let rec simplify (e : sym_expr) : sym_expr =
       let mask l h =
         let rec loop x i =
           if i >= h then x
-          else loop (Int64.(logor x (shift_left (of_int 0xff) (8 * i)))) (i + 1)
+          else loop (Int64.(logor x (shift_left 0xffL (8 * i)))) (i + 1)
         in loop 0L l
       in
       let e' = simplify e in
       begin match e' with
       | Value (I32 v) -> 
-          let b = Int64.to_int32 (mask l h) in
-          let v' = Eval_numeric.eval_binop (I32 Ast.I32Op.And) (I32 v) (I32 b) in
-          Value v'
+          let bit_mask = Int64.to_int32 (mask l h) in
+          Value (I32 Int32.(logand (shift_left v (8 * l)) bit_mask))
       | Value (I64 v) ->
-          let b = mask l h in
-          let v' = Eval_numeric.eval_binop (I64 Ast.I32Op.And) (I64 v) (I64 b) in
-          Value v'
+          Value (I64 Int64.(logand (shift_left v (8 * l)) (mask l h)))
+      | Concat (e1, e2) -> 
+          (* Simplify extraction *)
+          if (l = 0) && (h - l) = (Types.size (type_of e2)) then e2
+          else if (l = 4) && (h - l) = (Types.size (type_of e1)) then e1
+          else Extract(e', h, l)
       | _ -> Extract (e', h, l)
       end
   | Concat (e1, e2) ->
       let e1' = simplify e1
       and e2' = simplify e2 in
       begin match e1', e2' with
-      | Value (I32 v1), Value (I32 v2) ->
-          let v' = Eval_numeric.eval_binop (I32 Ast.I32Op.Or) (I32 v1) (I32 v2) in
-          Value v'
-      | Value (I64 v1), Value (I64 v2) ->
-          let v' = Eval_numeric.eval_binop (I64 Ast.I32Op.Or) (I64 v1) (I64 v2) in
-          Value v'
+      | Value (I32 v1), Value (I32 v2) -> Value (I32 (Int32.logor v1 v2))
+      | Value (I64 v1), Value (I64 v2) -> Value (I64 (Int64.logor v1 v2))
       | Extract (e1'', h1, l1), Extract (e2'', h2, l2) ->
           if e1''= e2'' then begin
             if (h1 - l2) = (Types.size (type_of e1'')) then e1''
             else Extract (e1'', h1, l2)
-          end else Concat (e1, e2)
-      | _ -> Concat (e1, e2)
+          end else Concat (e1', e2')
+      | Extract (e1'', h1, l1), Concat (Extract (e2'', h2, l2), e3) ->
+          if e1''= e2'' then begin
+            if (h1 - l2) = (Types.size (type_of e1'')) then Concat (e1'', e3)
+            else Concat (Extract (e1'', h1, l2), e3)
+          end else Concat (e1', e2')
+      | _ -> Concat (e1', e2')
       end
   | BoolOp (op, e1, e2) ->
       let e1' = simplify e1

@@ -1,4 +1,3 @@
-
 # This file is part of the SV-Benchmarks collection of verification tasks:
 # https://github.com/sosy-lab/sv-benchmarks
 #
@@ -8,5 +7,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 LEVEL := ../
+
+COMMON_WARNINGS := \
+	-Wno-uninitialized \
 
 include $(LEVEL)/Makefile.config

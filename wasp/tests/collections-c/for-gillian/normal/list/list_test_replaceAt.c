@@ -57,17 +57,17 @@ void teardown_test() {
 int main() {
     setup_tests();
 
-    int *rr = (int *)malloc(sizeof(int));
     int r = __builtin_annot_intval("symb_int", r);
+    int *rr = (int *)malloc(sizeof(int));
 
     *rr = r;
 
-    int *r_ptr;
-    list_replace_at(list1, rr, 2, (void *)&r_ptr);
-    free(rr);
+    int *e;
+    list_replace_at(list1, rr, 2, (void *)&e);
+    free(e);
 
-    list_get_at(list1, 2, (void *)&r_ptr);
-    ASSERT((int *)r_ptr == rr);
+    list_get_at(list1, 2, (void *)&e);
+    ASSERT((int *)rr == e);
 
     teardown_test();
 }

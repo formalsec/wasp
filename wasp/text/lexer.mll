@@ -362,6 +362,10 @@ rule token = parse
   | "sym_long"   { SYM_LONG }
   | "sym_float"  { SYM_FLOAT }
   | "sym_double" { SYM_DOUBLE }
+
+  | "alloc" { ALLOC }
+  | "free" { FREE }
+
   | "is_symbolic" { IS_SYMBOLIC }
 
   | "sym_int32" { SYM_INT32 }

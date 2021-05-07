@@ -8,7 +8,7 @@ void *malloc(size_t size) {
   for (int i = 0; i < size; ++i)
     *((unsigned char *)bump_pointer + i) = 'i';
   bump_pointer += size;
-  return (void*)r;
+  return (void*)alloc(r, size);
 }
 
 void *calloc (size_t nmemb, size_t size) {
@@ -16,9 +16,9 @@ void *calloc (size_t nmemb, size_t size) {
   for (int i = 0; i < nmemb * size; ++i)
     *((unsigned int*)(bump_pointer + i)) = 0;
   bump_pointer += (nmemb * size);
-  return (void *)r;
+  return (void *)alloc(r, nmemb * size);
 }
 
 void free(void *ptr) {
-
+  dealloc(ptr);
 }

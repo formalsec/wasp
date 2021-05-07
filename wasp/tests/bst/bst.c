@@ -5,6 +5,9 @@ unsigned int bump_pointer = &__heap_base;
 
 void* malloc(int n) {
   unsigned int r = bump_pointer;
+  for (int i = 0; i < n; ++i)
+    *((unsigned char *) bump_pointer + i) = 'i';
+  alloc(bump_pointer, n);
   bump_pointer += n;
   return (void *)r;
 }

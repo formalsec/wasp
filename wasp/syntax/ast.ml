@@ -104,6 +104,8 @@ and instr' =
   | SymLong
   | SymFloat
   | SymDouble
+  | Alloc
+  | Free
   (* LIBC SUMM APIs *)
   | IsSymbolic
   | SymInt32 of string                  (* Symbolic integer 32 variable *)

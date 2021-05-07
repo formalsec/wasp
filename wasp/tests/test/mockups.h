@@ -1,7 +1,10 @@
 #ifndef MOCKUPS_H
 #define MOCKUPS_H
 
-int dyn_sym_int32(char);
+void *alloc(void*, unsigned int);
+void dealloc(void *);
+
+int sym_int(char*);
 void assume(int);
 void assert(int);
 

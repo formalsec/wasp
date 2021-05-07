@@ -92,7 +92,7 @@ let load_string (mem : memory) (a : address) : string =
 let store_bytes (mem : memory) (a : address) (bs : string) : unit =
   for i = String.length bs - 1 downto 0 do
     let b = Char.code bs.[i] in
-    let sb = Extract (Value (I32 (Int32.of_int b)), i + 1, i) in
+    let sb = Extract (Value (I64 (Int64.of_int b)), i + 1, i) in
     store_byte mem Int64.(add a (of_int i)) (b, sb)
   done
 
@@ -134,10 +134,10 @@ let load_value (mem : memory) (a : address) (o : offset)
     | F32Type -> F32 (F32.of_bits (Int64.to_int32 n))
     | F64Type -> F64 (F64.of_bits n)
   in
-  (* ugly hack *)
-  let se' = simplify 
-    (List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se))
-  in (n', se')
+  let se = simplify
+    (List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se)) in 
+  let se' = match se with Value _ -> Symvalue.Value n' | _ -> se in
+  (n', se')
 
 let store_value (mem : memory) (a : address) (o : offset) 
     (v : sym_value) : unit =

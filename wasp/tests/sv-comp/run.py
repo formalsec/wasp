@@ -33,9 +33,10 @@ def runTestsInDir(dirEntry : dict):
                     unreach = prop['expected_verdict']
         try:
             cmd = ['./wasp', testPath, '-e', \
-                    '(invoke \"__original_main\")']
+                    '(invoke \"__original_main\")', \
+                    '-m', '1000000']
             t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=180, stderr=subprocess.STDOUT)
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             if unreach:
@@ -46,14 +47,14 @@ def runTestsInDir(dirEntry : dict):
                 dirEntry['errorLst'].append(testPath)
         except subprocess.CalledProcessError  as e:
             if unreach:
-                ret = 'NOK'
+                ret = 'CRASH'
                 crash = True
                 dirEntry['errorLst'].append(testPath)
             else:
                 ret = 'OK'
                 dirEntry['okCnt'] += 1
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
-            ret = 'NOK'
+            ret = 'TIMEOUT'
             timeout = True
             dirEntry['errorLst'].append(testPath)
         finally:

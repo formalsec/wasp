@@ -3,6 +3,7 @@
 
 void assume(int);
 void assert(int);
+void alloc(int, int);
 int dynamic_sym_int32(char);
 
 #endif

@@ -45,10 +45,13 @@ let compare_expr = CompareExpr
 (*  SYMBOLIC EXECUTION  *)
 let sym_assert = SymAssert
 let sym_assume = SymAssume
-let sym_int     = SymInt
-let sym_long    = SymLong
-let sym_float   = SymFloat
-let sym_double  = SymDouble
+let sym_int    = SymInt
+let sym_long   = SymLong
+let sym_float  = SymFloat
+let sym_double = SymDouble
+
+let alloc = Alloc
+let free  = Free
 (* LIBC SUMM APIs *)
 let is_symbolic = IsSymbolic
 

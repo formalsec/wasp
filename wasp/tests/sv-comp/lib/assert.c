@@ -2,6 +2,8 @@
 
 void assume(int expr) { /* EMPTY*/ }
 void assert(int expr) { /* EMPTY*/ }
+void *alloc(void *ptr, unsigned int size) { return ptr; }
+void dealloc(void *ptr) {  }
 int is_symbolic(void *sym_var, unsigned int length) { return 0; }
 
 

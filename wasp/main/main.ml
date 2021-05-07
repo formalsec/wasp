@@ -31,7 +31,8 @@ let argspec = Arg.align
   "-h", Arg.Clear Flags.harness, " exclude harness for JS conversion";
   "-d", Arg.Set Flags.dry, " dry, do not run program";
   "-t", Arg.Set Flags.trace, " trace execution";
-  "-v", Arg.Unit banner, " show version"
+  "-v", Arg.Unit banner, " show version";
+  "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model"
 ]
 
 let () =

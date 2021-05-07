@@ -4,13 +4,43 @@
   (type (;2;) (func (param i32)))
   (type (;3;) (func (param i32 i32) (result i32)))
   (type (;4;) (func (result i32)))
+  (type (;5;) (func (param i32 i32)))
   (func $__wasm_call_ctors (type 0))
   (func $malloc (type 1) (param i32) (result i32)
-    (local i32)
+    (local i32 i32)
+    i32.const 0
+    i32.load offset=1024
+    local.set 1
+    block  ;; label = @1
+      local.get 0
+      i32.const 1
+      i32.lt_s
+      br_if 0 (;@1;)
+      i32.const 0
+      local.set 2
+      loop  ;; label = @2
+        i32.const 0
+        i32.load offset=1024
+        local.get 2
+        i32.add
+        i32.const 105
+        i32.store8
+        local.get 0
+        local.get 2
+        i32.const 1
+        i32.add
+        local.tee 2
+        i32.ne
+        br_if 0 (;@2;)
+      end
+    end
+    i32.const 0
+    i32.load offset=1024
+    local.get 0
+    alloc
     i32.const 0
     i32.const 0
     i32.load offset=1024
-    local.tee 1
     local.get 0
     i32.add
     i32.store offset=1024
@@ -185,31 +215,30 @@
   (func $__original_main (type 4) (result i32)
     (local i32 i32 i32 i32 i32 i32)
     i32.const 97
-    call $dynamic_sym_int32
+    sym_int
     local.set 0
     i32.const 98
-    call $dynamic_sym_int32
+    sym_int
     local.set 1
     i32.const 101
-    call $dynamic_sym_int32
+    sym_int
     local.set 2
     i32.const 102
-    call $dynamic_sym_int32
+    sym_int
     local.set 3
     local.get 1
     local.get 0
     call $makeNode
     call $insert
-    print_memory
     local.set 4
-    local.get 2
-    local.get 1
-    i32.ne
     local.get 2
     local.get 0
     i32.ne
+    local.get 2
+    local.get 1
+    i32.ne
     i32.and
-    call $assume
+    sym_assume
     local.get 3
     local.get 0
     i32.eq
@@ -217,7 +246,7 @@
     local.get 1
     i32.eq
     i32.or
-    call $assume
+    sym_assume
     local.get 2
     local.get 4
     call $find
@@ -230,12 +259,12 @@
     local.get 1
     i32.lt_s
     i32.const 99
-    call $dynamic_sym_int32
+    sym_int
     local.tee 5
     local.get 0
     i32.gt_s
     i32.and
-    call $assume
+    sym_assume
     local.get 2
     i32.eqz
     local.get 3
@@ -251,19 +280,15 @@
     call $find_min
     i32.eq
     i32.and
-    call $assert
+    sym_assert
     i32.const 0)
   (func $main (type 3) (param i32 i32) (result i32)
     call $__original_main)
-  (func $assume (type 2) (param i32)
-    local.get 0
-    sym_assume)
-  (func $assert (type 2) (param i32)
-    local.get 0
-    sym_assert)
+  (func $assume (type 2) (param i32))
+  (func $assert (type 2) (param i32))
+  (func $alloc (type 5) (param i32 i32))
   (func $dynamic_sym_int32 (type 1) (param i32) (result i32)
-    local.get 0
-    dyn_sym_int32)
+    i32.const 0)
   (table (;0;) 1 1 funcref)
   (memory (;0;) 2)
   (global (;0;) (mut i32) (i32.const 66576))
@@ -278,6 +303,7 @@
   (export "__wasm_call_ctors" (func $__wasm_call_ctors))
   (export "malloc" (func $malloc))
   (export "bump_pointer" (global 1))
+  (export "alloc" (func $alloc))
   (export "free" (func $free))
   (export "makeNode" (func $makeNode))
   (export "insert" (func $insert))
@@ -290,6 +316,7 @@
   (export "assert" (func $assert))
   (export "main" (func $main))
   (export "__heap_base" (global 2))
+  (export "__main_void" (func $__original_main))
   (export "__dso_handle" (global 3))
   (export "__data_end" (global 4))
   (export "__global_base" (global 5))
