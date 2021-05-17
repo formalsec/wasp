@@ -19,7 +19,7 @@ void *expandArray(void *arg) {
   return 0;
 }
 
-int main(int argc, char **argv) {
+int main() {
   num = __VERIFIER_nondet_int();
   if (!(num > 0 && num < 100)) {
     return 0;

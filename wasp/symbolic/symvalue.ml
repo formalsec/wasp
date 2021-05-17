@@ -93,6 +93,7 @@ let rec type_of (e : sym_expr) : value_type  =
     let len = if len < 4 then (Types.size (type_of e1)) + (Types.size (type_of e2))
                          else len 
     in
+    Printf.printf "len=%d\n" len;
     begin match len with
     | 4 -> I32Type
     | 8 -> I64Type
@@ -536,20 +537,33 @@ let rec simplify (e : sym_expr) : sym_expr =
           end
       | _ -> I32Relop (op, e1', e2')
       end
+  | I32Cvtop (op, e) -> 
+      let e' = simplify e in
+      begin match op, e' with
+      | I32ReinterpretFloat, F32Cvtop (Sf32.F32ReinterpretInt, e'') -> e''
+      | _ -> I32Cvtop (op, e')
+      end
+  | I64Cvtop (op, e) -> 
+      let e' = simplify e in
+      begin match op, e' with
+      | Si64.I64ReinterpretFloat, F64Cvtop (Sf64.F64ReinterpretInt, e'') -> e''
+      | _ -> I64Cvtop (op, e')
+      end
+  | F32Cvtop (op, e) -> 
+      let e' = simplify e in
+      begin match op, e' with
+      | Sf32.F32ReinterpretInt, I32Cvtop (I32ReinterpretFloat, e'') -> e''
+      | _ -> F32Cvtop (op, e')
+      end
+  | F64Cvtop (op, e) -> 
+      let e' = simplify e in
+      begin match op, e' with
+      | Sf64.F64ReinterpretInt, I64Cvtop (Si64.I64ReinterpretFloat, e'') -> e''
+      | _ -> F64Cvtop (op, e')
+      end
   | Extract (e, h, l) ->
-      let mask l h =
-        let rec loop x i =
-          if i >= h then x
-          else loop (Int64.(logor x (shift_left 0xffL (8 * i)))) (i + 1)
-        in loop 0L l
-      in
       let e' = simplify e in
       begin match e' with
-      | Value (I32 v) -> 
-          let bit_mask = Int64.to_int32 (mask l h) in
-          Value (I32 Int32.(logand (shift_left v (8 * l)) bit_mask))
-      | Value (I64 v) ->
-          Value (I64 Int64.(logand (shift_left v (8 * l)) (mask l h)))
       | Concat (e1, e2) -> 
           (* Simplify extraction *)
           if (l = 0) && (h - l) = (Types.size (type_of e2)) then e2
@@ -561,13 +575,15 @@ let rec simplify (e : sym_expr) : sym_expr =
       let e1' = simplify e1
       and e2' = simplify e2 in
       begin match e1', e2' with
-      | Value (I32 v1), Value (I32 v2) -> Value (I32 (Int32.logor v1 v2))
-      | Value (I64 v1), Value (I64 v2) -> Value (I64 (Int64.logor v1 v2))
+      | Extract (Value (I64 v1), h1, l1), Extract (Value (I64 v2), h2, l2) ->
+          let v = Int64.(logor (shift_left v1 (h2 * 8)) v2) in
+          Extract (Value (I64 v), (h2 - l2) + 1, 0)
       | Extract (e1'', h1, l1), Extract (e2'', h2, l2) ->
           if e1''= e2'' then begin
             if (h1 - l2) = (Types.size (type_of e1'')) then e1''
             else Extract (e1'', h1, l2)
           end else Concat (e1', e2')
+       
       | Extract (e1'', h1, l1), Concat (Extract (e2'', h2, l2), e3) ->
           if e1''= e2'' then begin
             if (h1 - l2) = (Types.size (type_of e1'')) then Concat (e1'', e3)

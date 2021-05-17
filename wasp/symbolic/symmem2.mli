@@ -35,6 +35,7 @@ val load_value :
 val store_value : 
   memory -> address -> offset -> sym_value -> unit
 val load_packed : 
-  Memory.pack_size -> memory -> address -> offset -> value_type -> sym_value
+  Memory.pack_size -> Memory.extension -> memory -> address -> 
+                                       offset -> value_type -> sym_value
 val store_packed : 
   Memory.pack_size -> memory -> address -> offset -> sym_value -> unit

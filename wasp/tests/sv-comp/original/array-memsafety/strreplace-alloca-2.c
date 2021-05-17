@@ -29,5 +29,5 @@ int main() {
 	  nondetString1[i] = __VERIFIER_nondet_char();
   }
     nondetString1[length1-1] = '\0';
-return cstrreplace(nondetString1, (char)__VERIFIER_nondet_int(), (char)__VERIFIER_nondet_int());
+return cstrreplace(nondetString1, (char)__VERIFIER_nondet_int("old"), (char)__VERIFIER_nondet_int("new"));
 }

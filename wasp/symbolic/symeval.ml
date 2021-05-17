@@ -371,7 +371,7 @@ let rec sym_step (c : sym_config) : sym_config =
           let (v, e) =
             match sz with
             | None -> Symmem2.load_value sym_mem base offset ty
-            | Some (sz, ext) -> Symmem2.load_packed sz sym_mem base offset ty
+            | Some (sz, ext) -> Symmem2.load_packed sz ext sym_mem base offset ty
           in (v, e) :: vs', [], logic_env, path_cond, sym_mem
         with exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
@@ -392,8 +392,8 @@ let rec sym_step (c : sym_config) : sym_config =
             Printf.printf "high: %Ld\n" high;
             Printf.printf "ptr_val: %Ld\n" ptr_val;
             Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
-            (* TODO: Make Vuln Crash*)
-            failwith "overflow:store"
+            (* TODO: Make Vuln Crash *)
+            failwith ("overflow:store" ^ (Source.string_of_region e.at))
           )
         end;
         begin try

@@ -31,12 +31,14 @@ def runTestsInDir(dirEntry : dict):
             for prop in data['properties']:
                 if 'unreach-call' in prop['property_file']:
                     unreach = prop['expected_verdict']
+                elif 'valid-memsafety' in prop['property_file']:
+                    unreach = prop['expected_verdict']
         try:
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")', \
                     '-m', '1000000']
             t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=180, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             if unreach:

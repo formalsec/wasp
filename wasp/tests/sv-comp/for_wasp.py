@@ -37,8 +37,8 @@ dirs = [
         'for-wasp/array-multidimensional',
         'for-wasp/array-patterns',
         'for-wasp/array-programs',
-        #'for-wasp/array-memsafety',
-        #'for-wasp/array-memsafety-realloc',
+        'for-wasp/array-memsafety',
+        'for-wasp/array-memsafety-realloc',
         'for-wasp/array-tiling',
         'for-wasp/bitvector',
         'for-wasp/bitvector-loops',
@@ -84,14 +84,14 @@ dirs = [
         'for-wasp/systemc',
         'for-wasp/termination-crafted',
         'for-wasp/termination-crafted-lit',
-        #'for-wasp/memsafety',
-        #'for-wasp/memsafety-bftpd',
-        #'for-wasp/memsafety-ext',
-        #'for-wasp/memsafety-ext2',
+        'for-wasp/memsafety',
+        'for-wasp/memsafety-bftpd',
+        'for-wasp/memsafety-ext',
+        'for-wasp/memsafety-ext2',
         'for-wasp/termination-numeric'
 ]
 
-dirs = [ 'for-wasp/loops' ]
+dirs = [ 'for-wasp/memsafety-ext2' ]
 
 nthreads = 4
 

@@ -270,7 +270,7 @@ let eval_cvtop (op : Ast.cvtop) (e : sym_value) : sym_value =
                                           Value (Values.I64 12L)) in
         let fields = I64Binop (I64Or, sign_field, significant_field) in
         let nan64bits = I64Binop (I64Or, Value (Values.I64 0x7ff8_0000_0000_0000L), fields) in
-        F64Cvtop(F64ReinterpretInt, nan64bits)
+        F64Cvtop (F64ReinterpretInt, nan64bits)
     | F64Op.ConvertSI32 -> F64Cvtop (F64ConvertSI32, s)
     | F64Op.ConvertUI32 -> F64Cvtop (F64ConvertUI32, s)
     | F64Op.ConvertSI64 -> F64Cvtop (F64ConvertSI64, s)
