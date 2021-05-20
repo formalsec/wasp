@@ -499,6 +499,7 @@ let rec sym_step (c : sym_config) : sym_config =
         Printf.printf ">>> Assumed false. Finishing...\n";
         let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [neg_expr ex] in
         let path_cond = to_add @ path_cond in
+        Printf.printf "to_add: %s\n" (Symvalue.string_of_pc to_add);
         [], [AsmFail path_cond @@ e.at], logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
@@ -514,7 +515,7 @@ let rec sym_step (c : sym_config) : sym_config =
           let x' = if cnt = 0 then x
                               else x ^ "_" ^ (string_of_int cnt) in
           let v = try Logicenv.find logic_env x' 
-                  with Not_found -> I32 (I32.rand 255) in
+                  with Not_found -> I32 (I32.rand 127) in
           Logicenv.add logic_env x' v;
           Counter.replace sym_counter x (cnt + 1);
           x', v
