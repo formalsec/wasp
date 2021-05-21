@@ -28,7 +28,7 @@ patterns = [
 ]
 
 dirs = [
-        'for-wasp/array-cav19', 
+0       'for-wasp/array-cav19', 
         'for-wasp/array-crafted', 
         'for-wasp/array-examples',
         'for-wasp/array-fpi',

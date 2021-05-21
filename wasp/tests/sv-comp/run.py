@@ -2,7 +2,119 @@
 from functools import reduce
 import os, sys, argparse, subprocess, time, yaml, csv
 
-csv_report = [['name', 'ans', 'verdict', 'complete', 'time', 'timeout', 'crash']]
+csv_report = [['name', 'ans', 'verdict', 'complete', 'time']]
+
+array = [
+        'for-wasp/array-cav19', 
+        'for-wasp/array-crafted', 
+        'for-wasp/array-examples',
+        'for-wasp/array-fpi',
+        'for-wasp/array-industry-pattern',
+        'for-wasp/array-lopstr16',
+        'for-wasp/array-multidimensional',
+        'for-wasp/array-patterns',
+        'for-wasp/array-programs',
+        'for-wasp/array-tiling'
+]
+
+bitvector = [
+        'for-wasp/bitvector',
+        'for-wasp/bitvector-loops',
+        'for-wasp/bitvector-regression'
+]
+
+control_flow = [
+        #'for-wasp/ntdrivers',
+        'for-wasp/ntdrivers-simplified',
+        'for-wasp/openssl',
+        'for-wasp/openssl-simplified',
+        'for-wasp/locks'
+]
+
+eca = ['for-wasp/psyco']
+
+floats = [
+        'for-wasp/float-benchs',
+        'for-wasp/float-newlib',
+        'for-wasp/floats-cbmc-regression',
+        'for-wasp/floats-cdfpl',
+        'for-wasp/floats-esbmc-regression',
+        'for-wasp/loop-floats-scientific-comp'
+]
+
+heap = [
+        'for-wasp/forester-heap',
+        'for-wasp/heap-data',
+        'for-wasp/list-ext-properties',
+        'for-wasp/list-ext2-properties',
+        'for-wasp/list-ext3-properties',
+        'for-wasp/list-properties',
+        'for-wasp/list-simple'
+]
+
+loops = [
+        'for-wasp/loop-crafted',
+        'for-wasp/loop-industry-pattern',
+        'for-wasp/loop-invariants',
+        'for-wasp/loop-invgen',
+        'for-wasp/loop-lit',
+        'for-wasp/loop-new',
+        'for-wasp/loop-simple',
+        'for-wasp/loop-zilu',
+        #'for-wasp/loops',
+        #'for-wasp/loops-crafted-1'
+        'for-wasp/verifythis',
+        'for-wasp/nla-digbench',
+        'for-wasp/nla-digbench-scaling'
+]
+
+recursive = [
+        'for-wasp/recursive',
+        'for-wasp/recursive-simple',
+        'for-wasp/recursive-with-pointer'
+]
+
+sequentialized = ['for-wasp/systemc']
+
+xcsp = ['for-wasp/xcsp']
+
+combinations = ['for-wasp/combinations']
+
+array_memsafety = [
+        'for-wasp/array-memsafety',
+        'for-wasp/array-memsafety-realloc'
+]
+
+heap_memsafety = [
+        'for-wasp/memsafety',
+        'for-wasp/memsafety-bftpd',
+        'for-wasp/memsafety-ext',
+        'for-wasp/memsafety-ext2'
+]
+
+termination_controlflow = [
+        'for-wasp/termination-crafted',
+        'for-wasp/termination-crafted-lit',
+        'for-wasp/termination-numeric',
+        'for-wasp/reducercommutativity'
+]
+
+test_dict = {
+        'array' : array,
+        'bitvector' : bitvector,
+        'control_flow' : control_flow,
+        'eca' : eca,
+        'floats' : floats,
+        'heap' : heap,
+        'loops' : loops,
+        'recursive' : recursive, 
+        'sequentialized' : sequentialized,
+        'XCSP' : xcsp,
+        'combinations' : combinations,
+        'array-memsafety' : array_memsafety,
+        'heap-memsafety' : heap_memsafety,
+        'termination-controlflow' : termination_controlflow
+}
 
 def getDirEntry(basename : str):
         lst = list(map(lambda f : f.name, \
@@ -17,8 +129,6 @@ def runTestsInDir(dirEntry : dict):
     ret = ''
     for testName in dirEntry['testLst']:
         ret      = ''
-        crash    = False
-        timeout  = False
         complete = False
         unreach  = True
 
@@ -50,14 +160,12 @@ def runTestsInDir(dirEntry : dict):
         except subprocess.CalledProcessError  as e:
             if unreach:
                 ret = 'CRASH'
-                crash = True
                 dirEntry['errorLst'].append(testPath)
             else:
                 ret = 'OK'
                 dirEntry['okCnt'] += 1
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             ret = 'TIMEOUT'
-            timeout = True
             dirEntry['errorLst'].append(testPath)
         finally:
             verdict = 'OK' if unreach else 'NOK'
@@ -65,7 +173,7 @@ def runTestsInDir(dirEntry : dict):
             interval = t1-t0
             dirEntry['totalTime'] += interval
             print(f'{ret} (time={t1-t0}s)')
-            csv_report.append([testPath, ret, verdict, complete, interval, timeout, crash])
+            csv_report.append([testPath, ret, verdict, complete, interval])
 
 
 
@@ -100,18 +208,15 @@ if __name__ == '__main__':
     parser.add_argument('dir', nargs='?')
     args = parser.parse_args()
 
-    if args.dir is not None:
-        print('Running tests in \'{}\'...'.format(args.dir))
-        print('-' * 0x41)
-        runTestsInDir(getDirEntry(args.dir + '/'))
+    for key, value in test_dict.items():
+        list(map(
+            lambda d: runTestsInDir(getDirEntry('tests/sv-comp/' + d + '/_build/')),
+            value))
 
-        with open("tests/sv-comp/report.csv", "a", newline="") as f:
+        with open("tests/sv-comp/" + key + ".csv", "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerows(csv_report)
-    else:
-        print('Running SV-COMP...')
-        runBenchmarks('tests/sv-comp/_build/')
 
-        with open("tests/sv-comp/report.csv", "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerows(csv_report)
+        csv_report = [['name', 'ans', 'verdict', 'complete', 'time']]
+
+    exit()
