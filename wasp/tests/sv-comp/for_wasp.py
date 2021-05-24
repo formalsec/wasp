@@ -96,7 +96,7 @@ def get_source_paths(test_dirs):
     for dir in test_dirs:
         c_src = filter(lambda f : f.name.endswith('.c'), \
                 os.scandir(dir))
-        src = src + [map(lambda f : f'{d}/{f.name}', c_src)]
+        src = src + list(map(lambda f : f'{dir}/{f.name}', c_src))
     return src
 
 def main():
@@ -104,6 +104,7 @@ def main():
     paths = get_source_paths(DIRS)
 
     for path in paths:
+        print(f'Transforming {path}...')
         with open(path, 'r') as f:
             data = f.read()
 
