@@ -2,7 +2,7 @@ import os, threading
 from comby import CombyBinary
 
 
-patterns = [
+PATTERNS = [
         (':[[h1]] __VERIFIER_nondet_:[[h2]](:[_])', ':[h1] __VERIFIER_nondet_:[h2](char *)'),
         ('unsigned :[[h1]] __VERIFIER_nondet_u:[[h1]](:[_])', \
                 'unsigned :[h1] __VERIFIER_nondet_u:[h1](char *)'),
@@ -27,7 +27,7 @@ patterns = [
 
 ]
 
-dirs = [
+DIRS = [
         'for-wasp/array-cav19', 
         'for-wasp/array-crafted', 
         'for-wasp/array-examples',
@@ -91,35 +91,27 @@ dirs = [
         'for-wasp/termination-numeric'
 ]
 
-nthreads = 4
+def get_source_paths(test_dirs):
+    src = []
+    for dir in test_dirs:
+        c_src = filter(lambda f : f.name.endswith('.c'), \
+                os.scandir(dir))
+        src = src + [map(lambda f : f'{d}/{f.name}', c_src)]
+    return src
 
-src = []
-for d in dirs:
-    src = src + list( \
-            map(lambda f : f'{d}/{f.name}', \
-                filter(lambda f : f.name.endswith('.c'), \
-                       os.scandir(d))))
+def main():
+    comby = CombyBinary()
+    paths = get_source_paths(DIRS)
 
-def thread_main(id, vec, n):
-    length = len(vec)
-    low    = int((id * length) / n)
-    high   = int(((id + 1) * length) / n)
-
-    comby  = CombyBinary()
-    for i in range(low, high):
-        path = vec[i]
-        print(f'Transforming {path}...')
-
+    for path in paths:
         with open(path, 'r') as f:
             data = f.read()
 
-        for patt in patterns:
-            data = comby.rewrite(data, patt[0], patt[1], language='.c')
+        for pattern in PATTERNS:
+            data = comby.rewrite(data, pattern[0], pattern[1], language='.c')
 
         with open(path, 'w') as f:
             f.write(data)
 
-thread_main(0, src, 1)
-#for i in range(0, nthreads):
-#    t = threading.Thread(target=thread_main, args=(i, src, nthreads,))
-#    t.start()
+if __name__ == '__main__':
+    main()

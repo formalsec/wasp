@@ -2,11 +2,11 @@
 from functools import reduce
 import os, sys, argparse, subprocess, time, yaml, csv
 
-# Constants
+# DEFAULTS
 TIMEOUT=10
 INSTR_MAX=1000000
 
-csv_report = [['name', 'ans', 'verdict', 'complete', 'time']]
+csv = [['name', 'ans', 'verdict', 'complete', 'time']]
 
 array = [
         'for-wasp/array-cav19', 
@@ -127,7 +127,7 @@ def getDirEntry(basename : str):
         return dict(dirPath=basename, testLst=lst, \
                 size=len(lst), okCnt=0, errorLst=list(), totalTime=0)
 
-def runTestsInDir(dirEntry : dict):
+def runTestsInDir(dirEntry : dict, timeout, instr_max):
     print('Entering ' + dirEntry['dirPath'])
 
     ret = ''
@@ -150,9 +150,9 @@ def runTestsInDir(dirEntry : dict):
         try:
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")', \
-                    '-m', str(INSTR_MAX)]
+                    '-m', str(instr_max)]
             t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=TIMEOUT, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=timeout, stderr=subprocess.STDOUT)
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             if unreach:
@@ -177,7 +177,7 @@ def runTestsInDir(dirEntry : dict):
             interval = t1-t0
             dirEntry['totalTime'] += interval
             print(f'{ret} (time={t1-t0}s)')
-            csv_report.append([testPath, ret, verdict, complete, interval])
+            csv.append([testPath, ret, verdict, complete, interval])
 
 
 
@@ -188,39 +188,23 @@ def runTestsInDir(dirEntry : dict):
         print('TESTS NOT OK:')
         list(map(lambda t : print(t), dirEntry['errorLst']))
 
-def runBenchmarks(basename : str):
-
-    tests = list(getDirEntry(basename + d.name + '/') for d in \
-            filter(lambda e : e.is_dir(), os.scandir(basename)))
-
-    for dirEntry in tests:
-        print('-' * 0x41)
-        runTestsInDir(dirEntry)
-
-    print('-' * 0x41, end='\n\n')
-    t = reduce(lambda a, b: a + b, map(lambda d : d['size'],  \
-            tests))
-    c = reduce(lambda a, b: a + b, map(lambda d : d['okCnt'], \
-            tests))
-    time = reduce (lambda a, b: a + b, map(lambda d : d['totalTime'], \
-            tests))
-    avg = time / t
-    print(f'FINAL RESULTS: {c}/{t} OKs\n total={time}, avg={avg}')
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('dir', nargs='?')
+    parser.add_argument('timeout', nargs='?')
+    parser.add_argument('instr_max', nargs='?')
     args = parser.parse_args()
+
+    timeout   = args.timeout   if args.timeout   is not None else TIMEOUT
+    instr_max = args.instr_max if args.instr_max is not None else INSTR_MAX
 
     for key, value in test_dict.items():
         list(map(
-            lambda d: runTestsInDir(getDirEntry('tests/sv-comp/' + d + '/_build/')),
+            lambda d: runTestsInDir(getDirEntry('tests/sv-comp/' + d + '/_build/'), \
+                                    timeout, instr_max), \
             value))
 
         with open("tests/sv-comp/out/" + key + ".csv", "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerows(csv_report)
+            writer.writerows(csv)
 
-        csv_report = [['name', 'ans', 'verdict', 'complete', 'time']]
-
-    exit()
+        csv = [['name', 'ans', 'verdict', 'complete', 'time']]
