@@ -156,7 +156,7 @@ int main()
               struct node ***pdst = &dst;
               struct node **pdata;
 //              if (!sub2 || (sub1 && sub1->value < sub2->value)) 
-              if (!sub2 || (sub1 && __VERIFIER_nondet_int())) 
+              if (!sub2 || (sub1 && __VERIFIER_nondet_int("if@158"))) 
                 pdata = &sub1;
               else
                 pdata = &sub2;

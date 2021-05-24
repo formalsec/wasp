@@ -28,7 +28,7 @@ patterns = [
 ]
 
 dirs = [
-0       'for-wasp/array-cav19', 
+        'for-wasp/array-cav19', 
         'for-wasp/array-crafted', 
         'for-wasp/array-examples',
         'for-wasp/array-fpi',
@@ -90,8 +90,6 @@ dirs = [
         'for-wasp/memsafety-ext2',
         'for-wasp/termination-numeric'
 ]
-
-dirs = [ 'for-wasp/memsafety-ext2' ]
 
 nthreads = 4
 

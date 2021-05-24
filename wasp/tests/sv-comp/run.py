@@ -2,6 +2,10 @@
 from functools import reduce
 import os, sys, argparse, subprocess, time, yaml, csv
 
+# Constants
+TIMEOUT=10
+INSTR_MAX=1000000
+
 csv_report = [['name', 'ans', 'verdict', 'complete', 'time']]
 
 array = [
@@ -146,9 +150,9 @@ def runTestsInDir(dirEntry : dict):
         try:
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")', \
-                    '-m', '1000000']
+                    '-m', str(INSTR_MAX)]
             t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=TIMEOUT, stderr=subprocess.STDOUT)
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             if unreach:
@@ -213,7 +217,7 @@ if __name__ == '__main__':
             lambda d: runTestsInDir(getDirEntry('tests/sv-comp/' + d + '/_build/')),
             value))
 
-        with open("tests/sv-comp/" + key + ".csv", "w", newline="") as f:
+        with open("tests/sv-comp/out/" + key + ".csv", "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerows(csv_report)
 
