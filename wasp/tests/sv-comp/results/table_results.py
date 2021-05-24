@@ -10,21 +10,21 @@ def main(f):
             lambda l: (l[1] == 'NOK') and (l[2] == 'NOK') and (l[3] == 'True'), \
             data)))
     incompleteTruePos = len(list(filter( \
-            lambda l: (l[1] == 'NOK') and (l[2] == 'NOK') and (l[3] == 'False'), \
+            lambda l: ((l[1] == 'NOK') or (l[1] == 'TIMEOUT')) and (l[2] == 'NOK') and (l[3] == 'False'), \
             data)))
 
     completeTrueNeg = len(list(filter( \
             lambda l: (l[1] == 'OK') and (l[2] == 'OK') and (l[3] == 'True'), \
             data)))
     incompleteTrueNeg = len(list(filter( \
-            lambda l: (l[1] == 'OK') and (l[2] == 'OK') and (l[3] == 'False'), \
+            lambda l: ((l[1] == 'OK') or (l[1] == 'TIMEOUT')) and (l[2] == 'OK') and (l[3] == 'False'), \
             data)))
 
     completeFalsePos = len(list(filter( \
             lambda l: (l[1] == 'NOK') and (l[2] == 'OK') and (l[3] == 'True'), \
             data)))
     incompleteFalsePos = len(list(filter( \
-            lambda l: (l[1] == 'NOK') and (l[2] == 'OK') and (l[3] == 'False'), \
+            lambda l: ((l[1] == 'NOK') or (l[1] == 'CRASH')) and (l[2] == 'OK') and (l[3] == 'False'), \
             data)))
 
     completeFalseNeg = len(list(filter( \
