@@ -6,7 +6,7 @@ import os, sys, argparse, subprocess, time, yaml, csv
 TIMEOUT=10
 INSTR_MAX=1000000
 
-csv = [['name', 'ans', 'verdict', 'complete', 'time']]
+csv_lst = [['name', 'ans', 'verdict', 'complete', 'time']]
 
 array = [
         'for-wasp/array-cav19', 
@@ -177,7 +177,7 @@ def runTestsInDir(dirEntry : dict, timeout, instr_max):
             interval = t1-t0
             dirEntry['totalTime'] += interval
             print(f'{ret} (time={t1-t0}s)')
-            csv.append([testPath, ret, verdict, complete, interval])
+            csv_lst.append([testPath, ret, verdict, complete, interval])
 
 
 
@@ -194,8 +194,8 @@ if __name__ == '__main__':
     parser.add_argument('instr_max', nargs='?')
     args = parser.parse_args()
 
-    timeout   = args.timeout   if args.timeout   is not None else TIMEOUT
-    instr_max = args.instr_max if args.instr_max is not None else INSTR_MAX
+    timeout   = int(args.timeout)   if args.timeout   is not None else TIMEOUT
+    instr_max = int(args.instr_max) if args.instr_max is not None else INSTR_MAX
 
     for key, value in test_dict.items():
         list(map(
@@ -203,8 +203,9 @@ if __name__ == '__main__':
                                     timeout, instr_max), \
             value))
 
-        with open("tests/sv-comp/out/" + key + ".csv", "w", newline="") as f:
+        fname = key + "_t" + str(timeout) + "_im" + str(instr_max)
+        with open("tests/sv-comp/results/" + fname + ".csv", "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerows(csv)
+            writer.writerows(csv_lst)
 
-        csv = [['name', 'ans', 'verdict', 'complete', 'time']]
+        csv_lst = [['name', 'ans', 'verdict', 'complete', 'time']]
