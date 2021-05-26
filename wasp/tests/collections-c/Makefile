@@ -1,5 +1,5 @@
 CC=clang
-CC_OPT=-emit-llvm -g -O1 --target=wasm32 -c -m32
+CC_OPT=-emit-llvm -g -O0 --target=wasm32 -c -m32
 LINKER=wasm-ld
 LIB_DIR=lib
 BUG_LIB_DIR=lib-with-bugs
@@ -36,7 +36,7 @@ default: all
 all: pre normal bug wat post clean-up
 
 pre:
-	@python for_wasp.py
+	@python3 for_wasp.py
 
 bug: $(testbugswasm)
 

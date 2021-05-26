@@ -12,12 +12,12 @@
 |complete   (F+)|0|0.0 |
 |incomplete (F+)|0|0.0 |
 |crash      (F+)|2|3.7037037037037033 |
-|timeout        |3|
-|crash          |2|
-|Total          |85|
+|timeout        |3| |
+|crash          |2| |
+|Total          |85| |
 
 | Actual Property\Reported Property | holds | does not hold |
 |------------------------------------|-------|---------------|
-| holds | 3+46+3=52 | 0+0+2=2 |
-| does not hold | 0+18+0=18 | 13+0=13 |
+| holds | 3+46+3=52/54 | 0+0+2=2 |
+| does not hold | 0+18+0=18 | 13+0=13/31 |
 
