@@ -33,10 +33,7 @@ testbugswasm=$(addprefix $(BUILD_DIR)/,$(testbugs:.c=.wasm))
 
 default: all
 
-all: pre normal bug wat post clean-up
-
-pre:
-	@python3 for_wasp.py
+all: normal bug wat post
 
 bug: $(testbugswasm)
 
@@ -45,7 +42,8 @@ normal: $(testswasm)
 wat: $(addprefix $(BUILD_DIR)/,$(tests:.c=.wat)) $(addprefix $(BUILD_DIR)/,$(testbugs:.c=.wat))
 
 post:
-	@./add_mocks.sh
+	@rm -rf $(wildcard $(BUILD_DIR)/*.o) $(wildcard $(BUILD_DIR)/*.bc) $(wildcard $(BUILD_DIR)/*.wasm)
+	@./patch.sh
 
 # TESTS WITH BUGS
 
@@ -124,15 +122,12 @@ $(BUILD_DIR)/lib/%.o: $(BUILD_DIR)/lib/%.bc
 $(BUILD_DIR)/lib-with-bugs/%.bc: lib-with-bugs/%.c $(BUILD_DIR)/for-wasp/mockups/mockups.bc
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(BUG_LIB_DIR)/include $< -o $@ 
+	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(BUG_LIB_DIR)/include $< -o $@ > /dev/null 2>&1
 
 $(BUILD_DIR)/lib-with-bugs/%.o: $(BUILD_DIR)/lib-with-bugs/%.bc
 	@echo "Building $@"
 	@opt -O1 $< -o $<
 	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
-
-clean-up:
-	@rm -rf $(wildcard $(BUILD_DIR)/*.o) $(wildcard $(BUILD_DIR)/*.bc) $(wildcard $(BUILD_DIR)/*.wasm)
 
 clean:
 	@echo "rm -rf $(BUILD_DIR)"; rm -rf $(BUILD_DIR)

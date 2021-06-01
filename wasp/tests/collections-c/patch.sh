@@ -7,4 +7,5 @@ for t in $(find "./_build/for-wasp" -name  "*.wat"); do
   sed -i'' -e 's/\<call $alloc\>/alloc/' $t
   sed -i'' -e 's/\<call $free\>/free/' $t
   sed -i'' -e 's/\<call $dealloc\>/free/' $t
+  sed -i'' -e 's/anyfunc/funcref/' $t
 done
