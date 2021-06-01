@@ -11,4 +11,5 @@ for t in $(find "$1/_build" -name "*.wat"); do
   sed -i'' -e 's/\<call $free\>/free/' $t
   sed -i'' -e 's/\<call $dealloc\>/free/' $t
   sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $t
+  sed -i'' -e 's/anyfunc/funcref/' $t
 done
