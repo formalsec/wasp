@@ -13,7 +13,7 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
   let f32_unop op e =
     begin match op with
     | F32Op.Neg     -> F32Unop (F32Neg, e)
-    | F32Op.Abs     -> raise (UnsupportedOp "eval_unop: Abs")
+    | F32Op.Abs     -> F32Unop (F32Abs, e)
     | F32Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
     | F32Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
     | F32Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")

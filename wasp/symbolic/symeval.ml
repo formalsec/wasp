@@ -234,68 +234,33 @@ let rec sym_step (c : sym_config) : sym_config =
         vs, [SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at], logic_env, path_cond, sym_mem
 
       | If (ts, es1, es2), (I32 0l, ex) :: vs' -> 
-        let ex' = simplify ex in
-        let to_add =
-          begin match ex with
-          | Value _ | Ptr _ -> []
-          | _       -> 
-              let ex'' =
-                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
-                else ex'
-              in [neg_expr ex'']
-          end
-        in
+        let cond = Option.map negate_relop (to_constraint (simplify ex)) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
         (*Printf.printf ("\n\n###### Entered IF, with 0 on top of stack. ######\nPath conditions are now:\n %s\n#################################################\n\n")   (Symvalue.str_path_cond ([v'] @ path_cond));*)
-        vs', [SPlain (Block (ts, es2)) @@ e.at], logic_env, to_add @ path_cond, sym_mem
+        vs', [SPlain (Block (ts, es2)) @@ e.at], logic_env, path_cond, sym_mem
 
       | If (ts, es1, es2), (I32 i, ex) :: vs' -> 
-        let ex' = simplify ex in
-        let to_add =
-          begin match ex' with
-          | Value _ | Ptr _ -> []
-          | _ ->
-              let ex'' = 
-                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
-                else ex'
-              in [ex'']
-          end
-        in
+        let cond = to_constraint (simplify ex) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
         (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack. ######\nPath conditions are now:\n %s\n##################################################\n\n")   (Symvalue.str_path_cond ([v'] @ path_cond));*)
-        vs', [SPlain (Block (ts, es1)) @@ e.at], logic_env, to_add @ path_cond, sym_mem
+        vs', [SPlain (Block (ts, es1)) @@ e.at], logic_env, path_cond, sym_mem
 
       | Br x, vs ->
         [], [SBreaking (x.it, vs) @@ e.at], logic_env, path_cond, sym_mem
 
       | BrIf x, (I32 0l, ex) :: vs' ->
-        let ex' = simplify ex in
-        let to_add =
-          begin match ex' with
-          | Value _ | Ptr _ -> []
-          | _ ->
-              let ex'' = 
-                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
-                else ex'
-              in [neg_expr ex'']
-          end
-        in
+        (* Negate expression because it is false *)
+        let cond = Option.map negate_relop (to_constraint (simplify ex)) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
         (*Printf.printf ("\n\n###### Entered BRIF, with 0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n#################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc
          (to_add @ path_cond));*)
-        vs', [], logic_env, to_add @ path_cond, sym_mem
+        vs', [], logic_env, path_cond, sym_mem
 
       | BrIf x, (I32 i, ex) :: vs' -> 
-        let ex' = simplify ex in
-        let to_add = 
-          begin match ex' with
-          | Value _ | Ptr _ -> []
-          | _ ->
-              let ex'' = 
-                if not (is_relop ex') then I32Relop (I32Ne, ex', Value (I32 0l))
-                else ex'
-              in [ex'']
-          end
-        in
+        let cond = to_constraint (simplify ex) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
         (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n##################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc (to_add @ path_cond));*)
-        vs', [SPlain (Br x) @@ e.at], logic_env, to_add @ path_cond, sym_mem
+        vs', [SPlain (Br x) @@ e.at], logic_env, path_cond, sym_mem
 
       | BrTable (xs, x), (I32 i, _) :: vs' when I32.ge_u i (Lib.List32.length xs) ->
         vs', [SPlain (Br x) @@ e.at], logic_env, path_cond, sym_mem
@@ -320,12 +285,14 @@ let rec sym_step (c : sym_config) : sym_config =
         vs', [], logic_env, path_cond, sym_mem
 
       | Select, (I32 0l, ex) :: v2 :: v1 :: vs' ->
-          let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [neg_expr ex] in
-          v2 :: vs', [], logic_env, to_add @ path_cond, sym_mem
+        let cond = Option.map negate_relop (to_constraint (simplify ex)) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
+        v2 :: vs', [], logic_env, path_cond, sym_mem
 
       | Select, (I32 i, ex) :: v2 :: v1 :: vs' ->
-          let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [ex] in
-          v1 :: vs', [], logic_env, to_add @ path_cond , sym_mem
+        let cond = to_constraint (simplify ex) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
+        v1 :: vs', [], logic_env, path_cond , sym_mem
 
       | LocalGet x, vs ->
         !(local frame x) :: vs, [], logic_env, path_cond, sym_mem
@@ -457,55 +424,52 @@ let rec sym_step (c : sym_config) : sym_config =
       | SymAssert, (I32 0l, ex) :: vs' -> (* 0 on top of stack *)
         Printf.printf ">>> Assert reached. Checking satisfiability...\n";
         let es' =
-          if path_cond = [] then begin
+          if path_cond = [] then
             [AsrtFail (Logicenv.to_string logic_env) @@ e.at]
-          end else begin
-            let ex' = simplify ex in
-            let assertion = match ex' with Value _ -> [] | _ -> [neg_expr ex'] in
-            begin match Z3Encoding2.check_sat_core (assertion @ path_cond) with
+          else
+            let c = Option.map negate_relop (to_constraint (simplify ex)) in
+            let asrt = Formula.to_formula (
+              Option.map_default (fun a -> a :: path_cond) path_cond c) in
+            match Z3Encoding2.check_sat_core asrt with
+            | None   -> []
             | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
-            | None ->
-              Printf.printf "\n\n###### Assertion passed ######\n";
-              []
-            end
-          end
-        in vs', es', logic_env, path_cond, sym_mem
+        in
+        if es' = [] then
+          Printf.printf "\n\n###### Assertion passed ######\n";
+        vs', es', logic_env, path_cond, sym_mem
       
       | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
         Printf.printf ">>> Assert reached. Checking satisfiability...\n";
         let es' =
-          if path_cond = [] then begin
-            Printf.printf "\n\n###### Assertion passed ######\n";
-            []
-          end else begin
-            let ex' = simplify ex in
-            begin match ex' with
-            | Value (I32 v) when not (v = 0l) ->
-              Printf.printf "\n\n###### Assertion passed ######\n";
-              []
-            | _ ->
-              let assertion = neg_expr ex' in
-              begin match Z3Encoding2.check_sat_core (assertion :: path_cond) with
+          if path_cond = [] then []
+          else 
+            match simplify ex with
+            | Value (I32 v) when not (v = 0l) -> []
+            | ex' ->
+              let c = negate_relop (Option.get (to_constraint ex')) in
+              let asrt = Formula.to_formula (c :: path_cond) in
+              match Z3Encoding2.check_sat_core asrt with
+              | None   -> []
               | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
-              | None ->
-                  Printf.printf "\n\n###### Assertion passed ######\n";
-                  []
-              end
-            end
-          end
-        in vs', es', logic_env, path_cond, sym_mem
+        in 
+        if es' = [] then 
+          Printf.printf "\n\n###### Assertion passed ######\n";
+        vs', es', logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 0l, ex) :: vs' ->
         Printf.printf ">>> Assumed false. Finishing...\n";
-        let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [neg_expr ex] in
-        let path_cond = to_add @ path_cond in
-        Printf.printf "to_add: %s\n" (Symvalue.string_of_pc to_add);
+        (* Negate expression because it is false *)
+        let cond = Option.map negate_relop (to_constraint (simplify ex)) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
+        let pp = (fun c -> Printf.printf "to_add: %s\n" (Symvalue.to_string c)) in
+        Option.map_default pp () cond;
         [], [AsmFail path_cond @@ e.at], logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
-        let to_add = match ex with Value _ | Ptr _ -> [] | _ -> [ex] in
+        let cond = to_constraint (simplify ex) in
+        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
         Printf.printf ">>> Assume passed. Continuing execution...\n";
-        vs', [], logic_env, to_add @ path_cond, sym_mem
+        vs', [], logic_env, path_cond, sym_mem
 
       | SymInt, (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in
@@ -823,14 +787,15 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Printf.printf "\n\n%s PATH CONDITIONS BEFORE Z3 %s\n%s\n%s\n"
         delim delim (pp_string_of_pc pc) (String.make 38 '$');
 
-    let global_pc' = BoolOp (And, global_pc, neg_expr (and_list pc)) in
+    let pc' = Formula.(negate (to_formula pc)) in
+    let global_pc = Formula.And (global_pc, pc') in
 
     (* DEBUG: *)
     Printf.printf "\n\n%s GLOBAL PATH CONDITION %s\n%s\n%s\n\n"
-        delim delim (pp_string_of_pc [global_pc']) (String.make 28 '$');
+        delim delim (Formula.to_string global_pc) (String.make 28 '$');
 
     let start = Sys.time () in
-    let opt_model = Z3Encoding2.check_sat_core [global_pc'] in
+    let opt_model = Z3Encoding2.check_sat_core global_pc in
     let curr_time = (Sys.time ()) -. start in
     global_time := !global_time +. curr_time;
 
@@ -859,19 +824,19 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
         z3_model_str delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
     Printf.printf "\n%s ITERATION %02d STATISTICS: %s\n" 
         (String.make 23 '-') !iterations (String.make 23 '-');
-    Printf.printf "PATH CONDITION SIZE: %d\n" (Symvalue.length (and_list pc));
-    Printf.printf "GLOBAL PATH CONDITION SIZE: %d\n" (Symvalue.length global_pc');
+    Printf.printf "PATH CONDITION SIZE: %d\n" (Formula.length pc');
+    Printf.printf "GLOBAL PATH CONDITION SIZE: %d\n" (Formula.length global_pc);
     Printf.printf "TIME TO SOLVE GLOBAL PC: %f\n%s\n\n\n" curr_time (String.make 73 '-');
 
     Printf.printf "%s\n\n" (String.make 92 '~');
 
     lines      := [];
     iterations := !iterations + 1;
-    let env_constraint = neg_expr (Logicenv.to_expr logic_env) in
-    loop (BoolOp (And, global_pc', env_constraint))
+    let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in
+    loop Formula.(And (global_pc, negate env_constraint))
   in 
   Printf.printf "%s\n\n" (String.make 92 '~');
-  begin try loop (Symvalue.Value (I32 1l)) with
+  begin try loop (Formula.True) with
     | Unsatisfiable ->
         Printf.printf "Model is no longer satisfiable. All paths have been verified.\n"
     | e -> raise e 

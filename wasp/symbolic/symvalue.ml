@@ -4,8 +4,6 @@ open Values
 
 type symbolic = SymInt32 | SymInt64 | SymFloat32 | SymFloat64
 
-type boolop   = And | Or
-
 type sym_expr =
   (* Value *)
   | Value    of value
@@ -35,7 +33,6 @@ type sym_expr =
   (* Encoding Auxiliary *)
   | Extract  of sym_expr * int * int
   | Concat   of sym_expr * sym_expr
-  | BoolOp   of boolop   * sym_expr * sym_expr
 
 (*  Pair ( (concrete) Value, (symbolic) Expression)  *)
 type sym_value = value * sym_expr
@@ -50,12 +47,11 @@ let type_of_symbolic = function
   | SymFloat64 -> F64Type
 
 let to_symbolic (t : value_type) (x : string) : sym_expr =
-  let symb = begin match t with
+  let symb = match t with
     | I32Type -> SymInt32
     | I64Type -> SymInt64
     | F32Type -> SymFloat32
     | F64Type -> SymFloat64
-    end
   in Symbolic (symb, x)
 
 
@@ -99,35 +95,16 @@ let rec type_of (e : sym_expr) : value_type  =
     | 8 -> I64Type
     | _ -> failwith "unsupported type length"
     end
-  | BoolOp _ -> I32Type
   end
 
-(*  Negates a sym_expr  *)
-let rec neg_expr (e : sym_expr) : sym_expr =
-  begin match e with 
-  (* Value *)
-  | Value (I32 0l) -> Value (I32 1l)
-  | Value (I32 _)  -> Value (I32 0l)
-  (* RelOp *)
+let negate_relop (e : sym_expr) : sym_expr =
+  match e with 
+  (* Relop *)
   | I32Relop (op, e1, e2) -> I32Relop (Si32.neg_relop op, e1, e2) 
   | I64Relop (op, e1, e2) -> I64Relop (Si64.neg_relop op, e1, e2)
   | F32Relop (op, e1, e2) -> F32Relop (Sf32.neg_relop op, e1, e2)
   | F64Relop (op, e1, e2) -> F64Relop (Sf64.neg_relop op, e1, e2)
-  (* BoolOp *)
-  | I32Binop (I32And, e1, e2) -> I32Binop(I32Or , neg_expr e1, neg_expr e2)
-  | I32Binop (I32Or , e1, e2) -> I32Binop(I32And, neg_expr e1, neg_expr e2)
-  | BoolOp (And, e1, e2) -> BoolOp (Or , neg_expr e1, neg_expr e2)
-  | BoolOp (Or , e1, e2) -> BoolOp (And, neg_expr e1, neg_expr e2)
-  (* Maintain rest *)
-  | _ -> e
-  end
-
-let and_list (lst : sym_expr list ) : sym_expr =
-  assert (not (lst = []));
-  let rec loop acc = function
-    | []     -> acc
-    | h :: t -> loop (BoolOp (And, acc, h)) t
-  in loop (List.hd lst) (List.tl lst)
+  | _ -> failwith "Not a relop"
 
 (* Measure complexity of formulas *)
 let rec length (e : sym_expr) : int = 
@@ -158,7 +135,6 @@ let rec length (e : sym_expr) : int =
 	| Symbolic (s, x)       -> 1
   | Extract  (e, _, _)    -> 1 + (length e)
   | Concat   (e1, e2)     -> 1 + (length e1) + (length e2)
-  | BoolOp   (op, e1, e2) -> 1 + (length e1) + (length e2)
   end
 
 (*  Retrieves the symbolic variables  *)
@@ -191,7 +167,6 @@ let rec get_symbols (e : sym_expr) : (string * symbolic) list =
   | Symbolic (t, x)       -> [(x, t)]
   | Extract  (e, _, _)    -> (get_symbols e)
   | Concat   (e1, e2)     -> (get_symbols e1) @ (get_symbols e2)
-  | BoolOp   (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
   end
 
 (*  String representation of an symbolic types  *)
@@ -300,15 +275,6 @@ let rec to_string (e : sym_expr) : string =
       let str_e1 = to_string e1
       and str_e2 = to_string e2 in
       "(Concat " ^ str_e1 ^ " " ^ str_e2 ^ ")"
-  | BoolOp (op, e1, e2) ->
-      let str_e1 = to_string e1
-      and str_e2 = to_string e2
-      and str_op =
-        match op with
-        | And -> "And"
-        | Or  -> "Or"
-      in
-      "(" ^ str_op ^ " " ^ str_e1 ^ " " ^ str_e2 ^ ")"
   end
 
 let rec pp_to_string (e : sym_expr) : string =
@@ -404,15 +370,6 @@ let rec pp_to_string (e : sym_expr) : string =
       let str_e1 = pp_to_string e1
       and str_e2 = pp_to_string e2 in
       "(" ^ str_e1 ^ " + " ^ str_e2 ^ ")"
-  | BoolOp (op, e1, e2) ->
-      let str_e1 = pp_to_string e1
-      and str_e2 = pp_to_string e2
-      and str_op =
-        match op with
-        | And -> "/\\"
-        | Or  -> "\\/"
-      in
-      "(" ^ str_e1 ^ " " ^ str_op ^ " " ^ str_e2 ^ ")"
   end
 
 (*  String representation of a list of path conditions  *)
@@ -471,22 +428,23 @@ let rec get_ptr (e : sym_expr) : value option =
       (* assume concatenation of only one ptr *)
       let p1 = get_ptr e1 in
       if Option.is_some p1 then p1 else get_ptr e2
-  | _ -> 
-      Printf.printf "ptr expr: %s\n" (to_string e);
-      failwith "unsupported pointer arithmetic"
   end
   
-
-
-
 let is_relop (e : sym_expr) : bool =
   begin match e with
   | I32Relop _ | I64Relop _ | F32Relop _ | F64Relop _ -> true
   | _ -> false
   end
 
-let rec simplify (e : sym_expr) : sym_expr =
+let to_constraint (e : sym_expr) : sym_expr option =
   begin match e with
+  | Value _ | Ptr _ -> None
+  | _ -> if not (is_relop e) then Some (I32Relop (I32Ne, e, Value (I32 0l)))
+                             else Some e
+  end
+
+let rec simplify (e : sym_expr) : sym_expr =
+  match e with
   | Value v -> Value v
   | I32Binop (op, e1, e2) ->
       let e1' = simplify e1
@@ -591,9 +549,4 @@ let rec simplify (e : sym_expr) : sym_expr =
           end else Concat (e1', e2')
       | _ -> Concat (e1', e2')
       end
-  | BoolOp (op, e1, e2) ->
-      let e1' = simplify e1
-      and e2' = simplify e2 in
-      BoolOp (op, e1', e2')
   | _ -> e
-  end

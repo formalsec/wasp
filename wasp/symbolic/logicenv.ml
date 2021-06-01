@@ -42,13 +42,12 @@ let get_vars_by_type (t : value_type) (env : logicenv) : string list =
     if (Values.type_of v) = t then k :: acc else acc
   ) env []
 
-let to_expr (env : logicenv) : sym_expr =
-  let c = Hashtbl.fold (fun k v acc ->
+let to_expr (env : logicenv) : sym_expr list =
+  Hashtbl.fold (fun k v acc ->
     let e = match v with
       | I32 _ -> I32Relop (Si32.I32Eq, Symbolic (SymInt32  , k), Value v)
       | I64 _ -> I64Relop (Si64.I64Eq, Symbolic (SymInt64  , k), Value v)
       | F32 _ -> F32Relop (Sf32.F32Eq, Symbolic (SymFloat32, k), Value v)
       | F64 _ -> F64Relop (Sf64.F64Eq, Symbolic (SymFloat64, k), Value v)
     in e :: acc) env []
-  in and_list c
   
