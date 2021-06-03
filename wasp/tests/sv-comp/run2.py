@@ -8,6 +8,8 @@ TIMEOUT = 10
 # Maximum instructions executed in model
 INSTR_MAX = 1000000
 
+ignore = ['array', 'bitvector', 'control_flow']
+
 tests = {
         'array' : [
             'for-wasp/array-cav19', 
@@ -132,10 +134,10 @@ def run(i : int):
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             ret = 'OK' if unreach else 'NOK'
-        except subprocess.CalledProcessError as e:
-            ret = 'CRASH' if unreach else 'OK'
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             ret = 'TIMEOUT'
+        except:
+            ret = 'CRASH' if unreach else 'OK'
         finally:
             verdict = 'OK' if unreach else 'NOK'
             t1 = time.time()
@@ -153,11 +155,15 @@ def parse_arg(i : int) -> str:
 
 def main():
     global lock
+    global results
     global srcs
 
     lock = threading.Lock()
 
     for key, value in tests.items():
+        if key in ignore:
+            continue
+
         for dir in value:
             srcs = glob.glob('tests/sv-comp/' + dir + '/_build/*.wat')
 
