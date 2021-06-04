@@ -832,8 +832,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     lines      := [];
     iterations := !iterations + 1;
-    let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in
-    loop Formula.(And (global_pc, negate env_constraint))
+    (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
+    loop global_pc (*Formula.(And (global_pc, negate env_constraint))*)
   in 
   Printf.printf "%s\n\n" (String.make 92 '~');
   begin try loop (Formula.True) with
