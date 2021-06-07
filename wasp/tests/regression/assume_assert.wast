@@ -1,0 +1,23 @@
+;; Stores and Loads symbolic variable
+(module
+  (type $0 (func))
+  (type $1 (func (result i32)))
+  
+  (func $main (type $0)
+        (local i32)
+        (i32.const 1024)
+        (sym_int)
+        (local.tee 0)
+        (i32.const 5)
+        (i32.eq)
+        (sym_assume)
+        (local.get 0)
+        (i32.const 5)
+        (i32.ne)
+        (print_stack)
+        (sym_assert))
+  (memory $0 1)
+  (global $0 (mut i32) (i32.const 66592))
+  (export "main" (func $main))
+  (data $0 (i32.const 1024) "x\00y\00z\00"))
+(invoke "main")

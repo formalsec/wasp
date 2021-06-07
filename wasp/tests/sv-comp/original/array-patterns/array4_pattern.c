@@ -48,8 +48,8 @@ int main()
 	ARR_SIZE = __VERIFIER_nondet_short() ;
 	assume_abort_if_not(ARR_SIZE > 0) ;
 
-	int array1[ARR_SIZE] ;
-	int array2[ARR_SIZE] ;
+  int *array1 = (int*)malloc(sizeof(int)*ARR_SIZE);
+  int *array2 = (int*)malloc(sizeof(int)*ARR_SIZE);
 	int count = 0, num = -1 ;
         signed long long sum = 0 ;
 	int temp ;

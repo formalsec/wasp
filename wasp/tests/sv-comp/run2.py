@@ -8,7 +8,7 @@ TIMEOUT = 10
 # Maximum instructions executed in model
 INSTR_MAX = 1000000
 
-ignore = ['array', 'bitvector', 'control_flow']
+ignore = []
 
 tests = {
         'array' : [

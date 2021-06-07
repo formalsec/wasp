@@ -42,7 +42,8 @@ int main()
 	ARR_SIZE = (signed long long)__VERIFIER_nondet_short() ;
 	assume_abort_if_not(ARR_SIZE > 1) ;
 
-	int array[ARR_SIZE][ARR_SIZE] ;
+  int **array = (int**)malloc(sizeof(int*)*ARR_SIZE);
+  for (int i = 0; i < ARR_SIZE; ++i) array[i] = (int*)malloc(sizeof(int)*ARR_SIZE);
 	
 	int row = 0, column = 0, num = -1, value = 1 ;
 	signed long long sum = 0;

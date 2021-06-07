@@ -43,6 +43,8 @@ int main()
 
 	int array1[ARR_SIZE] ;
 	int array2[ARR_SIZE] ;
+  int array1 = malloc(sizeof(int) * ARR_SIZE);
+  int array2 = malloc(sizeof(int) * ARR_SIZE);
 	int count = 0, num = -1 ;
         signed long long sum = 0 ;
 	int temp ;

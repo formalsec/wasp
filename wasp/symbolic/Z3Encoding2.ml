@@ -337,7 +337,7 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : sym_expr) : Expr.expr =
   | Symbolic (t, x) ->
       Expr.mk_const_s ctx x (get_sort (type_of_symbolic t))
   | Extract  (e, h, l) -> 
-      let e' = encode_sym_expr e in
+      let e' = encode_sym_expr ~bool_to_bv:true e in
       BitVector.mk_extract ctx (h * 8 - 1) (l * 8) e'
   | Concat (e1, e2) -> 
       let e1' = encode_sym_expr e1

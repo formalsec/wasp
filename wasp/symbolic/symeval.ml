@@ -337,7 +337,7 @@ let rec sym_step (c : sym_config) : sym_config =
         begin try
           let (v, e) =
             match sz with
-            | None -> Symmem2.load_value sym_mem base offset ty
+            | None           -> Symmem2.load_value sym_mem base offset ty
             | Some (sz, ext) -> Symmem2.load_packed sz ext sym_mem base offset ty
           in (v, e) :: vs', [], logic_env, path_cond, sym_mem
         with exn -> 
@@ -365,7 +365,7 @@ let rec sym_step (c : sym_config) : sym_config =
         end;
         begin try
           begin match sz with
-          | None -> Symmem2.store_value sym_mem base offset (v, ex)
+          | None    -> Symmem2.store_value sym_mem base offset (v, ex)
           | Some sz -> Symmem2.store_packed sz sym_mem base offset (v, ex)
           end;
           vs', [], logic_env, path_cond, sym_mem
@@ -427,9 +427,10 @@ let rec sym_step (c : sym_config) : sym_config =
           if path_cond = [] then
             [AsrtFail (Logicenv.to_string logic_env) @@ e.at]
           else
-            let c = Option.map negate_relop (to_constraint (simplify ex)) in
+            let c = to_constraint (simplify ex) in
             let asrt = Formula.to_formula (
               Option.map_default (fun a -> a :: path_cond) path_cond c) in
+            Printf.printf "%s\n" (Formula.to_string asrt);
             match Z3Encoding2.check_sat_core asrt with
             | None   -> []
             | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
@@ -461,8 +462,6 @@ let rec sym_step (c : sym_config) : sym_config =
         (* Negate expression because it is false *)
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
         let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        let pp = (fun c -> Printf.printf "to_add: %s\n" (Symvalue.to_string c)) in
-        Option.map_default pp () cond;
         [], [AsmFail path_cond @@ e.at], logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
@@ -532,7 +531,6 @@ let rec sym_step (c : sym_config) : sym_config =
                 path_cond, sym_mem
 
       | Alloc, (I32 a, _) :: (I32 b, _) :: vs' ->
-          Printf.printf "Alloc %ld %ld\n" b a;
           Hashtbl.add chunk_table b a;
           (I32 b, Ptr (I32 b)) :: vs', [], logic_env, path_cond, sym_mem
 
@@ -756,7 +754,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Crash.error at ("sym_invoke: " ^ s) in
   let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
     !inst.sym_memory) in
-  let initial_memory = Symmem2.to_list !inst.sym_memory in
+  let initial_memory = Symmem2.memcpy !inst.sym_memory in
   let finish_constraints = Constraints.create in
 
   (* Concolic execution *)
@@ -815,8 +813,10 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Logicenv.clear logic_env;
     Logicenv.init logic_env binds;
 
+    (*
     Symmem2.clear !c.sym_mem;
     Symmem2.init !c.sym_mem initial_memory;
+    *)
 
     (* DEBUG *)
     let z3_model_str = Z3.Model.to_string model in
@@ -832,6 +832,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     lines      := [];
     iterations := !iterations + 1;
+    c          := {!c with sym_mem = initial_memory};
+            (*c := {!c with logic_env = sym_st; sym_mem = initial_memory};*)
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
     loop global_pc (*Formula.(And (global_pc, negate env_constraint))*)
   in 
