@@ -23,6 +23,7 @@
  * Sum of array should be 0, if ARR_SIZE is even, otherwise
  * 1.
  */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

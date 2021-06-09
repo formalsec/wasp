@@ -22,6 +22,7 @@
  * Array2[index] is assigned -count, if index is not multiple of three. 
  * Sum of both arrays should never exceed one third of array size plus two. 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

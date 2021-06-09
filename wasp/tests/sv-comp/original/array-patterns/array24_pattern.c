@@ -22,6 +22,7 @@
  * Sum of array should always less than or equal to sum of all 
  * elements of matrix minus boundary elements.
  */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

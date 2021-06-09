@@ -24,7 +24,7 @@ all: $(TARGET)
 $(TARGET):
 	mkdir -p _build/
 	$(MAKE) -C for-wasp/$@
-	#mv -vf for-wasp/$@/_build _build/$@
+	mv -vf for-wasp/$@/_build _build/$@
 
 clean:
 	$(RM) -rf _build

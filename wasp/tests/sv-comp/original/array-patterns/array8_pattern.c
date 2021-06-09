@@ -22,6 +22,7 @@
  * Array2[index] is assigned -count, if index is odd. 
  * Sum of both arrays should never exceed half the array size. 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

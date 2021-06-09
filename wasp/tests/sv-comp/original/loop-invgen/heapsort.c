@@ -1,6 +1,6 @@
 #include "assert.h"
 
-int main( int argc, char *argv[]){
+int main(){
   int n,l,r,i,j;
 
   n = __VERIFIER_nondet_int();

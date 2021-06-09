@@ -1,3 +1,5 @@
+#!/bin/sh
+
 for t in $(find "$1/_build" -name "*.wat"); do
   echo "patching $t"
   sed -i'' -e 's/\<call $assume\>/sym_assume/' $t

@@ -22,6 +22,7 @@
  * Array1[index],Array2[index] = Summation of values at previous element and next element of array. 
  * Sum of both arrays should be always zero. 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

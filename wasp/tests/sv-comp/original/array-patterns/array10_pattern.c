@@ -22,6 +22,7 @@
  * Array2[index] is assigned -index, if index is odd. 
  * Sum of both arrays should never exceed sum of 0 + 2 + 4 + 6 ... 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));
@@ -41,10 +42,8 @@ int main()
 	ARR_SIZE = (signed long long)__VERIFIER_nondet_short() ;
 	assume_abort_if_not(ARR_SIZE > 0) ;
 
-	int array1[ARR_SIZE] ;
-	int array2[ARR_SIZE] ;
-  int array1 = malloc(sizeof(int) * ARR_SIZE);
-  int array2 = malloc(sizeof(int) * ARR_SIZE);
+  int *array1 = malloc(sizeof(int) * ARR_SIZE);
+  int *array2 = malloc(sizeof(int) * ARR_SIZE);
 	int count = 0, num = -1 ;
         signed long long sum = 0 ;
 	int temp ;

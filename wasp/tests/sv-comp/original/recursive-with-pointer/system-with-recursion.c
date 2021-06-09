@@ -318,7 +318,7 @@ void user_initialize() {
   user->timeout  = 3;
 }
 
-int main(int argc, char const *argv[])
+int main()
 {
   user = malloc(sizeof(user_t));
   user_initialize();

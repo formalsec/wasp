@@ -30,6 +30,8 @@
  * inside loop can be picked up by algorithm selector to deploy only falsification/correctness proving
  * techniques.
  * */
+#include <stdlib.h>
+
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

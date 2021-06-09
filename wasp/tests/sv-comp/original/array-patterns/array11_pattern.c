@@ -22,6 +22,7 @@
  * Array2[index] is assigned -index, except index is not the last index. 
  * Sum of both arrays should either be zero or 2 times (size of array - 1) ... 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

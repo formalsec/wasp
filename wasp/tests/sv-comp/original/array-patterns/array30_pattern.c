@@ -19,7 +19,9 @@
  * row and column number.
  * Sum of array should be (1/3)*(ARR_SIZE)*(ARR_SIZE-1)*(ARR_SIZE+1).
  */
+#include <stdlib.h>
 extern void abort(void);
+
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));
 void reach_error() { __assert_fail("0", "array30_pattern.c", 24, "reach_error"); }
 extern void abort(void);

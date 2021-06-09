@@ -22,6 +22,7 @@
  * Sum1 and sum2 is calculating square of elements of Array1 and Array2
  * Both Sum1 and Sum2 should always be equal. 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

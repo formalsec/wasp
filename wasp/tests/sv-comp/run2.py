@@ -8,90 +8,99 @@ TIMEOUT = 10
 # Maximum instructions executed in model
 INSTR_MAX = 1000000
 
+# Dir where tests dir reside
+ROOT_DIR = '_build'
+
+# Populate with categories to ignore
 ignore = []
+
+# Testing categories
+#   each category has a list of pairs (*dirPath*, *property*)
+#   where, *dirPath* is the dir with tests and,
+#          *property* is the property being tested
 
 tests = {
         'array' : [
-            'for-wasp/array-cav19', 
-            'for-wasp/array-crafted', 
-            'for-wasp/array-examples',
-            'for-wasp/array-fpi',
-            'for-wasp/array-industry-pattern',
-            'for-wasp/array-lopstr16',
-            'for-wasp/array-multidimensional',
-            'for-wasp/array-patterns',
-            'for-wasp/array-programs',
-            'for-wasp/array-tiling'
+            (f'{ROOT_DIR}/array-cav19', 'unreach-call'),
+            (f'{ROOT_DIR}/array-crafted', 'unreach-call'),
+            (f'{ROOT_DIR}/array-examples', 'unreach-call'),
+            (f'{ROOT_DIR}/array-fpi', 'unreach-call'),
+            (f'{ROOT_DIR}/array-industry-pattern', 'unreach-call'),
+            (f'{ROOT_DIR}/array-lopstr16', 'unreach-call'),
+            (f'{ROOT_DIR}/array-multidimensional', 'unreach-call'),
+            (f'{ROOT_DIR}/array-patterns', 'unreach-call'),
+            (f'{ROOT_DIR}/array-programs', 'unreach-call'),
+            (f'{ROOT_DIR}/array-tiling', 'unreach-call')
             ],
         'bitvector' : [
-            'for-wasp/bitvector',
-            'for-wasp/bitvector-loops',
-            'for-wasp/bitvector-regression'
+            (f'{ROOT_DIR}/bitvector', 'unreach-call'),
+            (f'{ROOT_DIR}/bitvector-loops', 'unreach-call'),
+            (f'{ROOT_DIR}/bitvector-regression', 'unreach-call')
             ],
         'control_flow' : [
-            #'for-wasp/ntdrivers',
-            'for-wasp/ntdrivers-simplified',
-            'for-wasp/openssl',
-            'for-wasp/openssl-simplified',
-            'for-wasp/locks'
+            (#f'{ROOT_DIR}/ntdrivers',),
+            (f'{ROOT_DIR}/ntdrivers-simplified', 'unreach-call'),
+            (f'{ROOT_DIR}/openssl', 'unreach-call'),
+            (f'{ROOT_DIR}/openssl-simplified', 'unreach-call'),
+            (f'{ROOT_DIR}/locks', 'unreach-call')
             ],
         'floats' : [
-            'for-wasp/float-benchs',
-            'for-wasp/float-newlib',
-            'for-wasp/floats-cbmc-regression',
-            'for-wasp/floats-cdfpl',
-            'for-wasp/floats-esbmc-regression',
-            'for-wasp/loop-floats-scientific-comp'
+            (f'{ROOT_DIR}/float-benchs',),
+            (f'{ROOT_DIR}/float-newlib',),
+            (f'{ROOT_DIR}/floats-cbmc-regression',),
+            (f'{ROOT_DIR}/floats-cdfpl',),
+            (f'{ROOT_DIR}/floats-esbmc-regression',),
+            (f'{ROOT_DIR}/loop-floats-scientific-comp',)
             ],
         'heap' : [
-            'for-wasp/forester-heap',
-            'for-wasp/heap-data',
-            'for-wasp/list-ext-properties',
-            'for-wasp/list-ext2-properties',
-            'for-wasp/list-ext3-properties',
-            'for-wasp/list-properties',
-            'for-wasp/list-simple'
+            (f'{ROOT_DIR}/forester-heap',),
+            (f'{ROOT_DIR}/heap-data',),
+            (f'{ROOT_DIR}/list-ext-properties',),
+            (f'{ROOT_DIR}/list-ext2-properties',),
+            (f'{ROOT_DIR}/list-ext3-properties',),
+            (f'{ROOT_DIR}/list-properties',),
+            (f'{ROOT_DIR}/list-simple',)
             ],
         'loops' : [
-            'for-wasp/loop-crafted',
-            'for-wasp/loop-industry-pattern',
-            'for-wasp/loop-invariants',
-            'for-wasp/loop-invgen',
-            'for-wasp/loop-lit',
-            'for-wasp/loop-new',
-            'for-wasp/loop-simple',
-            'for-wasp/loop-zilu',
-            #'for-wasp/loops',
-            #'for-wasp/loops-crafted-1'
-            'for-wasp/verifythis',
-            'for-wasp/nla-digbench',
-            'for-wasp/nla-digbench-scaling'
+            (f'{ROOT_DIR}/loop-crafted',),
+            (f'{ROOT_DIR}/loop-industry-pattern',),
+            (f'{ROOT_DIR}/loop-invariants',),
+            (f'{ROOT_DIR}/loop-invgen',),
+            (f'{ROOT_DIR}/loop-lit',),
+            (f'{ROOT_DIR}/loop-new',),
+            (f'{ROOT_DIR}/loop-simple',),
+            (f'{ROOT_DIR}/loop-zilu',),
+            (#f'{ROOT_DIR}/loops',),
+            (#f'{ROOT_DIR}/loops-crafted-1'),
+            (f'{ROOT_DIR}/verifythis',),
+            (f'{ROOT_DIR}/nla-digbench',),
+            (f'{ROOT_DIR}/nla-digbench-scaling',)
             ],
         'recursive' : [
-            'for-wasp/recursive',
-            'for-wasp/recursive-simple',
-            'for-wasp/recursive-with-pointer'
+            (f'{ROOT_DIR}/recursive',),
+            (f'{ROOT_DIR}/recursive-simple',),
+            (f'{ROOT_DIR}/recursive-with-pointer',)
             ],
         'array_memsafety' : [
-            'for-wasp/array-memsafety',
-            'for-wasp/array-memsafety-realloc'
+            (f'{ROOT_DIR}/array-memsafety',),
+            (f'{ROOT_DIR}/array-memsafety-realloc',)
             ],
         'heap_memsafety' : [
-            'for-wasp/memsafety',
-            'for-wasp/memsafety-bftpd',
-            'for-wasp/memsafety-ext',
-            'for-wasp/memsafety-ext2'
+            (f'{ROOT_DIR}/memsafety',),
+            (f'{ROOT_DIR}/memsafety-bftpd',),
+            (f'{ROOT_DIR}/memsafety-ext',),
+            (f'{ROOT_DIR}/memsafety-ext2',),
             ],
         'termination_controlflow' : [
-            'for-wasp/termination-crafted',
-            'for-wasp/termination-crafted-lit',
-            'for-wasp/termination-numeric',
-            'for-wasp/reducercommutativity'
+            (f'{ROOT_DIR}/termination-crafted',),
+            (f'{ROOT_DIR}/termination-crafted-lit',),
+            (f'{ROOT_DIR}/termination-numeric',), 
+            (f'{ROOT_DIR}/reducercommutativity', )
             ],
-        'sequentialized' : ['for-wasp/systemc'],
-        'xcsp'           : ['for-wasp/xcsp'],
-        'combinations'   : ['for-wasp/combinations'],
-        'eca'            : ['for-wasp/psyco']
+        'sequentialized' : [(f'{ROOT_DIR}/systemc', ),
+        'xcsp'           : [(f'{ROOT_DIR}/xcsp', )],
+        'combinations'   : [(f'{ROOT_DIR}/combinations', )],
+        'eca'            : [(f'{ROOT_DIR}/psyco', )]
 }
 
 def run(i : int):
@@ -165,7 +174,7 @@ def main():
             continue
 
         for dir in value:
-            srcs = glob.glob('tests/sv-comp/' + dir + '/_build/*.wat')
+            srcs = glob.glob('tests/sv-comp/' + dir + '/*.wat')
 
             threads = list()
 

@@ -21,6 +21,7 @@
  * Array[index1][index2] is initialized with num^4, if it is antidiagonal element. 
  * Sum of array should never exceed rowsize/columnsize. 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

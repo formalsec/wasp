@@ -1,6 +1,6 @@
 #include "assert.h"
 
-int main(int argc, char* argv[]) {
+int main() {
   int c1 = 4000;
   int c2 = 2000;
   int c3 = 10000;

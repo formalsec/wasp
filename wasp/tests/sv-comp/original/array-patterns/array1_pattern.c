@@ -19,6 +19,7 @@
  * At mirror image from END of Array2, the element is initialized with -index.
  * Sum of both array should be always zero. 
  * */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

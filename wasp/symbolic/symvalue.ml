@@ -89,7 +89,6 @@ let rec type_of (e : sym_expr) : value_type  =
     let len = if len < 4 then (Types.size (type_of e1)) + (Types.size (type_of e2))
                          else len 
     in
-    Printf.printf "len=%d\n" len;
     begin match len with
     | 4 -> I32Type
     | 8 -> I64Type
@@ -523,9 +522,11 @@ let rec simplify (e : sym_expr) : sym_expr =
       let e' = simplify e in
       begin match e' with
       | Concat (e1, e2) -> 
+          let size_e1 = Types.size (type_of e1)
+          and size_e2 = Types.size (type_of e2) in
           (* Simplify extraction *)
-          if (l = 0) && (h - l) = (Types.size (type_of e2)) then e2
-          else if (l = 4) && (h - l) = (Types.size (type_of e1)) then e1
+          if (l = 0) && (h - l) = size_e2 then e2
+          else if (l = 4) && (h - l) = size_e1 then e1
           else Extract(e', h, l)
       | _ -> Extract (e', h, l)
       end
@@ -537,16 +538,23 @@ let rec simplify (e : sym_expr) : sym_expr =
           let v = Int64.(logor (shift_left v1 (h2 * 8)) v2) in
           Extract (Value (I64 v), (h2 - l2) + 1, 0)
       | Extract (e1'', h1, l1), Extract (e2'', h2, l2) ->
-          if e1''= e2'' then begin
+          if e1''= e2'' then (
             if (h1 - l2) = (Types.size (type_of e1'')) then e1''
             else Extract (e1'', h1, l2)
-          end else Concat (e1', e2')
+          ) else Concat (e1', e2')
        
       | Extract (e1'', h1, l1), Concat (Extract (e2'', h2, l2), e3) ->
-          if e1''= e2'' then begin
+          if e1'' = e2'' then (
             if (h1 - l2) = (Types.size (type_of e1'')) then Concat (e1'', e3)
             else Concat (Extract (e1'', h1, l2), e3)
-          end else Concat (e1', e2')
+          ) else (
+            match e1'', e2'' with
+            (* Because we are here v1 != v2 *)
+            | Value (I64 v1), Value (I64 v2) -> 
+              let v = Int64.(logor (shift_left v1 (h2 * 8)) v2) in
+              Concat (Extract (Value (I64 v), h1, l2), e3)
+            | _ -> Concat (e1', e2')
+          )
       | _ -> Concat (e1', e2')
       end
   | _ -> e

@@ -21,6 +21,7 @@
  * Sum of array should be (1/2)*(ARR_SIZE)*(ARR_SIZE-1)^2.
  * ARR_SIZE.
  */
+#include <stdlib.h>
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));

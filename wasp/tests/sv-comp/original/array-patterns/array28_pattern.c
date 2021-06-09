@@ -21,7 +21,9 @@
  * ii) Otherwise, assign 0.
  * Sum of array should be 0.
  */
+#include <stdlib.h>
 extern void abort(void);
+
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));
 void reach_error() { __assert_fail("0", "array28_pattern.c", 26, "reach_error"); }
 extern void abort(void);

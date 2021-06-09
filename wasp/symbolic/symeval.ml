@@ -331,7 +331,7 @@ let rec sym_step (c : sym_config) : sym_config =
             Printf.printf "ptr_val: %Ld\n" ptr_val;
             Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
             (* TODO: Make Vuln Crash*)
-            failwith "overflow:load"
+            failwith ("overflow:load@" ^ (Source.string_of_region e.at))
           )
         end;
         begin try
@@ -360,7 +360,7 @@ let rec sym_step (c : sym_config) : sym_config =
             Printf.printf "ptr_val: %Ld\n" ptr_val;
             Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
             (* TODO: Make Vuln Crash *)
-            failwith ("overflow:store" ^ (Source.string_of_region e.at))
+            failwith ("overflow:store@" ^ (Source.string_of_region e.at))
           )
         end;
         begin try
@@ -430,7 +430,6 @@ let rec sym_step (c : sym_config) : sym_config =
             let c = to_constraint (simplify ex) in
             let asrt = Formula.to_formula (
               Option.map_default (fun a -> a :: path_cond) path_cond c) in
-            Printf.printf "%s\n" (Formula.to_string asrt);
             match Z3Encoding2.check_sat_core asrt with
             | None   -> []
             | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
@@ -530,7 +529,9 @@ let rec sym_step (c : sym_config) : sym_config =
           in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
                 path_cond, sym_mem
 
-      | Alloc, (I32 a, _) :: (I32 b, _) :: vs' ->
+      | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
+          Printf.printf "{a=%ld,sa=%s}\n" a (Symvalue.to_string sa);
+          Printf.printf "{b=%ld,sb=%s}\n" b (Symvalue.to_string sb);
           Hashtbl.add chunk_table b a;
           (I32 b, Ptr (I32 b)) :: vs', [], logic_env, path_cond, sym_mem
 

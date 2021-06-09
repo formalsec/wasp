@@ -19,7 +19,7 @@ void foo(int *p) {
   }
 }
 
-int main(int argc, char const *argv[])
+int main()
 {
   int x = 0;
   int *p = &x;
