@@ -45,62 +45,62 @@ tests = {
             (f'{ROOT_DIR}/locks', 'unreach-call')
             ],
         'floats' : [
-            (f'{ROOT_DIR}/float-benchs',),
-            (f'{ROOT_DIR}/float-newlib',),
-            (f'{ROOT_DIR}/floats-cbmc-regression',),
-            (f'{ROOT_DIR}/floats-cdfpl',),
-            (f'{ROOT_DIR}/floats-esbmc-regression',),
-            (f'{ROOT_DIR}/loop-floats-scientific-comp',)
+            (f'{ROOT_DIR}/float-benchs', 'unreach-call'),
+            (f'{ROOT_DIR}/float-newlib', 'unreach-call'),
+            (f'{ROOT_DIR}/floats-cbmc-regression', 'unreach-call'),
+            (f'{ROOT_DIR}/floats-cdfpl', 'unreach-call'),
+            (f'{ROOT_DIR}/floats-esbmc-regression', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-floats-scientific-comp', 'unreach-call')
             ],
         'heap' : [
-            (f'{ROOT_DIR}/forester-heap',),
-            (f'{ROOT_DIR}/heap-data',),
-            (f'{ROOT_DIR}/list-ext-properties',),
-            (f'{ROOT_DIR}/list-ext2-properties',),
-            (f'{ROOT_DIR}/list-ext3-properties',),
-            (f'{ROOT_DIR}/list-properties',),
-            (f'{ROOT_DIR}/list-simple',)
+            (f'{ROOT_DIR}/forester-heap', 'unreach-call'),
+            (f'{ROOT_DIR}/heap-data', 'unreach-call'),
+            (f'{ROOT_DIR}/list-ext-properties', 'unreach-call'),
+            (f'{ROOT_DIR}/list-ext2-properties', 'unreach-call'),
+            (f'{ROOT_DIR}/list-ext3-properties', 'unreach-call'),
+            (f'{ROOT_DIR}/list-properties', 'unreach-call'),
+            (f'{ROOT_DIR}/list-simple', 'unreach-call')
             ],
         'loops' : [
-            (f'{ROOT_DIR}/loop-crafted',),
-            (f'{ROOT_DIR}/loop-industry-pattern',),
-            (f'{ROOT_DIR}/loop-invariants',),
-            (f'{ROOT_DIR}/loop-invgen',),
-            (f'{ROOT_DIR}/loop-lit',),
-            (f'{ROOT_DIR}/loop-new',),
-            (f'{ROOT_DIR}/loop-simple',),
-            (f'{ROOT_DIR}/loop-zilu',),
+            (f'{ROOT_DIR}/loop-crafted', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-industry-pattern', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-invariants', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-invgen', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-lit', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-new', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-simple', 'unreach-call'),
+            (f'{ROOT_DIR}/loop-zilu', 'no-overflow'),
             (#f'{ROOT_DIR}/loops',),
             (#f'{ROOT_DIR}/loops-crafted-1'),
-            (f'{ROOT_DIR}/verifythis',),
-            (f'{ROOT_DIR}/nla-digbench',),
-            (f'{ROOT_DIR}/nla-digbench-scaling',)
+            (f'{ROOT_DIR}/verifythis', 'unreach-call'),
+            (f'{ROOT_DIR}/nla-digbench', 'no-overflow'),
+            (f'{ROOT_DIR}/nla-digbench-scaling', 'unreach-call')
             ],
         'recursive' : [
-            (f'{ROOT_DIR}/recursive',),
-            (f'{ROOT_DIR}/recursive-simple',),
-            (f'{ROOT_DIR}/recursive-with-pointer',)
+            (f'{ROOT_DIR}/recursive', 'unreach-call'),
+            (f'{ROOT_DIR}/recursive-simple', 'unreach-call'),
+            (f'{ROOT_DIR}/recursive-with-pointer', 'unreach-call')
             ],
         'array_memsafety' : [
-            (f'{ROOT_DIR}/array-memsafety',),
-            (f'{ROOT_DIR}/array-memsafety-realloc',)
+            (f'{ROOT_DIR}/array-memsafety', 'valid-memsafety'),
+            (f'{ROOT_DIR}/array-memsafety-realloc', 'valid-memsafety')
             ],
         'heap_memsafety' : [
-            (f'{ROOT_DIR}/memsafety',),
-            (f'{ROOT_DIR}/memsafety-bftpd',),
-            (f'{ROOT_DIR}/memsafety-ext',),
-            (f'{ROOT_DIR}/memsafety-ext2',),
+            (f'{ROOT_DIR}/memsafety', 'valid-memsfety'),
+            (f'{ROOT_DIR}/memsafety-bftpd', 'valid-memsafety'),
+            (f'{ROOT_DIR}/memsafety-ext', 'valid-memsafety'),
+            (f'{ROOT_DIR}/memsafety-ext2', 'valid-memsafety'),
             ],
         'termination_controlflow' : [
-            (f'{ROOT_DIR}/termination-crafted',),
-            (f'{ROOT_DIR}/termination-crafted-lit',),
-            (f'{ROOT_DIR}/termination-numeric',), 
-            (f'{ROOT_DIR}/reducercommutativity', )
+            (f'{ROOT_DIR}/termination-crafted', 'unreach-call'),
+            (f'{ROOT_DIR}/termination-crafted-lit', 'unreach-call'),
+            (f'{ROOT_DIR}/termination-numeric', 'termination'), 
+            (f'{ROOT_DIR}/reducercommutativity', 'unreach-call')
             ],
-        'sequentialized' : [(f'{ROOT_DIR}/systemc', ),
-        'xcsp'           : [(f'{ROOT_DIR}/xcsp', )],
-        'combinations'   : [(f'{ROOT_DIR}/combinations', )],
-        'eca'            : [(f'{ROOT_DIR}/psyco', )]
+        'sequentialized' : [(f'{ROOT_DIR}/systemc', 'unreach-call'),
+        'xcsp'           : [(f'{ROOT_DIR}/xcsp', 'unreach-call')],
+        'combinations'   : [(f'{ROOT_DIR}/combinations', 'unreach-call')],
+        'eca'            : [(f'{ROOT_DIR}/psyco', 'unreach-call')]
 }
 
 def run(i : int):
@@ -110,6 +110,7 @@ def run(i : int):
     global nthreads
     global lock
     global srcs
+    global prop
 
     while True:
         complete = False
@@ -127,11 +128,8 @@ def run(i : int):
         with open(yml, 'r') as f:
             data = yaml.safe_load(f)
 
-        for prop in data['properties']:
-            if 'unreach-call' in prop['property_file']:
-                unreach = prop['expected_verdict']
-                break
-            elif 'valid_memsafety' in prop['property_file']:
+        for p in data['properties']:
+            if prop in p['property_file']:
                 unreach = prop['expected_verdict']
                 break
         try:
@@ -166,6 +164,7 @@ def main():
     global lock
     global results
     global srcs
+    global prop
 
     lock = threading.Lock()
 
@@ -173,7 +172,8 @@ def main():
         if key in ignore:
             continue
 
-        for dir in value:
+        for data in value:
+            dir, prop = data[0], data[1]
             srcs = glob.glob('tests/sv-comp/' + dir + '/*.wat')
 
             threads = list()

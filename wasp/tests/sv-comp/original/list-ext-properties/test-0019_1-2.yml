@@ -8,6 +8,8 @@ properties:
     expected_verdict: true
   - property_file: ../properties/valid-memsafety.prp
     expected_verdict: true
+  - property_file: ../properties/unreach-call.prp
+    expected_verdict: true
 
 options:
   language: C
