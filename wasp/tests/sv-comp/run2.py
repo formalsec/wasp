@@ -38,7 +38,7 @@ tests = {
             (f'{ROOT_DIR}/bitvector-regression', 'unreach-call')
             ],
         'control_flow' : [
-            (#f'{ROOT_DIR}/ntdrivers',),
+            #f'{ROOT_DIR}/ntdrivers',),
             (f'{ROOT_DIR}/ntdrivers-simplified', 'unreach-call'),
             (f'{ROOT_DIR}/openssl', 'unreach-call'),
             (f'{ROOT_DIR}/openssl-simplified', 'unreach-call'),
@@ -70,8 +70,8 @@ tests = {
             (f'{ROOT_DIR}/loop-new', 'unreach-call'),
             (f'{ROOT_DIR}/loop-simple', 'unreach-call'),
             (f'{ROOT_DIR}/loop-zilu', 'no-overflow'),
-            (#f'{ROOT_DIR}/loops',),
-            (#f'{ROOT_DIR}/loops-crafted-1'),
+            #f'{ROOT_DIR}/loops',),
+            #f'{ROOT_DIR}/loops-crafted-1'),
             (f'{ROOT_DIR}/verifythis', 'unreach-call'),
             (f'{ROOT_DIR}/nla-digbench', 'no-overflow'),
             (f'{ROOT_DIR}/nla-digbench-scaling', 'unreach-call')
@@ -86,7 +86,7 @@ tests = {
             (f'{ROOT_DIR}/array-memsafety-realloc', 'valid-memsafety')
             ],
         'heap_memsafety' : [
-            (f'{ROOT_DIR}/memsafety', 'valid-memsfety'),
+            (f'{ROOT_DIR}/memsafety', 'valid-memsafety'),
             (f'{ROOT_DIR}/memsafety-bftpd', 'valid-memsafety'),
             (f'{ROOT_DIR}/memsafety-ext', 'valid-memsafety'),
             (f'{ROOT_DIR}/memsafety-ext2', 'valid-memsafety'),
@@ -97,7 +97,7 @@ tests = {
             (f'{ROOT_DIR}/termination-numeric', 'termination'), 
             (f'{ROOT_DIR}/reducercommutativity', 'unreach-call')
             ],
-        'sequentialized' : [(f'{ROOT_DIR}/systemc', 'unreach-call'),
+        #'sequentialized' : [(f'{ROOT_DIR}/systemc', 'unreach-call')],
         'xcsp'           : [(f'{ROOT_DIR}/xcsp', 'unreach-call')],
         'combinations'   : [(f'{ROOT_DIR}/combinations', 'unreach-call')],
         'eca'            : [(f'{ROOT_DIR}/psyco', 'unreach-call')]
@@ -130,7 +130,7 @@ def run(i : int):
 
         for p in data['properties']:
             if prop in p['property_file']:
-                unreach = prop['expected_verdict']
+                unreach = p['expected_verdict']
                 break
         try:
             cmd = ['./wasp', test, '-e', \
@@ -186,7 +186,7 @@ def main():
             for t in threads:
                 t.join()
 
-        basename = key + '_' + str(timeout) + '_im' + str(instr_max)
+        basename = key + '_t' + str(timeout) + '_im' + str(instr_max)
         with open(f'tests/sv-comp/results/{basename}.csv', 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(results)

@@ -755,15 +755,17 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Crash.error at ("sym_invoke: " ^ s) in
   let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
     !inst.sym_memory) in
-  let initial_memory = Symmem2.memcpy !inst.sym_memory in
+  (* Initial memory config *)
+  let initial_memory = Symmem2.to_list !inst.sym_memory in
+  let initial_globals = Global.contents !inst.globals in
+  (* Assume constraints are stored here *)
   let finish_constraints = Constraints.create in
-
   (* Concolic execution *)
   let global_time = ref 0. in
   let rec loop global_pc =
     Printf.printf "%s ITERATION NUMBER %s %s\n\n" (String.make 35 '~') 
         (string_of_int !iterations) (String.make 35 '~');
-    let {logic_env; path_cond = pc; _} = try sym_eval !c with
+    let {logic_env; path_cond = pc; sym_frame; _} = try sym_eval !c with
       | AssumeFail (conf, cons) -> 
           Constraints.add finish_constraints !iterations cons;
           conf
@@ -811,13 +813,12 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     if binds = [] then
       raise Unsatisfiable;
 
+    (* Prepare next iteration *)
     Logicenv.clear logic_env;
     Logicenv.init logic_env binds;
-
-    (*
     Symmem2.clear !c.sym_mem;
     Symmem2.init !c.sym_mem initial_memory;
-    *)
+    Instance.set_globals !inst initial_globals;
 
     (* DEBUG *)
     let z3_model_str = Z3.Model.to_string model in
@@ -833,8 +834,6 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     lines      := [];
     iterations := !iterations + 1;
-    c          := {!c with sym_mem = initial_memory};
-            (*c := {!c with logic_env = sym_st; sym_mem = initial_memory};*)
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
     loop global_pc (*Formula.(And (global_pc, negate env_constraint))*)
   in 

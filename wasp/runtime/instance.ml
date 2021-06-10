@@ -6,7 +6,7 @@ type module_inst =
   funcs : func_inst list;
   tables : table_inst list;
   memories : memory_inst list;
-  sym_memory : Symmem2.t;
+  sym_memory : symmem_inst;
   globals : global_inst list;
   exports : export_inst list;
 }
@@ -14,6 +14,7 @@ type module_inst =
 and func_inst = module_inst ref Func.t
 and table_inst = Table.t
 and memory_inst = Memory.t
+and symmem_inst = Symmem2.t
 and global_inst = Global.t
 and export_inst = Ast.name * extern
 
@@ -46,3 +47,5 @@ let modulecpy (m : module_inst) : module_inst =
   let new_memories = List.map Memory.memcpy m.memories in
   { m with memories = new_memories; globals = new_globals }
 
+let set_globals (m : module_inst) (vals : Values.value list) : unit =
+  List.iter2 (fun glob v -> Global.safe_store glob v) m.globals vals
