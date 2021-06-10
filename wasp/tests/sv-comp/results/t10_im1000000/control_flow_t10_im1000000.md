@@ -1,23 +1,23 @@
 
 | Prop | Count | percent |
 |:----:|:------|:--|
-|complete   (T-)|3| 5.555555555555555 |
-|incomplete (T-)|46|85.18518518518519 |
-|timeout    (T-)|3|5.555555555555555 |
-|           (T+)|13|41.935483870967744 |
+|complete   (T-)|1| 2.083333333333333 |
+|incomplete (T-)|47|97.91666666666666 |
+|timeout    (T-)|0|0.0 |
+|           (T+)|33|89.1891891891892 |
 |crash      (T+)|0|0.0 |
 |complete   (F-)|0|0.0 |
-|incomplete (F-)|18|58.06451612903226 |
+|incomplete (F-)|4|10.81081081081081 |
 |timeout    (F-)|0|0.0 |
 |complete   (F+)|0|0.0 |
 |incomplete (F+)|0|0.0 |
-|crash      (F+)|2|3.7037037037037033 |
-|timeout        |3| |
-|crash          |2| |
+|crash      (F+)|0|0.0 |
+|timeout        |0| |
+|crash          |0| |
 |Total          |85| |
 
 | Actual Property\Reported Property | holds | does not hold |
 |------------------------------------|-------|---------------|
-| holds | 3+46+3=52/54 | 0+0+2=2 |
-| does not hold | 0+18+0=18 | 13+0=13/31 |
+| holds | 1+47+0=48/48 | 0+0+0=0 |
+| does not hold | 0+4+0=4 | 33+0=33/37 |
 
