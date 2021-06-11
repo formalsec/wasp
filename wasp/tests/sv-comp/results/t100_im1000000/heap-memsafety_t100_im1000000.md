@@ -21,3 +21,8 @@
 | holds | 5+29+0=34/34 | 0+0+0=0 |
 | does not hold | 0+4+0=4 | 19+0=19/23 |
 
+SV-COMP Score:
+
+* Naive: 87/91
+* Real: -41/91
+

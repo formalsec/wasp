@@ -117,4 +117,9 @@ if __name__ == '__main__':
 |------------------------------------|-------|---------------|
 | holds | {m['completeTrueNeg']}+{m['incompleteTrueNeg']}+{m['timeoutsTrueNeg']}={m['totalTrueNeg']}/{m['totalOk']} | {m['completeFalsePos']}+{m['incompleteFalsePos']}+{m['crashFalsePos']}={m['totalFalsePos']} |
 | does not hold | {m['completeFalseNeg']}+{m['incompleteFalseNeg']}+{m['timeoutFalseNeg']}={m['totalFalseNeg']} | {m['truePos']}+{m['crashTruePos']}={m['totalTruePos']}/{m['totalNok']} |
+
+SV-COMP Score:
+
+* Naive: {m['totalTrueNeg']*2 + m['totalTruePos']}/{m['totalOk']*2 + m['totalNok']}
+* Real: {m['totalTrueNeg']*2 + m['totalTruePos'] - (m['totalFalseNeg'] * 32) - (m['totalFalsePos'] * 16)}/{m['totalOk']*2 + m['totalNok']}
 ''')
