@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import glob, yaml, csv, subprocess
-import sys, threading, logging, time
+import sys, threading, logging, time, resource
 
 # Timeout (in seconds)
-TIMEOUT = 10
+# Default SV-COMP is 15Mins
+TIMEOUT = 900
 
 # Maximum instructions executed in model
+# This is the default setting
 INSTR_MAX = 1000000
 
 # Dir where tests dir reside
@@ -103,6 +105,11 @@ tests = {
         'eca'            : [(f'{ROOT_DIR}/psyco', 'unreach-call')]
 }
 
+def limit_virtual_memory():
+    # SV-COMP 15GiB Limit
+    limit = 15 * 1024 * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
 def run(i : int):
     global results
     global timeout
@@ -137,14 +144,19 @@ def run(i : int):
                    '(invoke \"__original_main\")', \
                    '-m', str(instr_max)]
             t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=timeout, stderr=subprocess.STDOUT)
+            out = subprocess.check_output(cmd, timeout=timeout, \
+                    stderr=subprocess.STDOUT, preexec_fn=limit_virtual_memory)
             if 'INCOMPLETE' not in out.decode('utf-8'):
                 complete = True
             ret = 'OK' if unreach else 'NOK'
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             ret = 'TIMEOUT'
-        except:
-            ret = 'CRASH' if unreach else 'OK'
+        except subprocess.CalledProcessError as e:
+            output = e.stdout.decode('utf-8').lower() if e.stdout is not None else ''
+            if 'out of memory' in output:
+                ret = 'RLIMIT'
+            else:
+                ret = 'CRASH' if unreach else 'OK'
         finally:
             verdict = 'OK' if unreach else 'NOK'
             t1 = time.time()

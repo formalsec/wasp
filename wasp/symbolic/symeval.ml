@@ -113,7 +113,7 @@ let lines       = ref []
 let lines_total = ref []
 
 let complete  = ref true
-let debug = false
+let debug = true
 
 let chunk_table = Hashtbl.create 512
 
