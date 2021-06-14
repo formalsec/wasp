@@ -19,7 +19,7 @@ def main(f, m):
             data)))
 
     m['timeoutsTrueNeg'] += len(list(filter( \
-            lambda l: (l[1] == 'TIMEOUT') and (l[2] == 'OK'), \
+            lambda l: (l[1] == 'TIMEOUT' or l[1]=='RLIMIT') and (l[2] == 'OK'), \
             data)))
 
     m['crashFalsePos'] += len(list(filter( \
@@ -44,7 +44,7 @@ def main(f, m):
             data)))
 
     m['timeoutFalseNeg'] += len(list(filter( \
-            lambda l: (l[1] == 'TIMEOUT') and (l[2] == 'NOK'), \
+            lambda l: (l[1] == 'TIMEOUT' or l[1] == 'RLIMIT') and (l[2] == 'NOK'), \
             data)))
 
     m['crashTruePos'] += len(list(filter( \
@@ -100,12 +100,12 @@ if __name__ == '__main__':
 |:----:|:------|:--|
 |complete   (T-)|{m['completeTrueNeg']}| {(m['completeTrueNeg']/m['totalOk']) * 100} |
 |incomplete (T-)|{m['incompleteTrueNeg']}|{(m['incompleteTrueNeg']/m['totalOk']) * 100} |
-|timeout    (T-)|{m['timeoutsTrueNeg']}|{(m['timeoutsTrueNeg']/m['totalOk']) * 100} |
+|timeout/ram(T-)|{m['timeoutsTrueNeg']}|{(m['timeoutsTrueNeg']/m['totalOk']) * 100} |
 |           (T+)|{m['truePos']}|{(m['truePos']/m['totalNok']) * 100} |
 |crash      (T+)|{m['crashTruePos']}|{(m['crashTruePos']/m['totalNok']) * 100} |
 |complete   (F-)|{m['completeFalseNeg']}|{(m['completeFalseNeg']/m['totalNok']) * 100} |
 |incomplete (F-)|{m['incompleteFalseNeg']}|{(m['incompleteFalseNeg']/m['totalNok']) * 100} |
-|timeout    (F-)|{m['timeoutFalseNeg']}|{(m['timeoutFalseNeg']/m['totalNok']) * 100} |
+|timeout/ram(F-)|{m['timeoutFalseNeg']}|{(m['timeoutFalseNeg']/m['totalNok']) * 100} |
 |complete   (F+)|{m['completeFalsePos']}|{(m['completeFalsePos']/m['totalOk']) * 100} |
 |incomplete (F+)|{m['incompleteFalsePos']}|{(m['incompleteFalsePos']/m['totalOk']) * 100} |
 |crash      (F+)|{m['crashFalsePos']}|{(m['crashFalsePos']/m['totalOk']) * 100} |
