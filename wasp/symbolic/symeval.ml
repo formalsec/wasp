@@ -113,6 +113,7 @@ let lines       = ref []
 let lines_total = ref []
 
 let complete  = ref true
+let debug = false
 
 let chunk_table = Hashtbl.create 512
 
@@ -783,17 +784,19 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     (* DEBUG: *)
     let delim = String.make 6 '$' in
-    Printf.printf "\n\n%s LOGICAL ENVIRONMENT BEFORE Z3 STATE %s\n%s%s\n\n" 
-        delim delim (Logicenv.to_string logic_env) (String.make 48 '$');
-    Printf.printf "\n\n%s PATH CONDITIONS BEFORE Z3 %s\n%s\n%s\n"
-        delim delim (pp_string_of_pc pc) (String.make 38 '$');
+    if debug then begin
+      Printf.printf "\n\n%s LOGICAL ENVIRONMENT BEFORE Z3 STATE %s\n%s%s\n\n" 
+          delim delim (Logicenv.to_string logic_env) (String.make 48 '$');
+      Printf.printf "\n\n%s PATH CONDITIONS BEFORE Z3 %s\n%s\n%s\n"
+          delim delim (pp_string_of_pc pc) (String.make 38 '$')
+    end;
 
     let pc' = Formula.(negate (to_formula pc)) in
     let global_pc = Formula.And (global_pc, pc') in
 
-    (* DEBUG: *)
-    Printf.printf "\n\n%s GLOBAL PATH CONDITION %s\n%s\n%s\n\n"
-        delim delim (Formula.to_string global_pc) (String.make 28 '$');
+    if debug then
+      Printf.printf "\n\n%s GLOBAL PATH CONDITION %s\n%s\n%s\n\n"
+          delim delim (Formula.to_string global_pc) (String.make 28 '$');
 
     let start = Sys.time () in
     let opt_model = Z3Encoding2.check_sat_core global_pc in
@@ -821,16 +824,18 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Instance.set_globals !inst initial_globals;
 
     (* DEBUG *)
-    let z3_model_str = Z3.Model.to_string model in
-    Printf.printf "SATISFIABLE\nMODEL: \n%s\n\n\n%s NEW LOGICAL ENV STATE %s\n%s%s\n\n"
-        z3_model_str delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
-    Printf.printf "\n%s ITERATION %02d STATISTICS: %s\n" 
-        (String.make 23 '-') !iterations (String.make 23 '-');
-    Printf.printf "PATH CONDITION SIZE: %d\n" (Formula.length pc');
-    Printf.printf "GLOBAL PATH CONDITION SIZE: %d\n" (Formula.length global_pc);
-    Printf.printf "TIME TO SOLVE GLOBAL PC: %f\n%s\n\n\n" curr_time (String.make 73 '-');
+    if debug then begin
+      let z3_model_str = Z3.Model.to_string model in
+      Printf.printf "SATISFIABLE\nMODEL: \n%s\n\n\n%s NEW LOGICAL ENV STATE %s\n%s%s\n\n"
+          z3_model_str delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
+      Printf.printf "\n%s ITERATION %02d STATISTICS: %s\n" 
+          (String.make 23 '-') !iterations (String.make 23 '-');
+      Printf.printf "PATH CONDITION SIZE: %d\n" (Formula.length pc');
+      Printf.printf "GLOBAL PATH CONDITION SIZE: %d\n" (Formula.length global_pc);
+      Printf.printf "TIME TO SOLVE GLOBAL PC: %f\n%s\n\n\n" curr_time (String.make 73 '-');
 
-    Printf.printf "%s\n\n" (String.make 92 '~');
+      Printf.printf "%s\n\n" (String.make 92 '~')
+    end;
 
     lines      := [];
     iterations := !iterations + 1;
