@@ -1,8 +1,0 @@
-name,ans,verdict,complete,time
-tests/sv-comp/_build/psyco/psyco_security.wat,OK,OK,False,0.48001837730407715
-tests/sv-comp/_build/psyco/psyco_abp_1-3.wat,OK,OK,False,1.7022924423217773
-tests/sv-comp/_build/psyco/psyco_abp_1-1.wat,NOK,NOK,False,2.055966377258301
-tests/sv-comp/_build/psyco/psyco_math_1.wat,OK,OK,False,0.6297726631164551
-tests/sv-comp/_build/psyco/psyco_io_1.wat,OK,OK,False,0.5110502243041992
-tests/sv-comp/_build/psyco/psyco_abp_1-2.wat,OK,OK,False,2.505115509033203
-tests/sv-comp/_build/psyco/psyco_accelerometer_1.wat,OK,OK,False,5.653648614883423

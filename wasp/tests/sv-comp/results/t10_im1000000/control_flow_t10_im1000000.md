@@ -3,12 +3,12 @@
 |:----:|:------|:--|
 |complete   (T-)|1| 2.083333333333333 |
 |incomplete (T-)|47|97.91666666666666 |
-|timeout    (T-)|0|0.0 |
+|timeout/ram(T-)|0|0.0 |
 |           (T+)|33|89.1891891891892 |
 |crash      (T+)|0|0.0 |
 |complete   (F-)|0|0.0 |
 |incomplete (F-)|4|10.81081081081081 |
-|timeout    (F-)|0|0.0 |
+|timeout/ram(F-)|0|0.0 |
 |complete   (F+)|0|0.0 |
 |incomplete (F+)|0|0.0 |
 |crash      (F+)|0|0.0 |
@@ -21,8 +21,5 @@
 | holds | 1+47+0=48/48 | 0+0+0=0 |
 | does not hold | 0+4+0=4 | 33+0=33/37 |
 
-SV-COMP Score:
-
-* Naive: 129/133
-* Real: 1/133
+SV-COMP Score: 35/133
 
