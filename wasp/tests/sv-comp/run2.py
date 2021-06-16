@@ -155,6 +155,8 @@ def run(i : int):
             output = e.stdout.decode('utf-8').lower() if e.stdout is not None else ''
             if 'out of memory' in output:
                 ret = 'RLIMIT'
+            elif 'call stack exhausted' in output:
+                ret = 'TIMEOUT'
             else:
                 ret = 'CRASH' if unreach else 'OK'
         finally:

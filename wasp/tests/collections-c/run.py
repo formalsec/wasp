@@ -19,7 +19,7 @@ def runTestsInDir(dirEntry : dict):
         try:
             cmd = ['./wasp', testPath, '-e', \
                     '(invoke \"__original_main\")', \
-                    '-m', '1000000']
+                    '-m', '2000000']
             t0 = time.time()
             out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
             t1 = time.time()

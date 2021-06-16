@@ -75,7 +75,7 @@ and sym_admin_instr' =
   | SLabel of int * instr list * sym_code
   | SFrame of int * sym_frame * sym_code
   | AsmFail of path_conditions
-  | AsrtFail of string
+  | AssFail of string
 
 
 (*  Symbolic configuration  *)
@@ -113,9 +113,10 @@ let lines       = ref []
 let lines_total = ref []
 
 let complete  = ref true
-let debug = true
 
 let chunk_table = Hashtbl.create 512
+
+let debug str = if !Flags.trace then print_endline ("{-- DEBUG " ^ str ^ "}")
 
 let plain e = SPlain e.it @@ e.at
 
@@ -423,24 +424,24 @@ let rec sym_step (c : sym_config) : sym_config =
         v :: v :: vs', [], logic_env, path_cond, sym_mem
 
       | SymAssert, (I32 0l, ex) :: vs' -> (* 0 on top of stack *)
-        Printf.printf ">>> Assert reached. Checking satisfiability...\n";
+        debug ">>> Assert reached. Checking satisfiability...";
         let es' =
           if path_cond = [] then
-            [AsrtFail (Logicenv.to_string logic_env) @@ e.at]
+            [AssFail (Logicenv.to_string logic_env) @@ e.at]
           else
             let c = to_constraint (simplify ex) in
             let asrt = Formula.to_formula (
               Option.map_default (fun a -> a :: path_cond) path_cond c) in
             match Z3Encoding2.check_sat_core asrt with
             | None   -> []
-            | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
+            | Some m -> [AssFail (Z3.Model.to_string m) @@ e.at]
         in
         if es' = [] then
-          Printf.printf "\n\n###### Assertion passed ######\n";
+          debug "\n\n###### Assertion passed ######";
         vs', es', logic_env, path_cond, sym_mem
       
       | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
-        Printf.printf ">>> Assert reached. Checking satisfiability...\n";
+        debug ">>> Assert reached. Checking satisfiability...";
         let es' =
           if path_cond = [] then []
           else 
@@ -451,14 +452,14 @@ let rec sym_step (c : sym_config) : sym_config =
               let asrt = Formula.to_formula (c :: path_cond) in
               match Z3Encoding2.check_sat_core asrt with
               | None   -> []
-              | Some m -> [AsrtFail (Z3.Model.to_string m) @@ e.at]
+              | Some m -> [AssFail (Z3.Model.to_string m) @@ e.at]
         in 
         if es' = [] then 
-          Printf.printf "\n\n###### Assertion passed ######\n";
+          debug "\n\n###### Assertion passed ######";
         vs', es', logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 0l, ex) :: vs' ->
-        Printf.printf ">>> Assumed false. Finishing...\n";
+        debug ">>> Assumed false. Finishing...";
         (* Negate expression because it is false *)
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
         let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
@@ -467,7 +468,7 @@ let rec sym_step (c : sym_config) : sym_config =
       | SymAssume, (I32 i, ex) :: vs' ->
         let cond = to_constraint (simplify ex) in
         let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        Printf.printf ">>> Assume passed. Continuing execution...\n";
+        debug ">>> Assume passed. Continuing execution...";
         vs', [], logic_env, path_cond, sym_mem
 
       | SymInt, (I32 i, _) :: vs' ->
@@ -531,8 +532,6 @@ let rec sym_step (c : sym_config) : sym_config =
                 path_cond, sym_mem
 
       | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
-          Printf.printf "{a=%ld,sa=%s}\n" a (Symvalue.to_string sa);
-          Printf.printf "{b=%ld,sb=%s}\n" b (Symvalue.to_string sb);
           Hashtbl.add chunk_table b a;
           (I32 b, Ptr (I32 b)) :: vs', [], logic_env, path_cond, sym_mem
 
@@ -603,11 +602,11 @@ let rec sym_step (c : sym_config) : sym_config =
         in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
       | PrintStack, vs' ->
-        Printf.printf "STACK STATE: %s\n" (string_of_sym_value vs');
+        debug ("STACK STATE: " ^ (string_of_sym_value vs'));
         vs', [], logic_env, path_cond, sym_mem
 
       | PrintMemory, vs' ->
-        Printf.printf "MEMORY STATE: \n%s"  (Symmem2.to_string sym_mem); 
+        debug ("MEMORY STATE:\n" ^ (Symmem2.to_string sym_mem)); 
         vs', [], logic_env, path_cond, sym_mem
 
       | PrintBtree, vs' ->
@@ -654,7 +653,7 @@ let rec sym_step (c : sym_config) : sym_config =
     | AsmFail pc, vs ->
       assert false
 
-    | AsrtFail msg, vs ->
+    | AssFail msg, vs ->
       assert false
 
     | SReturning vs', vs ->
@@ -669,8 +668,8 @@ let rec sym_step (c : sym_config) : sym_config =
     | SLabel (n, es0, (vs', {it = AsmFail pc; at} :: es')), vs ->
       vs, [AsmFail pc @@ at], logic_env, path_cond, sym_mem
 
-    | SLabel (n, es0, (vs', {it = AsrtFail msg; at} :: es')), vs ->
-      vs, [AsrtFail msg @@ at], logic_env, path_cond, sym_mem
+    | SLabel (n, es0, (vs', {it = AssFail msg; at} :: es')), vs ->
+      vs, [AssFail msg @@ at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -694,8 +693,8 @@ let rec sym_step (c : sym_config) : sym_config =
     | SFrame (n, frame', (vs', {it = AsmFail pc; at} :: es')), vs ->
       vs, [AsmFail pc @@ at], logic_env, path_cond, sym_mem
 
-    | SFrame (n, frame', (vs', {it = AsrtFail msg; at} :: es')), vs ->
-      vs, [AsrtFail msg @@ at], logic_env, path_cond, sym_mem
+    | SFrame (n, frame', (vs', {it = AssFail msg; at} :: es')), vs ->
+      vs, [AssFail msg @@ at], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -742,7 +741,7 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
   | vs, {it = AsmFail pc; at} :: _ ->
     raise (AssumeFail (c, pc))
 
-  | vs, {it = AsrtFail witness; at} :: _ ->
+  | vs, {it = AssFail witness; at} :: _ ->
     raise (AssertFail (at, witness))
 
   | vs, es ->
@@ -764,8 +763,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   (* Concolic execution *)
   let global_time = ref 0. in
   let rec loop global_pc =
-    Printf.printf "%s ITERATION NUMBER %s %s\n\n" (String.make 35 '~') 
-        (string_of_int !iterations) (String.make 35 '~');
+    debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
+        (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
     let {logic_env; path_cond = pc; sym_frame; _} = try sym_eval !c with
       | AssumeFail (conf, cons) -> 
           Constraints.add finish_constraints !iterations cons;
@@ -784,19 +783,16 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     (* DEBUG: *)
     let delim = String.make 6 '$' in
-    if debug then begin
-      Printf.printf "\n\n%s LOGICAL ENVIRONMENT BEFORE Z3 STATE %s\n%s%s\n\n" 
-          delim delim (Logicenv.to_string logic_env) (String.make 48 '$');
-      Printf.printf "\n\n%s PATH CONDITIONS BEFORE Z3 %s\n%s\n%s\n"
-          delim delim (pp_string_of_pc pc) (String.make 38 '$')
-    end;
+    debug ("\n\n" ^ delim ^ " LOGICAL ENVIRONMENT BEFORE Z3 STATE " ^ delim ^
+           "\n" ^ (Logicenv.to_string logic_env) ^ (String.make 48 '$') ^ "\n");
+    debug ("\n\n" ^ delim ^ " PATH CONDITIONS BEFORE Z3 " ^ delim ^
+           "\n" ^ (pp_string_of_pc pc) ^ "\n" ^ (String.make 38 '$'));
 
     let pc' = Formula.(negate (to_formula pc)) in
     let global_pc = Formula.And (global_pc, pc') in
 
-    if debug then
-      Printf.printf "\n\n%s GLOBAL PATH CONDITION %s\n%s\n%s\n\n"
-          delim delim (Formula.to_string global_pc) (String.make 28 '$');
+    debug ("\n\n" ^ delim ^ " GLOBAL PATH CONDITION " ^ delim ^ "\n" ^
+           (Formula.to_string global_pc) ^ "\n" ^ (String.make 28 '$') ^ "\n");
 
     let start = Sys.time () in
     let opt_model = Z3Encoding2.check_sat_core global_pc in
@@ -823,26 +819,24 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Symmem2.init !c.sym_mem initial_memory;
     Instance.set_globals !inst initial_globals;
 
-    (* DEBUG *)
-    if debug then begin
-      let z3_model_str = Z3.Model.to_string model in
-      Printf.printf "SATISFIABLE\nMODEL: \n%s\n\n\n%s NEW LOGICAL ENV STATE %s\n%s%s\n\n"
-          z3_model_str delim delim (Logicenv.to_string logic_env) (String.make 28 '$');
-      Printf.printf "\n%s ITERATION %02d STATISTICS: %s\n" 
-          (String.make 23 '-') !iterations (String.make 23 '-');
-      Printf.printf "PATH CONDITION SIZE: %d\n" (Formula.length pc');
-      Printf.printf "GLOBAL PATH CONDITION SIZE: %d\n" (Formula.length global_pc);
-      Printf.printf "TIME TO SOLVE GLOBAL PC: %f\n%s\n\n\n" curr_time (String.make 73 '-');
-
-      Printf.printf "%s\n\n" (String.make 92 '~')
-    end;
+    let z3_model_str = Z3.Model.to_string model in
+    debug ("SATISFIABLE\nMODEL: \n" ^ z3_model_str ^ "\n\n\n" ^
+           delim ^ " NEW LOGICAL ENV STATE " ^ delim ^ "\n" ^
+           (Logicenv.to_string logic_env) ^ (String.make 28 '$') ^ "\n");
+    debug ("\n" ^ (String.make 23 '-') ^ " ITERATION " ^ 
+           (string_of_int !iterations) ^ " STATISTICS: " ^ (String.make 23 '-'));
+    debug ("PATH CONDITION SIZE: " ^ (string_of_int (Formula.length pc')));
+    debug ("GLOBAL PATH CONDITION SIZE: " ^ (string_of_int (Formula.length global_pc)));
+    debug ("TIME TO SOLVE GLOBAL PC: " ^ (string_of_float curr_time) ^ "\n" ^
+           (String.make 73 '-') ^ "\n\n");
+    debug ((String.make 92 '~') ^ "\n");
 
     lines      := [];
     iterations := !iterations + 1;
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
     loop global_pc (*Formula.(And (global_pc, negate env_constraint))*)
   in 
-  Printf.printf "%s\n\n" (String.make 92 '~');
+  debug ((String.make 92 '~') ^ "\n");
   begin try loop (Formula.True) with
     | Unsatisfiable ->
         Printf.printf "Model is no longer satisfiable. All paths have been verified.\n"
