@@ -38,7 +38,9 @@ let to_json (env : bind list) : string =
   in
   let rec loop acc = function
     | [] -> "}"
-    | a :: [] -> acc ^ ", " ^ (jsonify_bind a) ^ "}"
+    | a :: [] -> 
+        if acc = "{" then ("{" ^ (jsonify_bind a) ^ "}")
+                     else (acc ^ ", " ^ (jsonify_bind a) ^ "}")
     | a :: b :: t -> 
         let acc = if acc = "{" then (acc ^ (jsonify_bind a))
                                else (acc ^ ", " ^ (jsonify_bind a))
