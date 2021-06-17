@@ -97,7 +97,7 @@ let sym_config inst vs es sym_m = {
   logic_env  = Logicenv.create []; 
   path_cond  = [];
   sym_mem    = sym_m;
-  sym_budget = 300
+  sym_budget = 600
 }
 
 exception AssumeFail of sym_config * path_conditions
