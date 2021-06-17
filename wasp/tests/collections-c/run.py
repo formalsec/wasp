@@ -25,8 +25,11 @@ def runTestsInDir(dirEntry : dict):
             t1 = time.time()
             str_out = map(lambda l : l.decode("utf-8"), out.split(b'\n'))
             lines = 0
+            iterations = 0
             for line in str_out:
-                if "TOTAL LINES EVALUATED: " in line:
+                if "SYMBOLIC PATHS EXPLORED: " in line:
+                    iterations = int(line[25:].rstrip())
+                elif "TOTAL LINES EVALUATED: " in line:
                     lines = int(line[23:].rstrip())
             dirEntry['lines'] += lines
             dirEntry['okCnt'] += 1

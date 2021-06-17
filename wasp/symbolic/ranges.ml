@@ -137,7 +137,7 @@ let range_list (lst : int list) : string =
   ) functions;                         
   
   let program_percentage = (!sum_percentages /. (float_of_int !count_functions)) in
-  ranges := !ranges ^ "\n>>>> TOTAL PROGRAM COVERAGE: " ^ (string_of_float program_percentage) ^ "%\n";
+  ranges := !ranges ^ ">>>> TOTAL PROGRAM COVERAGE: " ^ (string_of_float program_percentage) ^ "%";
   !ranges
 
 

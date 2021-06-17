@@ -52,6 +52,10 @@ let numeric_error at = function
 
 
 (* Administrative Expressions & Configurations *)
+type bug =
+  | Overflow
+  | UAF
+  | InvalidFree 
 
 type 'a stack = 'a list
 
@@ -76,6 +80,7 @@ and sym_admin_instr' =
   | SFrame of int * sym_frame * sym_code
   | AsmFail of path_conditions
   | AssFail of string
+  | Bug of bug
 
 
 (*  Symbolic configuration  *)
@@ -102,6 +107,7 @@ let sym_config inst vs es sym_m = {
 
 exception AssumeFail of sym_config * path_conditions
 exception AssertFail of region * string
+exception BugException of bug * region
 exception Unsatisfiable
 
 let sym_counter = Counter.create ()
@@ -116,7 +122,7 @@ let complete  = ref true
 
 let chunk_table = Hashtbl.create 512
 
-let debug str = if !Flags.trace then print_endline ("{-- DEBUG " ^ str ^ "}")
+let debug str = if !Flags.trace then print_endline str
 
 let plain e = SPlain e.it @@ e.at
 
@@ -434,7 +440,13 @@ let rec sym_step (c : sym_config) : sym_config =
               Option.map_default (fun a -> a :: path_cond) path_cond c) in
             match Z3Encoding2.check_sat_core asrt with
             | None   -> []
-            | Some m -> [AssFail (Z3.Model.to_string m) @@ e.at]
+            | Some m ->
+              let li32 = Logicenv.get_vars_by_type I32Type logic_env
+              and li64 = Logicenv.get_vars_by_type I64Type logic_env
+              and lf32 = Logicenv.get_vars_by_type F32Type logic_env
+              and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
+              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+              [AssFail (Logicenv.to_json binds) @@ e.at]
         in
         if es' = [] then
           debug "\n\n###### Assertion passed ######";
@@ -452,7 +464,13 @@ let rec sym_step (c : sym_config) : sym_config =
               let asrt = Formula.to_formula (c :: path_cond) in
               match Z3Encoding2.check_sat_core asrt with
               | None   -> []
-              | Some m -> [AssFail (Z3.Model.to_string m) @@ e.at]
+              | Some m -> 
+                let li32 = Logicenv.get_vars_by_type I32Type logic_env
+                and li64 = Logicenv.get_vars_by_type I64Type logic_env
+                and lf32 = Logicenv.get_vars_by_type F32Type logic_env
+                and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
+                let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+                [AssFail (Logicenv.to_json binds) @@ e.at]
         in 
         if es' = [] then 
           debug "\n\n###### Assertion passed ######";
@@ -770,9 +788,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
           Constraints.add finish_constraints !iterations cons;
           conf
       | AssertFail (at, wit) ->
-          let err = (string_of_region at) ^ ": Assertion Failure\n" ^ wit in
-          Printf.printf "\n%s\n\n" err;
-          Trap.error at "Assertion Failure"
+          debug ("\n" ^ (string_of_region at) ^ ": Assertion Failure\n" ^ wit);
+          raise (AssertFail (at, wit))
       | Trap (at, msg) -> Trap.error at msg
     in
     if pc = [] then 
@@ -836,23 +853,33 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
     loop global_pc (*Formula.(And (global_pc, negate env_constraint))*)
   in 
+
   debug ((String.make 92 '~') ^ "\n");
-  begin try loop (Formula.True) with
-    | Unsatisfiable ->
-        Printf.printf "Model is no longer satisfiable. All paths have been verified.\n"
-    | e -> raise e 
-  end;
+  let spec, reason, wit = try loop (Formula.True) with
+    | Unsatisfiable -> 
+        debug "Model is no longer satisfiable. All paths have been verified.\n";
+        true, "None", "{}"
+    | AssertFail (at, wit) ->
+        false, "None", wit
+    | e -> raise e
+  in
 
   (* DEBUG: *)
-  Printf.printf "\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n%s\n\n" 
-      (Constraints.to_string finish_constraints);
-  Printf.printf ">>>> TEST COVERAGE LINES:\n%s\n" (Ranges.range_list !lines_total) ;
-  Printf.printf "\n>>>> TOTAL TIME SPEND w/ THE SOLVER: %f\n" !global_time;
+  debug ("\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n" ^
+      (Constraints.to_string finish_constraints) ^ "\n");
 
-  Printf.printf "\n\nTOTAL LINES EVALUATED: %d\n" !instr_cnt;
-
-  if not !complete then
-    Printf.printf "\nINCOMPLETE\n";
+  (* Execution report *)
+  let fmt_str = "{" ^
+    "\"specification\": "        ^ (string_of_bool spec)            ^ ", " ^
+    "\"reason\" : \""            ^ reason                           ^ "\", " ^
+    "\"witness\" : "             ^ wit                              ^ ", " ^
+    "\"coverage\" : \""          ^ (Ranges.range_list !lines_total) ^ "\", " ^
+    "\"solver_time\" : \""       ^ (string_of_float !global_time)   ^ "\", " ^
+    "\"paths_explored\" : "      ^ (string_of_int !iterations)      ^ ", " ^
+    "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)       ^ ", " ^
+    "\"complete\" : "            ^ (string_of_bool !complete)       ^
+  "}" 
+  in print_endline fmt_str;
 
   let (vs, _) = !c.sym_code in
   try List.rev vs with Stack_overflow ->

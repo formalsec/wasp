@@ -420,11 +420,9 @@ let lift_z3_model
                         else Int64.bits_of_float 0.0
       else begin
         let fp = Expr.to_string fp in
-        Printf.printf "%s\n" fp;
         let fp = String.sub fp 4 ((String.length fp) - 5) in
         let fp_list = List.map (fun fp -> set fp 0 '0') 
                                (String.split_on_char ' ' fp) in
-        List.iter (fun b -> Printf.printf "%s\n" b) fp_list;
         let bit_list = List.map (fun fp -> Int64.of_string fp) fp_list in
         let sign     = Int64.shift_left (List.nth bit_list 0) (ebits + sbits)
         and exponent = Int64.shift_left (List.nth bit_list 1) (sbits)
