@@ -433,7 +433,7 @@ let rec sym_step (c : sym_config) : sym_config =
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
           if path_cond = [] then
-            [AssFail (Logicenv.to_string logic_env) @@ e.at]
+            [AssFail (Logicenv.to_json (Logicenv.to_list logic_env)) @@ e.at]
           else
             let c = to_constraint (simplify ex) in
             let asrt = Formula.to_formula (

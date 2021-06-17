@@ -19,6 +19,9 @@ let clear (env : logicenv) : unit =
 let init (env : logicenv) (binds : bind list) : unit =
   List.iter (fun (k, v) -> Hashtbl.add env k v) binds
 
+let to_list (env : logicenv) : (bind list) =
+  Hashtbl.fold (fun k v acc -> (k, v) :: acc) env []
+
 let add (env : logicenv) (k : name) (v : value) : unit =
   Hashtbl.replace env k v
 
@@ -37,7 +40,7 @@ let to_json (env : bind list) : string =
     "\"" ^ n ^ "\" : \"" ^ (string_of_value v) ^ "\""
   in
   let rec loop acc = function
-    | [] -> "}"
+    | [] -> acc ^ "}"
     | a :: [] -> 
         if acc = "{" then ("{" ^ (jsonify_bind a) ^ "}")
                      else (acc ^ ", " ^ (jsonify_bind a) ^ "}")
