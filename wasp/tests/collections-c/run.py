@@ -1,60 +1,78 @@
 #!/usr/bin/env python3
-import glob, sys, time, json, subprocess, os, csv
+import glob, sys, time, json, subprocess, os, csv, logging
 
-# defaults - you can experiment with these
+#%%%%%%%%%%%%%%%%%%%%%%%%% DEFAULTS %%%%%%%%%%%%%%%%%%%%%%%%
+# Experiment with these variables
+# TIMEOUT: time we let WASP run
 TIMEOUT=20
+# INSTR_MAX: maximum instructions we let WASP execute
 INSTR_MAX=10000000
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-# don't change
+#%%%%%%%%%%%%%%%%%%%%%%%%%% START %%%%%%%%%%%%%%%%%%%%%%%%%%
+# Static globals
 CATS = glob.glob('tests/collections-c/_build/for-wasp/normal/*')
-CMD  = lambda p : ['./wasp', p, '-e', '(invoke \"__original_main\")', \
+# Globals
+g_table = [['name', 'test_cnt', 'avg_paths', 'time']]
+g_errors = list()
+
+# Helpers
+# cmd: command to execute test *p* in WASP
+cmd  = lambda p : ['./wasp', p, '-e', '(invoke \"__original_main\")', \
                    '-m', str(INSTR_MAX)]
-# stats
-table = [['name', 'test_cnt', 'avg_paths', 'time']]
-errors = list()
-
+# Run 
 def run(test : str):
-    total = 0
-    runtime = 0
-    iterations = 0
+    ret, ntime, paths = 0, 0, 0
 
-    print(f'Running {os.path.basename(test)}', end='... ')
-    sys.stdout.flush()
     try:
         t0 = time.time()
-        out = subprocess.check_output(CMD(test), timeout=TIMEOUT, \
+        out = subprocess.check_output(cmd(test), timeout=TIMEOUT, \
                 stderr=subprocess.STDOUT)
         t1 = time.time()
         report = json.loads(out)
-        total = 1
-        iterations = report['paths_explored']
-        runtime = t1 - t0
-        print(f'{"OK" if report["specification"] else "NOK"}'
-              f' (time={t1-t0}s, lines={report["instruction_counter"]})')
         if not report['specification']:
-            errors.append(test)
+            g_errors.append(test)
+
+        ret, ntime, paths = 1, t1 - t0, report['paths_explored']
+        logging.info( \
+              f'Running {os.path.basename(test)}... ' \
+              f'{"OK" if report["specification"] else "NOK"}' \
+              f' (time={ntime}s, lines={report["instruction_counter"]})' \
+        )
     except (subprocess.CalledProcessError, \
             subprocess.TimeoutExpired) as e:
         print('NOK')
-        errors.append(test)
-    return total, runtime, iterations
+        g_errors.append(test)
+    return ret, ntime, paths
 
-# main loop
-for dir in CATS:
-    total = 0
-    total_time = 0.0
-    iterations = 0
-    for path in glob.glob(f'{dir}/*.wat'):
-        t1, t2, t3 = run(path)
-        total += t1
-        total_time += t2
-        iterations += t3
-    # create report here
-    table.append([f'{os.path.basename(dir)}', total, int(iterations/total), total_time])
+def main():
+    # set up logger
+    fmt = "%(asctime)s: %(message)s"
+    logging.basicConfig(format=fmt, level=logging.INFO, \
+            datefmt="%H:%M:%S")
 
-with open('tests/collections-c/table.csv', 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerows(table)
+    # main loop
+    for dir in CATS:
+        ntests, sum_time, sum_paths = 0, 0.0, 0
 
-print("Errors:")
-print(errors)
+        for path in glob.glob(f'{dir}/*.wat'):
+            ret, ntime, paths = run(path)
+            ntests += ret
+            sum_time += ntime
+            sum_paths += paths
+
+        g_table.append([f'{os.path.basename(dir)}', ntests, \
+                int(sum_paths/ntests), sum_time])
+
+    # write table to CSV file
+    with open('tests/collections-c/table.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows(g_table)
+
+    # display failed tests
+    for err in g_errors:
+        logging.info('Failed Test: ' + err)
+
+if __name__ == '__main__':
+    main()
+#%%%%%%%%%%%%%%%%%%%%%%%%%% END %%%%%%%%%%%%%%%%%%%%%%%%%%%%
