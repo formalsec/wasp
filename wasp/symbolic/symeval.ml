@@ -118,11 +118,17 @@ let iterations  = ref 1
 let lines       = ref []
 let lines_total = ref []
 
-let complete  = ref true
+let incomplete  = ref false
 
 let chunk_table = Hashtbl.create 512
 
+(* Helpers *)
 let debug str = if !Flags.trace then print_endline str
+
+let string_of_bug : (bug -> string) = function
+  | Overflow -> "Overflow"
+  | UAF      -> "Use After Free"
+  | InvalidFree -> "Invalid Free"
 
 let plain e = SPlain e.it @@ e.at
 
@@ -215,7 +221,7 @@ let fresh_sym_var : (unit -> string) =
 let rec sym_step (c : sym_config) : sym_config =
   instr_cnt := !instr_cnt + 1;
   if !instr_cnt >= !Flags.instr_max then begin
-    complete := false; 
+    incomplete := true; 
     raise Unsatisfiable;
   end;
   let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond; sym_mem; _} = c in
@@ -327,57 +333,51 @@ let rec sym_step (c : sym_config) : sym_config =
         let base = I64_convert.extend_i32_u i in
         (* overflow check *)
         let ptr = get_ptr (simplify sym_ptr) in
-        if Option.is_some ptr then begin
-          let low = I32Value.of_value (Option.get ptr) in
-          let chunk_size = try Hashtbl.find chunk_table low with 
-                           | Not_found -> failwith "uaf" in (* TODO: Make Vuln Crash*)
-          let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
-          and ptr_val = Int64.(add base (of_int32 offset)) in
-          if (Int64.of_int32 low) > ptr_val || ptr_val >= high then (
-            Printf.printf "low: %ld\n" low;
-            Printf.printf "high: %Ld\n" high;
-            Printf.printf "ptr_val: %Ld\n" ptr_val;
-            Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
-            (* TODO: Make Vuln Crash*)
-            failwith ("overflow:load@" ^ (Source.string_of_region e.at))
-          )
-        end;
-        begin try
+        begin try 
+          if Option.is_some ptr then begin
+            let low = I32Value.of_value (Option.get ptr) in
+            let chunk_size = try Hashtbl.find chunk_table low with 
+                             | Not_found -> raise (BugException (UAF, e.at)) in
+            let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
+            and ptr_val = Int64.(add base (of_int32 offset)) in
+            (* ptr_val \notin [low, high[ => overflow *)
+            if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
+              raise (BugException (Overflow, e.at))
+          end;
           let (v, e) =
             match sz with
             | None           -> Symmem2.load_value sym_mem base offset ty
             | Some (sz, ext) -> Symmem2.load_packed sz ext sym_mem base offset ty
           in (v, e) :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> 
+        with 
+        | BugException (b, at) -> 
+          vs', [(Bug b) @@ e.at], logic_env, path_cond, sym_mem
+        | exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
         end
 
       | Store {offset; sz; _}, (v, ex) :: (I32 i, sym_ptr) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        (* overflow check *)
         let ptr = get_ptr (simplify sym_ptr) in
-        if Option.is_some ptr then begin
-          let low = I32Value.of_value (Option.get ptr) in
-          let chunk_size = try Hashtbl.find chunk_table low with 
-                           | Not_found -> failwith "uaf" in (* TODO: Make Vuln Crash*)
-          let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
-          and ptr_val = Int64.(add base (of_int32 offset)) in
-          if (Int64.of_int32 low) > ptr_val || ptr_val >= high then (
-            Printf.printf "low: %ld\n" low;
-            Printf.printf "high: %Ld\n" high;
-            Printf.printf "ptr_val: %Ld\n" ptr_val;
-            Printf.printf "stack: %s\n" (to_string (simplify sym_ptr));
-            (* TODO: Make Vuln Crash *)
-            failwith ("overflow:store@" ^ (Source.string_of_region e.at))
-          )
-        end;
         begin try
+          if Option.is_some ptr then begin
+            let low = I32Value.of_value (Option.get ptr) in
+            let chunk_size = try Hashtbl.find chunk_table low with 
+                             | Not_found -> raise (BugException (UAF, e.at)) in
+            let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
+            and ptr_val = Int64.(add base (of_int32 offset)) in
+            if (Int64.of_int32 low) > ptr_val || ptr_val >= high then
+              raise (BugException (Overflow, e.at))
+          end;
           begin match sz with
           | None    -> Symmem2.store_value sym_mem base offset (v, ex)
           | Some sz -> Symmem2.store_packed sz sym_mem base offset (v, ex)
           end;
           vs', [], logic_env, path_cond, sym_mem
-        with exn -> 
+        with
+        | BugException (b, at) -> 
+          vs', [(Bug b) @@ e.at], logic_env, path_cond, sym_mem
+        | exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
         end
 
@@ -554,10 +554,10 @@ let rec sym_step (c : sym_config) : sym_config =
           (I32 b, Ptr (I32 b)) :: vs', [], logic_env, path_cond, sym_mem
 
       | Free, (I32 i, _) :: vs' ->
-          (* TODO: Make Vuln Crash*)
-          if not (Hashtbl.mem chunk_table i) then failwith "invalid free"
-                                             else Hashtbl.remove chunk_table i;
-          vs', [], logic_env, path_cond, sym_mem
+        let es' = 
+          if not (Hashtbl.mem chunk_table i) then [(Bug InvalidFree) @@ e.at]
+                                             else (Hashtbl.remove chunk_table i; [])
+        in vs', es', logic_env, path_cond, sym_mem
 
       | SymInt32 x, vs' ->
         let v =
@@ -673,6 +673,9 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | AssFail msg, vs ->
       assert false
+    
+    | Bug b, vs ->
+      assert false
 
     | SReturning vs', vs ->
       Crash.error e.at "undefined frame"
@@ -688,6 +691,9 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | SLabel (n, es0, (vs', {it = AssFail msg; at} :: es')), vs ->
       vs, [AssFail msg @@ at], logic_env, path_cond, sym_mem
+
+    | SLabel (n, es0, (vs', {it = Bug b; at} :: es')), vs ->
+      vs, [Bug b @@ at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -713,6 +719,9 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | SFrame (n, frame', (vs', {it = AssFail msg; at} :: es')), vs ->
       vs, [AssFail msg @@ at], logic_env, path_cond, sym_mem
+
+    | SFrame (n, frame', (vs', {it = Bug b; at} :: es')), vs ->
+      vs, [Bug b @@ at], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -762,6 +771,9 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
   | vs, {it = AssFail witness; at} :: _ ->
     raise (AssertFail (at, witness))
 
+  | vs, {it = Bug b; at} :: _ ->
+    raise (BugException (b, at))
+
   | vs, es ->
     sym_eval (sym_step c)
 
@@ -791,6 +803,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
           debug ("\n" ^ (string_of_region at) ^ ": Assertion Failure\n" ^ wit);
           raise (AssertFail (at, wit))
       | Trap (at, msg) -> Trap.error at msg
+      | e -> raise e
     in
     if pc = [] then 
       raise Unsatisfiable;
@@ -858,9 +871,21 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let spec, reason, wit = try loop (Formula.True) with
     | Unsatisfiable -> 
         debug "Model is no longer satisfiable. All paths have been verified.\n";
-        true, "None", "{}"
-    | AssertFail (at, wit) ->
-        false, "None", wit
+        true, "{}", "{}"
+    | AssertFail (r, wit) ->
+        let reason = "{" ^
+          "\"type\" : \""    ^ "Assertion Failure" ^ "\", " ^
+          "\"line\" : \"" ^ (Source.string_of_pos r.left ^ 
+              (if r.right = r.left then "" else "-" ^ string_of_pos r.right)) ^ "\"" ^
+        "}" 
+        in false, reason, wit
+    | BugException (b, r) ->
+        let reason = "{" ^
+          "\"type\" : \""    ^ (string_of_bug b) ^ "\", " ^
+          "\"line\" : \"" ^ (Source.string_of_pos r.left ^ 
+              (if r.right = r.left then "" else "-" ^ string_of_pos r.right)) ^ "\"" ^
+        "}" 
+        in false, reason, "{}"
     | e -> raise e
   in
 
@@ -871,13 +896,13 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   (* Execution report *)
   let fmt_str = "{" ^
     "\"specification\": "        ^ (string_of_bool spec)            ^ ", " ^
-    "\"reason\" : \""            ^ reason                           ^ "\", " ^
+    "\"reason\" : "              ^ reason                           ^ ", " ^
     "\"witness\" : "             ^ wit                              ^ ", " ^
     "\"coverage\" : \""          ^ (Ranges.range_list !lines_total) ^ "\", " ^
     "\"solver_time\" : \""       ^ (string_of_float !global_time)   ^ "\", " ^
     "\"paths_explored\" : "      ^ (string_of_int !iterations)      ^ ", " ^
     "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)       ^ ", " ^
-    "\"complete\" : "            ^ (string_of_bool !complete)       ^
+    "\"incomplete\" : "            ^ (string_of_bool !incomplete)       ^
   "}" 
   in print_endline fmt_str;
 
