@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, subprocess
+import os, sys, subprocess, json
 
 def main():
     error_names = []
@@ -11,12 +11,17 @@ def main():
         print('Running tests/fail/' + file, end='... ')
         sys.stdout.flush()
         try:
-            subprocess.check_output(['./wasp', 'tests/fail/' + file], \
+            out = subprocess.check_output(['./wasp', 'tests/fail/' + file], \
                     stderr=subprocess.STDOUT)
-            error_names.append('tests/fail/' + file)
-            print('NOK')
+            report = json.loads(out)
+            if not report['specification']:
+                print('OK')
+            else:
+                print('NOK')
+                error_names.append('tests/fail/' + file)
         except subprocess.CalledProcessError as e:
-            print('OK')
+            print('NOK')
+            error_names.append('tests/fail/' + file)
 
     print("\nRunning PASSING tests.....")
     # Failing tests
@@ -25,9 +30,14 @@ def main():
         print('Running tests/pass/' + file, end='... ')
         sys.stdout.flush()
         try:
-            subprocess.check_output(['./wasp', 'tests/pass/' + file], \
+            out = subprocess.check_output(['./wasp', 'tests/pass/' + file], \
                     stderr=subprocess.STDOUT)
-            print('OK')
+            report = json.loads(out)
+            if report['specification']:
+                print('OK')
+            else:
+                print('NOK')
+                error_names.append("tests/pass/" + file)
         except subprocess.CalledProcessError as e:
             print('NOK')
             error_names.append("tests/pass/" + file)

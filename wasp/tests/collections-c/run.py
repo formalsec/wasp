@@ -1,84 +1,78 @@
 #!/usr/bin/env python3
-from functools import reduce
-import os, sys, argparse, subprocess, time
+import glob, sys, time, json, subprocess, os, csv, logging
 
-def getDirEntry(basename : str):
-        lst = list(map(lambda f : f.name, \
-                filter(lambda e : e.name.endswith(('.wat', '.wast')), \
-                os.scandir(basename))))
-        return dict(dirPath=basename, testLst=lst, \
-                size=len(lst), okCnt=0, errorLst=list(), totalTime=0, lines=0)
+#%%%%%%%%%%%%%%%%%%%%%%%%% DEFAULTS %%%%%%%%%%%%%%%%%%%%%%%%
+# Experiment with these variables
+# TIMEOUT: time we let WASP run
+TIMEOUT=20
+# INSTR_MAX: maximum instructions we let WASP execute
+INSTR_MAX=10000000
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-def runTestsInDir(dirEntry : dict):
-    print('Entering ' + dirEntry['dirPath'])
+#%%%%%%%%%%%%%%%%%%%%%%%%%% START %%%%%%%%%%%%%%%%%%%%%%%%%%
+# Static globals
+CATS = glob.glob('tests/collections-c/_build/for-wasp/normal/*')
+# Globals
+g_table = [['name', 'test_cnt', 'avg_paths', 'time']]
+g_errors = list()
 
-    for testName in dirEntry['testLst']:
-        testPath = dirEntry['dirPath'] + testName
-        print('Running ' + testPath, end='... ')
-        sys.stdout.flush()
-        try:
-            cmd = ['./wasp', testPath, '-e', \
-                    '(invoke \"__original_main\")', \
-                    '-m', '2000000']
-            t0 = time.time()
-            out = subprocess.check_output(cmd, timeout=10, stderr=subprocess.STDOUT)
-            t1 = time.time()
-            str_out = map(lambda l : l.decode("utf-8"), out.split(b'\n'))
-            lines = 0
-            for line in str_out:
-                if "TOTAL LINES EVALUATED: " in line:
-                    lines = int(line[23:].rstrip())
-            dirEntry['lines'] += lines
-            dirEntry['okCnt'] += 1
-            dirEntry['totalTime'] += t1-t0
-            print(f'OK (time={t1-t0}s, lines={lines})')
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            print('NOK')
-            dirEntry['errorLst'].append(testPath)
+# Helpers
+# cmd: command to execute test *p* in WASP
+cmd  = lambda p : ['./wasp', p, '-e', '(invoke \"__original_main\")', \
+                   '-m', str(INSTR_MAX)]
+# Run 
+def run(test : str):
+    ret, ntime, paths = 0, 0, 0
 
-    print(f"\nRESULTS: {dirEntry['okCnt']}/{dirEntry['size']} " \
-          f"(total={dirEntry['totalTime']}, " \
-          f"avg={dirEntry['totalTime']/dirEntry['size']})"
-          f"avg_lines={dirEntry['lines']/dirEntry['size']}")
-    if len(dirEntry['errorLst']):
-        print('TESTS NOT OK:')
-        list(map(lambda t : print(t), dirEntry['errorLst']))
+    try:
+        t0 = time.time()
+        out = subprocess.check_output(cmd(test), timeout=TIMEOUT, \
+                stderr=subprocess.STDOUT)
+        t1 = time.time()
+        report = json.loads(out)
+        if not report['specification']:
+            g_errors.append(test)
 
-def runBenchmarks(basename : str):
+        ret, ntime, paths = 1, t1 - t0, report['paths_explored']
+        logging.info( \
+              f'Running {os.path.basename(test)}... ' \
+              f'{"OK" if report["specification"] else "NOK"}' \
+              f' (time={ntime}s, lines={report["instruction_counter"]})' \
+        )
+    except (subprocess.CalledProcessError, \
+            subprocess.TimeoutExpired) as e:
+        print('NOK')
+        g_errors.append(test)
+    return ret, ntime, paths
 
-    tests = list(getDirEntry(basename + d.name + '/') for d in \
-            filter(lambda e : e.is_dir(), os.scandir(basename)))
+def main():
+    # set up logger
+    fmt = "%(asctime)s: %(message)s"
+    logging.basicConfig(format=fmt, level=logging.INFO, \
+            datefmt="%H:%M:%S")
 
-    for dirEntry in tests:
-        print('-' * 0x41)
-        runTestsInDir(dirEntry)
+    # main loop
+    for dir in CATS:
+        ntests, sum_time, sum_paths = 0, 0.0, 0
 
-    print('-' * 0x41, end='\n\n')
-    t = reduce(lambda a, b: a + b, map(lambda d : d['size'],  \
-            tests))
-    c = reduce(lambda a, b: a + b, map(lambda d : d['okCnt'], \
-            tests))
-    time = reduce (lambda a, b: a + b, map(lambda d : d['totalTime'], \
-            tests))
-    lines = reduce (lambda a, b: a + b, map(lambda d : d['lines'], \
-            tests))
-    avg = time / t
-    avg_lines = lines / t
+        for path in glob.glob(f'{dir}/*.wat'):
+            ret, ntime, paths = run(path)
+            ntests += ret
+            sum_time += ntime
+            sum_paths += paths
 
-    print(f'FINAL RESULTS: {c}/{t} OKs\n total={time}, avg={avg}'
-          f', avg_lines={avg_lines}')
+        g_table.append([f'{os.path.basename(dir)}', ntests, \
+                int(sum_paths/ntests), sum_time])
+
+    # write table to CSV file
+    with open('tests/collections-c/table.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows(g_table)
+
+    # display failed tests
+    for err in g_errors:
+        logging.info('Failed Test: ' + err)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dir', nargs='?')
-    args = parser.parse_args()
-
-    if args.dir is not None:
-        print('Running tests in \'{}\'...'.format(args.dir))
-        print('-' * 0x41)
-        runTestsInDir(getDirEntry(args.dir + '/'))
-    else:
-        print('Running Normal GillianBenchmarks...')
-        runBenchmarks('tests/collections-c/_build/for-wasp/normal/')
-        print('Running Bug GillianBenchmarks...')
-        runTestsInDir(getDirEntry('tests/collections-c/_build/for-wasp/bugs/'))
+    main()
+#%%%%%%%%%%%%%%%%%%%%%%%%%% END %%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import os, threading
+import os, glob
 from comby import CombyBinary
-
 
 PATTERNS = [
         (':[[h1]] __VERIFIER_nondet_:[[h2]](:[_])', ':[h1] __VERIFIER_nondet_:[h2](char *)'),
@@ -26,7 +25,6 @@ PATTERNS = [
         ('void assume(...) {...}', ''),
         ('void assert(...) {...}', ''),
         ('void abort(...) {...}' , '')
-
 ]
 
 DIRS = [
@@ -93,28 +91,21 @@ DIRS = [
         'for-wasp/termination-numeric'
 ]
 
-def get_source_paths(test_dirs):
-    src = []
-    for dir in test_dirs:
-        c_src = filter(lambda f : f.name.endswith('.c'), \
-                os.scandir(dir))
-        src = src + list(map(lambda f : f'{dir}/{f.name}', c_src))
-    return src
-
 def main():
     comby = CombyBinary()
-    paths = get_source_paths(DIRS)
 
-    for path in paths:
-        print(f'Transforming {path}...')
-        with open(path, 'r') as f:
-            data = f.read()
+    for d in DIRS:
+        for path in glob.glob(f'{d}/*.c'):
+            print(f'Transforming {path}...')
 
-        for pattern in PATTERNS:
-            data = comby.rewrite(data, pattern[0], pattern[1], language='.c')
+            with open(path, 'r') as f:
+                data = f.read()
 
-        with open(path, 'w') as f:
-            f.write(data)
+            for pattern in PATTERNS:
+                data = comby.rewrite(data, pattern[0], pattern[1], language='.c')
+
+            with open(path, 'w') as f:
+                f.write(data)
 
 if __name__ == '__main__':
     main()

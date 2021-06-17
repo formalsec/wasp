@@ -31,6 +31,20 @@ let exists (env : logicenv) (x : name) : bool =
 let is_empty (env : logicenv) : bool =
   0 = (Hashtbl.length env)
 
+let to_json (env : bind list) : string =
+  let jsonify_bind (b : bind) : string =
+    let (n, v) = b in
+    "\"" ^ n ^ "\" : \"" ^ (string_of_value v) ^ "\""
+  in
+  let rec loop acc = function
+    | [] -> "}"
+    | a :: [] -> acc ^ ", " ^ (jsonify_bind a) ^ "}"
+    | a :: b :: t -> 
+        let acc = if acc = "{" then (acc ^ (jsonify_bind a))
+                               else (acc ^ ", " ^ (jsonify_bind a))
+        in loop acc (b :: t)
+  in loop "{" env
+
 let to_string (env : logicenv) : string = 
   Seq.fold_left (fun a b ->
     let (k, v) = b in
