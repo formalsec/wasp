@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 extern int __VERIFIER_nondet_int(void);
 
 void bubbleSort(int numbers[], int array_size)
@@ -16,8 +18,10 @@ void bubbleSort(int numbers[], int array_size)
 }
 
 int main() {
-  int* numbers;
   int array_size = __VERIFIER_nondet_int();
+  int *numbers = (int *) malloc(sizeof(int) * array_size);
+  for (int i = 0; i < array_size; ++i)
+    numbers[i] = i & 0xff;
   bubbleSort(numbers, array_size);
   return 0;
 }
