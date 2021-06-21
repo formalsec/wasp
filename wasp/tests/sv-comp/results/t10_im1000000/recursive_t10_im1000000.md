@@ -2,24 +2,22 @@
 | Prop | Count | percent |
 |:----:|:------|:--|
 |complete   (T-)|26| 48.148148148148145 |
-|incomplete (T-)|25|46.2962962962963 |
-|timeout/ram(T-)|2|3.7037037037037033 |
-|           (T+)|21|40.38461538461539 |
-|crash      (T+)|0|0.0 |
+|incomplete (T-)|26|48.148148148148145 |
+|timeout/ram(T-)|1|1.8518518518518516 |
+|           (T+)|29|55.769230769230774 |
 |complete   (F-)|0|0.0 |
-|incomplete (F-)|31|59.61538461538461 |
+|incomplete (F-)|23|44.230769230769226 |
 |timeout/ram(F-)|0|0.0 |
 |complete   (F+)|0|0.0 |
-|incomplete (F+)|0|0.0 |
-|crash      (F+)|1|1.8518518518518516 |
-|timeout        |2| |
-|crash          |1| |
+|incomplete (F+)|1|1.8518518518518516 |
+|timeout        |0| |
+|crash          |0| |
 |Total          |106| |
 
 | Actual Property\Reported Property | holds | does not hold |
 |------------------------------------|-------|---------------|
-| holds | 26+25+2=53/54 | 0+0+1=1 |
-| does not hold | 0+31+0=31 | 21+0=21/52 |
+| holds | 26+26+1=53/54 | 0+1=1 |
+| does not hold | 0+23+0=23 | 29=29/52 |
 
-SV-COMP Score: 57/160
+SV-COMP Score: 65/160
 
