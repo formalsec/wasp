@@ -1,78 +1,65 @@
 #!/usr/bin/env python3
 import glob, sys, time, json, subprocess, os, csv, logging
 
-#%%%%%%%%%%%%%%%%%%%%%%%%% DEFAULTS %%%%%%%%%%%%%%%%%%%%%%%%
-# Experiment with these variables
-# TIMEOUT: time we let WASP run
-TIMEOUT=20
-# INSTR_MAX: maximum instructions we let WASP execute
-INSTR_MAX=10000000
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# globals --------------------------------------------------
+timeout=20
+instruction_max=10000000
+dirs = glob.glob('tests/collections-c/_build/for-wasp/normal/*')
+table = [['category', 'tests', 'paths', 'time']]
+errors = list()
+#-----------------------------------------------------------
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%% START %%%%%%%%%%%%%%%%%%%%%%%%%%
-# Static globals
-CATS = glob.glob('tests/collections-c/_build/for-wasp/normal/*')
-# Globals
-g_table = [['name', 'test_cnt', 'avg_paths', 'time']]
-g_errors = list()
-
-# Helpers
-# cmd: command to execute test *p* in WASP
+# helpers --------------------------------------------------
 cmd  = lambda p : ['./wasp', p, '-e', '(invoke \"__original_main\")', \
-                   '-m', str(INSTR_MAX)]
-# Run 
+                   '-m', str(instruction_max)]
 def run(test : str):
-    ret, ntime, paths = 0, 0, 0
-
     try:
-        t0 = time.time()
-        out = subprocess.check_output(cmd(test), timeout=TIMEOUT, \
+        out = subprocess.check_output(cmd(test), timeout=timeout, \
                 stderr=subprocess.STDOUT)
-        t1 = time.time()
-        report = json.loads(out)
-        if not report['specification']:
-            g_errors.append(test)
-
-        ret, ntime, paths = 1, t1 - t0, report['paths_explored']
-        logging.info( \
-              f'Running {os.path.basename(test)}... ' \
-              f'{"OK" if report["specification"] else "NOK"}' \
-              f' (time={ntime}s, lines={report["instruction_counter"]})' \
-        )
     except (subprocess.CalledProcessError, \
             subprocess.TimeoutExpired) as e:
-        print('NOK')
-        g_errors.append(test)
-    return ret, ntime, paths
+        return None
+    return out
+#-----------------------------------------------------------
 
-def main():
-    # set up logger
-    fmt = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=fmt, level=logging.INFO, \
-            datefmt="%H:%M:%S")
+# main -----------------------------------------------------
+fmt = '%(asctime)s: %(message)s'
+date_fmt = '%H:%M:%S'
+logging.basicConfig(format=fmt, level=logging.INFO, \
+        datefmt=date_fmt)
 
-    # main loop
-    for dir in CATS:
-        ntests, sum_time, sum_paths = 0, 0.0, 0
+for dir in dirs:
+    sum_paths, sum_time = 0, 0.0
+    tests = glob.glob(f'{dir}/*.wat')
+    for test in tests:
+        t0    = time.time()
+        out   = run(test)
+        delta = time.time() - t0
+        
+        # Oh no! we crashed!!
+        if out is None:
+            errors.append(test)
+            logging.info('Crashed {os.path.basename(test)}')
+            continue
 
-        for path in glob.glob(f'{dir}/*.wat'):
-            ret, ntime, paths = run(path)
-            ntests += ret
-            sum_time += ntime
-            sum_paths += paths
+        report = json.loads(out)
+        if not report['specification']:
+            errors.append(test)
 
-        g_table.append([f'{os.path.basename(dir)}', ntests, \
-                int(sum_paths/ntests), sum_time])
+        sum_time += delta
+        sum_paths += report['paths_explored']
 
-    # write table to CSV file
-    with open('tests/collections-c/table.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(g_table)
+        logging.info(f'Test {os.path.basename(test)} ' \
+              f'({"OK" if report["specification"] else "NOK"}, ' \
+              f'{round(delta,2)}s, {report["instruction_counter"]})')
 
-    # display failed tests
-    for err in g_errors:
-        logging.info('Failed Test: ' + err)
+    table.append([f'{os.path.basename(dir)}', len(tests), \
+            int(sum_paths/len(tests)), round(sum_time, 2)])
 
-if __name__ == '__main__':
-    main()
-#%%%%%%%%%%%%%%%%%%%%%%%%%% END %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+with open('tests/collections-c/table.csv', 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerows(table)
+
+for err in errors:
+    logging.info('Failed Test: ' + err)
+#-----------------------------------------------------------

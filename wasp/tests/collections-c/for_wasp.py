@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-
 import glob, comby as cby
 
-SRCS = glob.glob('./for-wasp/**/*.c', recursive=True)
-SRCS = SRCS + glob.glob('./for-wasp/**/*.h', recursive=True)
+srcs = glob.glob('./for-wasp/**/*.c', recursive=True)
+srcs = srcs + glob.glob('./for-wasp/**/*.h', recursive=True)
 
-PATTERNS = [
+patterns = [
         ('#include <gillian-c/gillian-c.h>', '#include "mockups.h"'),
         ("int :[[x]] = __builtin_annot_intval(\"symb_int\", :[[x]]);", \
                 "int :[x] = sym_int(\":[x]\");"),
@@ -22,17 +21,17 @@ PATTERNS = [
         ('ASSERT(:[assertion]);','assert(:[assertion]);'),
         ('ASSUME(:[assertion]);','assume(:[assertion]);'),
         ('ASSUME (:[assertion]);','assume(:[assertion]);')
-
 ]
 
+# main
 comby = cby.Comby()
-for src in SRCS:
+for src in srcs:
     print(f'Transforming {src}...')
 
     with open(src, 'r') as f:
         data = f.read()
 
-    for p in PATTERNS:
+    for p in patterns:
         data = comby.rewrite(data, p[0], p[1])
 
     with open(src, 'w') as f:

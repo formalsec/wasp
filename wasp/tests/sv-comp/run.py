@@ -2,116 +2,108 @@
 import glob, yaml, csv, subprocess
 import sys, threading, logging, time, resource, json
 
-#%%%%%%%%%%%%%%%%%%%%%%%%% DEFAULTS %%%%%%%%%%%%%%%%%%%%%%%%
-# Timeout (in seconds)
-# Default SV-COMP is 15Mins
-TIMEOUT = 900
-
-# Maximum instructions executed in model
-# This is the default setting
-INSTR_MAX = 1000000
-
-# Directory where tests reside
-ROOT_DIR = '_build'
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-#%%%%%%%%%%%%%%%%%%%%%%%% GLOBALS %%%%%%%%%%%%%%%%%%%%%%%%%%
-# Populate with categories to ignore
-g_ignore = []
-
-# Testing categories
-#   each category has a list of pairs (*dirPath*, *property*)
-#   where, *dirPath* is the dir with tests and,
-#          *property* is the property being tested
-g_tests = {
+# globals --------------------------------------------------
+# default SV-COMP is 15 mins
+timeout = 900
+instruction_max = 1000000
+num_threads = 1
+root_dir = '_build'
+# populate with dirs to skip
+ignore = []
+tests = {
         'array' : [
-            (f'{ROOT_DIR}/array-cav19', 'unreach-call'),
-            (f'{ROOT_DIR}/array-crafted', 'unreach-call'),
-            (f'{ROOT_DIR}/array-examples', 'unreach-call'),
-            (f'{ROOT_DIR}/array-fpi', 'unreach-call'),
-            (f'{ROOT_DIR}/array-industry-pattern', 'unreach-call'),
-            (f'{ROOT_DIR}/array-lopstr16', 'unreach-call'),
-            (f'{ROOT_DIR}/array-multidimensional', 'unreach-call'),
-            (f'{ROOT_DIR}/array-patterns', 'unreach-call'),
-            (f'{ROOT_DIR}/array-programs', 'unreach-call'),
-            (f'{ROOT_DIR}/array-tiling', 'unreach-call')
+            (f'{root_dir}/array-cav19', 'unreach-call'),
+            (f'{root_dir}/array-crafted', 'unreach-call'),
+            (f'{root_dir}/array-examples', 'unreach-call'),
+            (f'{root_dir}/array-fpi', 'unreach-call'),
+            (f'{root_dir}/array-industry-pattern', 'unreach-call'),
+            (f'{root_dir}/array-lopstr16', 'unreach-call'),
+            (f'{root_dir}/array-multidimensional', 'unreach-call'),
+            (f'{root_dir}/array-patterns', 'unreach-call'),
+            (f'{root_dir}/array-programs', 'unreach-call'),
+            (f'{root_dir}/array-tiling', 'unreach-call')
             ],
         'bitvector' : [
-            (f'{ROOT_DIR}/bitvector', 'unreach-call'),
-            (f'{ROOT_DIR}/bitvector-loops', 'unreach-call'),
-            (f'{ROOT_DIR}/bitvector-regression', 'unreach-call')
+            (f'{root_dir}/bitvector', 'unreach-call'),
+            (f'{root_dir}/bitvector-loops', 'unreach-call'),
+            (f'{root_dir}/bitvector-regression', 'unreach-call')
             ],
         'control_flow' : [
-            #f'{ROOT_DIR}/ntdrivers',),
-            (f'{ROOT_DIR}/ntdrivers-simplified', 'unreach-call'),
-            (f'{ROOT_DIR}/openssl', 'unreach-call'),
-            (f'{ROOT_DIR}/openssl-simplified', 'unreach-call'),
-            (f'{ROOT_DIR}/locks', 'unreach-call')
+            #f'{root_dir}/ntdrivers',),
+            (f'{root_dir}/ntdrivers-simplified', 'unreach-call'),
+            (f'{root_dir}/openssl', 'unreach-call'),
+            (f'{root_dir}/openssl-simplified', 'unreach-call'),
+            (f'{root_dir}/locks', 'unreach-call')
             ],
         'floats' : [
-            (f'{ROOT_DIR}/float-benchs', 'unreach-call'),
-            (f'{ROOT_DIR}/float-newlib', 'unreach-call'),
-            (f'{ROOT_DIR}/floats-cbmc-regression', 'unreach-call'),
-            (f'{ROOT_DIR}/floats-cdfpl', 'unreach-call'),
-            (f'{ROOT_DIR}/floats-esbmc-regression', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-floats-scientific-comp', 'unreach-call')
+            (f'{root_dir}/float-benchs', 'unreach-call'),
+            (f'{root_dir}/float-newlib', 'unreach-call'),
+            (f'{root_dir}/floats-cbmc-regression', 'unreach-call'),
+            (f'{root_dir}/floats-cdfpl', 'unreach-call'),
+            (f'{root_dir}/floats-esbmc-regression', 'unreach-call'),
+            (f'{root_dir}/loop-floats-scientific-comp', 'unreach-call')
             ],
         'heap' : [
-            (f'{ROOT_DIR}/forester-heap', 'unreach-call'),
-            (f'{ROOT_DIR}/heap-data', 'unreach-call'),
-            (f'{ROOT_DIR}/list-ext-properties', 'unreach-call'),
-            (f'{ROOT_DIR}/list-ext2-properties', 'unreach-call'),
-            (f'{ROOT_DIR}/list-ext3-properties', 'unreach-call'),
-            (f'{ROOT_DIR}/list-properties', 'unreach-call'),
-            (f'{ROOT_DIR}/list-simple', 'unreach-call')
+            (f'{root_dir}/forester-heap', 'unreach-call'),
+            (f'{root_dir}/heap-data', 'unreach-call'),
+            (f'{root_dir}/list-ext-properties', 'unreach-call'),
+            (f'{root_dir}/list-ext2-properties', 'unreach-call'),
+            (f'{root_dir}/list-ext3-properties', 'unreach-call'),
+            (f'{root_dir}/list-properties', 'unreach-call'),
+            (f'{root_dir}/list-simple', 'unreach-call')
             ],
         'loops' : [
-            (f'{ROOT_DIR}/loop-crafted', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-industry-pattern', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-invariants', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-invgen', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-lit', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-new', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-simple', 'unreach-call'),
-            (f'{ROOT_DIR}/loop-zilu', 'no-overflow'),
-            #f'{ROOT_DIR}/loops',),
-            #f'{ROOT_DIR}/loops-crafted-1'),
-            (f'{ROOT_DIR}/verifythis', 'unreach-call'),
-            (f'{ROOT_DIR}/nla-digbench', 'no-overflow'),
-            (f'{ROOT_DIR}/nla-digbench-scaling', 'unreach-call')
+            (f'{root_dir}/loop-crafted', 'unreach-call'),
+            (f'{root_dir}/loop-industry-pattern', 'unreach-call'),
+            (f'{root_dir}/loop-invariants', 'unreach-call'),
+            (f'{root_dir}/loop-invgen', 'unreach-call'),
+            (f'{root_dir}/loop-lit', 'unreach-call'),
+            (f'{root_dir}/loop-new', 'unreach-call'),
+            (f'{root_dir}/loop-simple', 'unreach-call'),
+            (f'{root_dir}/loop-zilu', 'no-overflow'),
+            #f'{root_dir}/loops',),
+            #f'{root_dir}/loops-crafted-1'),
+            (f'{root_dir}/verifythis', 'unreach-call'),
+            (f'{root_dir}/nla-digbench', 'no-overflow'),
+            (f'{root_dir}/nla-digbench-scaling', 'unreach-call')
             ],
         'recursive' : [
-            (f'{ROOT_DIR}/recursive', 'unreach-call'),
-            (f'{ROOT_DIR}/recursive-simple', 'unreach-call'),
-            (f'{ROOT_DIR}/recursive-with-pointer', 'unreach-call')
+            (f'{root_dir}/recursive', 'unreach-call'),
+            (f'{root_dir}/recursive-simple', 'unreach-call'),
+            (f'{root_dir}/recursive-with-pointer', 'unreach-call')
             ],
         'array_memsafety' : [
-            (f'{ROOT_DIR}/array-memsafety', 'valid-memsafety'),
-            (f'{ROOT_DIR}/array-memsafety-realloc', 'valid-memsafety')
+            (f'{root_dir}/array-memsafety', 'valid-memsafety'),
+            (f'{root_dir}/array-memsafety-realloc', 'valid-memsafety')
             ],
         'heap_memsafety' : [
-            (f'{ROOT_DIR}/memsafety', 'valid-memsafety'),
-            (f'{ROOT_DIR}/memsafety-bftpd', 'valid-memsafety'),
-            (f'{ROOT_DIR}/memsafety-ext', 'valid-memsafety'),
-            (f'{ROOT_DIR}/memsafety-ext2', 'valid-memsafety'),
+            (f'{root_dir}/memsafety', 'valid-memsafety'),
+            (f'{root_dir}/memsafety-bftpd', 'valid-memsafety'),
+            (f'{root_dir}/memsafety-ext', 'valid-memsafety'),
+            (f'{root_dir}/memsafety-ext2', 'valid-memsafety'),
             ],
         'termination_controlflow' : [
-            (f'{ROOT_DIR}/termination-crafted', 'unreach-call'),
-            (f'{ROOT_DIR}/termination-crafted-lit', 'unreach-call'),
-            (f'{ROOT_DIR}/termination-numeric', 'termination'), 
-            (f'{ROOT_DIR}/reducercommutativity', 'unreach-call')
+            (f'{root_dir}/termination-crafted', 'unreach-call'),
+            (f'{root_dir}/termination-crafted-lit', 'unreach-call'),
+            (f'{root_dir}/termination-numeric', 'termination'), 
+            (f'{root_dir}/reducercommutativity', 'unreach-call')
             ],
-        #'sequentialized' : [(f'{ROOT_DIR}/systemc', 'unreach-call')],
-        'xcsp'           : [(f'{ROOT_DIR}/xcsp', 'unreach-call')],
-        'combinations'   : [(f'{ROOT_DIR}/combinations', 'unreach-call')],
-        'eca'            : [(f'{ROOT_DIR}/psyco', 'unreach-call')]
+        #'sequentialized' : [(f'{root_dir}/systemc', 'unreach-call')],
+        'xcsp'           : [(f'{root_dir}/xcsp', 'unreach-call')],
+        'combinations'   : [(f'{root_dir}/combinations', 'unreach-call')],
+        'eca'            : [(f'{root_dir}/psyco', 'unreach-call')]
 }
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#-----------------------------------------------------------
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%% START %%%%%%%%%%%%%%%%%%%%%%%%%%
-# Command to execute test *p* in WASP
+# helpers --------------------------------------------------
 cmd  = lambda p, i : ['./wasp', p, '-e', '(invoke \"__original_main\")', \
                    '-m', str(i)]
+
+def get_arg(i : int) -> str:
+    try:
+        return sys.argv[i]
+    except:
+        return None
 
 # Sets maximum virtual memory of a process
 def limit_virtual_memory():
@@ -122,15 +114,15 @@ def limit_virtual_memory():
 def run(i : int):
     global results
     global timeout
-    global instr_max
-    global nthreads
+    global instruction_max 
+    global num_threads 
     global lock
     global srcs
     global prop
 
     while True:
-        unreach = True
-        incomplete = False
+        verdict  = True
+        complete = True
 
         try:
             lock.acquire()
@@ -146,93 +138,75 @@ def run(i : int):
 
         for p in data['properties']:
             if prop in p['property_file']:
-                unreach = p['expected_verdict']
+                verdict = p['expected_verdict']
                 break
+
+        t0 = time.time()
         try:
-            t0 = time.time()
-            out = subprocess.check_output(cmd(test, instr_max), timeout=timeout, \
-                    stderr=subprocess.STDOUT, preexec_fn=limit_virtual_memory)
+            out = subprocess.check_output(cmd(test, instruction_max), \
+                    timeout=timeout, stderr=subprocess.STDOUT, \
+                    preexec_fn=limit_virtual_memory)
             report = json.loads(out)
-            incomplete = report['incomplete']
-            ret = 'OK' if unreach == report['specification'] else 'NOK'
+            complete = not report['incomplete']
+            ret = str(report['specification'])
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
-            ret = 'TIMEOUT'
+            ret = 'Timeout'
+            complete = False
         except subprocess.CalledProcessError as e:
-            output = e.stdout.decode('utf-8').lower() if e.stdout is not None else ''
-            if 'out of memory' in output:
-                ret = 'RLIMIT'
-            elif 'call stack exhausted' in output:
-                ret = 'TIMEOUT'
-            else:
-                ret = 'CRASH'
-        finally:
-            verdict = 'OK' if unreach else 'NOK'
-            t1 = time.time()
-            delta = t1-t0
-            lock.acquire()
-            results.append([test, ret, verdict, incomplete, delta])
-            lock.release()
+            ret = 'Crash'
+            complete = False
+
+        delta = round(time.time() - t0, 2)
+
+        lock.acquire()
+        results.append([test, ret, verdict, complete, delta])
+        lock.release()
 
         logging.info(f'Thread={i} File=\'{test}\', Ret={ret}, T={delta}s')
+#-----------------------------------------------------------
 
-def parse_arg(i : int) -> str:
-    try:
-        return sys.argv[i]
-    except:
-        return None
+# main -----------------------------------------------------
+fmt = '%(asctime)s: %(message)s'
+date_fmt = '%H:%M:%S'
+logging.basicConfig(format=fmt, level=logging.INFO, \
+        datefmt=date_fmt)
 
-def main():
-    global lock
-    global results
-    global srcs
-    global prop
+arg1 = get_arg(1)
+arg2 = get_arg(2)
+arg3 = get_arg(3)
+timeout         = int(arg1) if arg1 is not None else timeout
+instruction_max = int(arg2) if arg2 is not None else instruction_max
+num_threads     = int(arg3) if arg3 is not None else num_threads
 
-    lock = threading.Lock()
+logging.info(f'Starting SV-COMP benchmarks...')
+logging.info(f'Using timeout={timeout}')
+logging.info(f'Using instruction_max={instruction_max}')
+logging.info(f'Using num_threads={num_threads}')
 
-    for key, value in g_tests.items():
-        if key in g_ignore:
-            continue
+lock = threading.Lock()
 
-        for data in value:
-            dir, prop = data[0], data[1]
-            srcs = glob.glob('tests/sv-comp/' + dir + '/*.wat')
+for key, val in tests.items():
+    results = [['test', 'answer', 'verdict', 'complete', 'time']]
 
-            threads = list()
+    if key in ignore:
+        continue
 
-            for i in range(nthreads):
-                t = threading.Thread(target=run, args=(i,))
-                threads.append(t)
-                t.start()
+    for tup in val:
+        dir, prop = tup[0], tup[1]
+        srcs = glob.glob(f'tests/sv-comp/{dir}/*.wat')
 
-            for t in threads:
-                t.join()
+        threads = []
+        for i in range(num_threads):
+            t = threading.Thread(target=run, args=(i,))
+            threads.append(t)
+            t.start()
 
-        basename = key + '_t' + str(timeout) + '_im' + str(instr_max)
-        with open(f'tests/sv-comp/results/{basename}.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerows(results)
+        for t in threads:
+            t.join()
 
-        results = [['name', 'ans', 'verdict', 'complete', 'time']]
-
-if __name__ == '__main__':
-    global results
-    global timeout
-    global instr_max
-    global nthreads
-
-    timeout   = int(parse_arg(1)) if parse_arg(1) is not None else TIMEOUT
-    instr_max = int(parse_arg(2)) if parse_arg(2) is not None else INSTR_MAX
-    nthreads  = int(parse_arg(3)) if parse_arg(3) is not None else 1
-    results   = [['name', 'ans', 'verdict', 'complete', 'time']]
-
-    format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO, \
-            datefmt="%H:%M:%S")
-
-    logging.info(f'Starting sv-comp benchmarks...')
-    logging.info(f'Using timeout={timeout}')
-    logging.info(f'Using instr_max={instr_max}')
-    logging.info(f'Using nthreads={nthreads}')
-
-    main()
-#%%%%%%%%%%%%%%%%%%%%%%%%%% END %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    tbl_name = f'{key}_t{timeout}_im{instruction_max}'
+    with open(f'tests/sv-comp/results/{tbl_name}.csv', 'w', \
+            newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows(results)
+#-----------------------------------------------------------

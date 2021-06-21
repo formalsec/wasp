@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
+import os, glob, comby as cby
 
-import os, glob
-from comby import CombyBinary
-
-PATTERNS = [
-        (':[[h1]] __VERIFIER_nondet_:[[h2]](:[_])', ':[h1] __VERIFIER_nondet_:[h2](char *)'),
+patterns = [
+        (':[[h1]] __VERIFIER_nondet_:[[h2]](:[_])', \
+                ':[h1] __VERIFIER_nondet_:[h2](char *)'),
         ('unsigned :[[h1]] __VERIFIER_nondet_u:[[h1]](:[_])', \
                 'unsigned :[h1] __VERIFIER_nondet_u:[h1](char *)'),
         ('return __VERIFIER_nondet_:[[h1]](...)', \
                 'return __VERIFIER_nondet_:[h1](\"return_:[id()]\")'),
-
         (':[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]__VERIFIER_nondet_:[h2]()', \
                 ':[h1] = __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
         (':[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*](:[cast]):[~\s*]__VERIFIER_nondet_:[h2]()', \
                 ':[h1] = (:[cast]) __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
         (':[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]:[ops]:[~\s*]__VERIFIER_nondet_:[h2]()', \
                 ':[h1] = :[ops] __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
-        (':[[h1]] = __VERIFIER_nondet_:[h2]()', ':[h1] = __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
-
+        (':[[h1]] = __VERIFIER_nondet_:[h2]()', \
+                ':[h1] = __VERIFIER_nondet_:[h2](\":[h1]_:[id()]\")'),
         ('if:[~\s*](:[~\s*]__VERIFIER_nondet_:[h1]():[~\s*])', \
                 'if (__VERIFIER_nondet_:[h1](\"if_:[id()])\"))'),
         (':[[cond]]:[~\s*](:[h2]__VERIFIER_nondet_:[h1]():[h3])', \
@@ -27,7 +25,7 @@ PATTERNS = [
         ('void abort(...) {...}' , '')
 ]
 
-DIRS = [
+dirs = [
         'for-wasp/array-cav19', 
         'for-wasp/array-crafted', 
         'for-wasp/array-examples',
@@ -91,21 +89,18 @@ DIRS = [
         'for-wasp/termination-numeric'
 ]
 
-def main():
-    comby = CombyBinary()
+comby = cby.Comby()
+for dir in dirs:
+    tests = glob.glob(f'{dir}/*.c')
+    for test in tests:
+        print(f'Transforming {test}...')
+        
+        with open(test, 'r') as f:
+            data = f.read()
 
-    for d in DIRS:
-        for path in glob.glob(f'{d}/*.c'):
-            print(f'Transforming {path}...')
+        for pattern in patterns:
+                data = comby.rewrite(data, pattern[0], pattern[1], \
+                        language='.c')
 
-            with open(path, 'r') as f:
-                data = f.read()
-
-            for pattern in PATTERNS:
-                data = comby.rewrite(data, pattern[0], pattern[1], language='.c')
-
-            with open(path, 'w') as f:
-                f.write(data)
-
-if __name__ == '__main__':
-    main()
+        with open(test, 'w') as f:
+            f.write(data)

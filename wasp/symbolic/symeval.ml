@@ -873,6 +873,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
         debug "Model is no longer satisfiable. All paths have been verified.\n";
         true, "{}", "{}"
     | AssertFail (r, wit) ->
+        incomplete := true;
         let reason = "{" ^
           "\"type\" : \""    ^ "Assertion Failure" ^ "\", " ^
           "\"line\" : \"" ^ (Source.string_of_pos r.left ^ 
@@ -880,6 +881,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
         "}" 
         in false, reason, wit
     | BugException (b, r) ->
+        incomplete := true;
         let reason = "{" ^
           "\"type\" : \""    ^ (string_of_bug b) ^ "\", " ^
           "\"line\" : \"" ^ (Source.string_of_pos r.left ^ 
