@@ -39,7 +39,7 @@ for dir in dirs:
         # Oh no! we crashed!!
         if out is None:
             errors.append(test)
-            logging.info('Crashed {os.path.basename(test)}')
+            logging.info(f'Crashed/Timeout {os.path.basename(test)}')
             continue
 
         report = json.loads(out)
