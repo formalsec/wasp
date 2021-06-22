@@ -4,22 +4,20 @@
 |complete   (T-)|0| 0.0 |
 |incomplete (T-)|49|100.0 |
 |timeout/ram(T-)|0|0.0 |
-|           (T+)|12|63.1578947368421 |
-|crash      (T+)|0|0.0 |
+|           (T+)|5|41.66666666666667 |
 |complete   (F-)|0|0.0 |
-|incomplete (F-)|7|36.84210526315789 |
+|incomplete (F-)|7|58.333333333333336 |
 |timeout/ram(F-)|0|0.0 |
 |complete   (F+)|0|0.0 |
 |incomplete (F+)|0|0.0 |
-|crash      (F+)|0|0.0 |
 |timeout        |0| |
 |crash          |0| |
-|Total          |68| |
+|Total          |61| |
 
 | Actual Property\Reported Property | holds | does not hold |
 |------------------------------------|-------|---------------|
-| holds | 0+49+0=49/49 | 0+0+0=0 |
-| does not hold | 0+7+0=7 | 12+0=12/19 |
+| holds | 0+49+0=49/49 | 0+0=0 |
+| does not hold | 0+7+0=7 | 5=5/12 |
 
-SV-COMP Score: 12/117
+SV-COMP Score: 5/110
 
