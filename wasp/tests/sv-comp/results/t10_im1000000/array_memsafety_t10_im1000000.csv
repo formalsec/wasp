@@ -59,4 +59,3 @@ tests/sv-comp/_build/array-memsafety/bubblesort-alloca-2.wat,True,True,False,0.6
 tests/sv-comp/_build/array-memsafety/openbsd_cstrcmp-alloca-1.wat,True,True,False,0.58
 tests/sv-comp/_build/array-memsafety-realloc/array-realloc-1.wat,False,False,False,0.1
 tests/sv-comp/_build/array-memsafety-realloc/array-realloc-2.wat,True,True,False,1.2
-tests/sv-comp/_build/array-memsafety-realloc/array-realloc-3.wat,True,False,False,1.46

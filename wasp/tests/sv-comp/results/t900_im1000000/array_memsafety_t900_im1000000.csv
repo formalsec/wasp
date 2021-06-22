@@ -59,4 +59,3 @@ tests/sv-comp/_build/array-memsafety/bubblesort-alloca-2.wat,True,True,False,7.5
 tests/sv-comp/_build/array-memsafety/stroeder2-alloca-1.wat,True,True,False,40.59
 tests/sv-comp/_build/array-memsafety-realloc/array-realloc-1.wat,False,False,False,0.13
 tests/sv-comp/_build/array-memsafety-realloc/array-realloc-2.wat,True,True,False,1.26
-tests/sv-comp/_build/array-memsafety-realloc/array-realloc-3.wat,True,False,False,1.57
