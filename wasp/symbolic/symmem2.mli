@@ -9,7 +9,6 @@ type address = int64
 type offset = int32
 type store = int * sym_expr
 
-(* TODO(create): replace failwith, with proper exceptions *)
 exception Bounds
 exception InvalidAddress of address
 
@@ -35,7 +34,7 @@ val load_value :
 val store_value : 
   memory -> address -> offset -> sym_value -> unit
 val load_packed : 
-  Memory.pack_size -> Memory.extension -> memory -> address -> 
-                                       offset -> value_type -> sym_value
+  Memory.pack_size -> Memory.extension -> memory -> address ->
+    offset -> value_type -> sym_value
 val store_packed : 
   Memory.pack_size -> memory -> address -> offset -> sym_value -> unit
