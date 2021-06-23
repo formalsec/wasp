@@ -18,3 +18,4 @@
 /* aws-c-common requires a configuration file.
  * We do not currently need to set any options.
  */
+#define CBMC_OBJECT_BITS 9
