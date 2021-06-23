@@ -7,6 +7,8 @@
 #define PUTCHAR_ACCURACY 1	//1
 #define PUTS_ACCURACY    1  //1-2
 #define MEMCMP_ACCURACY  3  //1-3
+#define MEMMOVE_ACCURACY 1	//  | 1   |   2   |  -   |   -
+#define MEMCHR_ACCURACY  4		//  | 1   |   2   |  3   |   4
 #define MEMCPY_ACCURACY  1  //1
 #define MEMSET_ACCURACY  1  //1
 #define STRLEN_ACCURACY  3  //1-3
