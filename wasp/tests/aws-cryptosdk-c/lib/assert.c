@@ -13,3 +13,4 @@ float  sym_float  (char *name)   { return (float)  0; }
 double sym_double (char *name)   { return (double) 0; }
 
 void __CPROVER_assume(int expr) { assume(expr); }
+void __CPROVER_assert(int expr, char *reason) { assert(expr); }

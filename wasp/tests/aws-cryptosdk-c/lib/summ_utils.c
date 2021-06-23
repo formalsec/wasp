@@ -77,3 +77,18 @@ int pow(int x, unsigned n){
 	}
 	return pow;
 }
+
+restr_t equal_rstr(char* s1, char* s2, int n){
+
+	int i = 0;
+	restr_t equal_rstr = summ_true();
+
+	while(i < n){
+
+		restr_t eq = _solver_EQ(&s1[i], &s2[i], 8);
+		equal_rstr = _solver_And(equal_rstr, eq);
+
+		i++;
+	}
+	return equal_rstr;
+}

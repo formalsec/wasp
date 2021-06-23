@@ -9,13 +9,15 @@ LD=wasm-ld
 LD_FLAGS=-error-limit=0 --no-entry --export-all
 
 # Libc summaries
-LIB=../../lib
-BUILD_DIR=../../_build
+ROOT_DIR=../..
+LIB=$(ROOT_DIR)/lib
+BUILD_DIR=$(ROOT_DIR)/_build
 # Includes
 INCLUDE += -I$(LIB)/
-INCLUDE += -I../../include/
+INCLUDE += -I$(ROOT_DIR)/include/
 # Sources root dir
-SOURCES=../../source
+SOURCES=$(ROOT_DIR)/source
+STUBS=$(ROOT_DIR)/stubs
 
 # target we want to build
 TARGET=$(addprefix $(BUILD_DIR)/test/$(HARNESS_ENTRY)/,$(HARNESS_ENTRY))
@@ -45,15 +47,19 @@ stubsc  := $(wildcard $(SOURCES)/*.c)
 stubsbc := $(addprefix $(BUILD_DIR)/source/,$(notdir $(stubsc:.c=.bc)))
 stubso  := $(addprefix $(BUILD_DIR)/source/,$(notdir $(stubsc:.c=.o)))
 
+stubs2c  := $(wildcard $(STUBS)/*.c)
+stubs2bc := $(addprefix $(BUILD_DIR)/stubs/,$(notdir $(stubs2c:.c=.bc)))
+stubs2o  := $(addprefix $(BUILD_DIR)/stubs/,$(notdir $(stubs2c:.c=.o)))
+
 default: all
 
-all: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/$(HARNESS_FILE:.c=.wasm)
+all: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/$(HARNESS_FILE:.c=.wasm) $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso)
 
 $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wat: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wasm
 	@echo "Building $@..."
 	@wasm2wat $< -o $@
 
-$(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wasm: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.o $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso)
+$(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wasm: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.o $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso) $(stubs2o)
 	@echo "Building $@..."
 	@echo "$(LD) $(LD_FLAGS) $^ -o $@"; $(LD) $(LD_FLAGS) $^ -o $@
 
@@ -90,7 +96,7 @@ $(BUILD_DIR)/source/openssl/%.o: $(BUILD_DIR)/source/openssl/%.bc
 $(BUILD_DIR)/source/common/%.bc: $(SOURCES)/common/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/source/common/%.o: $(BUILD_DIR)/source/common/%.bc
 	@echo "Building $@..."
@@ -113,6 +119,16 @@ $(BUILD_DIR)/source/%.bc: $(SOURCES)/%.c
 	@$(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/source/%.o: $(BUILD_DIR)/source/%.bc
+	@echo "Building $@..."
+	@$(OPT) $(OPT_FLAGS) $< -o $<
+	@$(LLC) $(LLC_FLAGS) $< -o $@
+
+$(BUILD_DIR)/stubs/%.bc: $(STUBS)/%.c
+	@mkdir -p $(dir $@)
+	@echo "Building $@..."
+	@$(CC) $(CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/stubs/%.o: $(BUILD_DIR)/stubs/%.bc
 	@echo "Building $@..."
 	@$(OPT) $(OPT_FLAGS) $< -o $<
 	@$(LLC) $(LLC_FLAGS) $< -o $@

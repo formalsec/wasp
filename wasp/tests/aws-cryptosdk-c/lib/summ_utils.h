@@ -19,4 +19,5 @@ restr_t _solver_SGT(symbolic sym_var, symbolic sym_var2, unsigned int length);
 restr_t sym_is_numeric(symbolic var);
 int pow(int x, unsigned n);
 
+restr_t equal_rstr(char* s1, char* s2, int n);
 #endif 

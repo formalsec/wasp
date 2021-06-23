@@ -1,5 +1,7 @@
 #ifndef STDIO_H
 #define STDIO_H
+
+#include <stdarg.h>
 #include <sys/types.h>
 
 #define BUFSIZE 128
@@ -46,11 +48,11 @@ int scanf(const char *format, ...);
 int fscanf(FILE *stream, const char *format, ...);
 int sscanf(const char *str, const char *format, ...);
 
+int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 /*
 int vprintf(const char *format, va_list ap);
 int vfprintf(FILE *stream, const char *format, va_list ap);
 int vsprintf(char *str, const char *format, va_list ap);
-int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 
 int fdprintf(int fd, const char *format, ...) __THROW __attribute__((__format__(__printf__,2,3)));
 int vfdprintf(int fd, const char *format, va_list ap) __THROW __attribute__((__format__(__printf__,2,0)));
@@ -60,4 +62,13 @@ int vsscanf(const char *str, const char *format, va_list ap) __THROW __attribute
 int vfscanf(FILE *stream, const char *format, va_list ap) __THROW __attribute__((__format__(__scanf__,2,0)));
 
 */
+
+int fclose(FILE *stream);
+FILE *fopen (const char *path, const char *mode);
+int feof(FILE *stream);
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+char *fgets(char *s, int size, FILE *stream);
+
+FILE *popen(const char *command, const char *type);
+int pclose(FILE *stream);
 #endif
