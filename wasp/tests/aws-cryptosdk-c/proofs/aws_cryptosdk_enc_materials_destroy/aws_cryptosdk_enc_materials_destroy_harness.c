@@ -29,10 +29,12 @@
 // Stub this until https://github.com/diffblue/cbmc/issues/5344 is fixed
 // Original function is here:
 // https://github.com/aws/aws-encryption-sdk-c/blob/master/source/edk.c#L44
+/*
 void aws_cryptosdk_edk_list_clean_up(struct aws_array_list *encrypted_data_keys) {
     assert(aws_cryptosdk_edk_list_is_valid(encrypted_data_keys));
     aws_array_list_clean_up(encrypted_data_keys);
 }
+*/
 
 void aws_cryptosdk_enc_materials_destroy_harness() {
     struct aws_cryptosdk_enc_materials *materials = can_fail_malloc(sizeof(*materials));

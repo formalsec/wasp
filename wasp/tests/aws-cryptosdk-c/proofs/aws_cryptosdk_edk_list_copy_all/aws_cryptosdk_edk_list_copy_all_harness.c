@@ -23,6 +23,24 @@
 #include <proof_helpers/utils.h>
 
 /**
+ * Copy of the original aws_array_list_is_valid() with the multiplication still in place.
+ * Useful for assumptions
+ */
+bool aws_array_list_is_valid_deep(const struct aws_array_list *AWS_RESTRICT list) {
+    if (!list) {
+        return false;
+    }
+    size_t required_size        = list->length * list->item_size;
+    bool required_size_is_valid = true;
+    bool current_size_is_valid  = (list->current_size >= required_size);
+    bool data_is_valid =
+        ((list->current_size == 0 && list->data == NULL) || AWS_MEM_IS_WRITABLE(list->data, list->current_size));
+    bool item_size_is_valid = (list->item_size != 0);
+    return required_size_is_valid && current_size_is_valid && data_is_valid && item_size_is_valid;
+}
+
+#if 0
+/**
  * The original aws_array_list_is_valid() has a 64 bit multiplication.
  * CBMC performance dies trying to do all those multiplications.
  * Replace with a stub until we can fix this issue.
@@ -106,6 +124,7 @@ int aws_array_list_pop_back(struct aws_array_list *AWS_RESTRICT list) {
     }
     return AWS_OP_ERR;
 }
+#endif
 
 void aws_cryptosdk_edk_list_copy_all_harness() {
     /* Nondet Inputs */

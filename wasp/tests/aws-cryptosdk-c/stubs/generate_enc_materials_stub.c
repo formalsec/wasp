@@ -19,6 +19,14 @@
 #include <make_common_data_structures.h>
 #include <proof_helpers/make_common_data_structures.h>
 
+#ifndef MAX_EDK_LIST_ITEMS
+#define MAX_EDK_LIST_ITEMS 2
+#endif
+
+#ifndef MAX_TRACE_LIST_ITEMS
+#define MAX_TRACE_LIST_ITEMS 2
+#endif
+
 /**
  * Receives encryption request from user and attempts to generate encryption materials,
  * including an encrypted data key and a list of EDKs for doing encryption.
@@ -29,7 +37,7 @@
  * On failure returns AWS_OP_ERR, sets address pointed to by output to NULL, and sets
  * internal AWS error code.
  */
-int generate_enc_materials(
+int stub_generate_enc_materials(
     struct aws_cryptosdk_cmm *cmm,
     struct aws_cryptosdk_enc_materials **output,
     struct aws_cryptosdk_enc_request *request) {

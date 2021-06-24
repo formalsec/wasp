@@ -316,7 +316,7 @@ bool aws_cryptosdk_private_commitment_eq(struct aws_byte_buf *a, struct aws_byte
     return accum == 0;
 }
 
-static int aws_cryptosdk_private_derive_key_v1(
+int aws_cryptosdk_private_derive_key_v1(
     const struct aws_cryptosdk_alg_properties *props,
     struct content_key *content_key,
     const struct data_key *data_key,
@@ -349,7 +349,7 @@ static int aws_cryptosdk_private_derive_key_v1(
     return ret;
 }
 
-static int aws_cryptosdk_private_derive_key_v2(
+int aws_cryptosdk_private_derive_key_v2(
     const struct aws_cryptosdk_alg_properties *props,
     struct content_key *content_key,
     const struct data_key *data_key,

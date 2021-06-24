@@ -12,7 +12,13 @@ void *malloc(size_t);
 void free(void *);
 void *realloc(void *, size_t);
 
+char *getenv(const char *name);
+int setenv(const char *name, const char *value, int overwrite);
+int unsetenv(const char *name);
+
 long int strtol(const char *nptr, char **endptr, int base);
 unsigned long int strtoul(const char *nptr, char **endptr, int base);
+
+void qsort(void* base,size_t nmemb,size_t size,int (*compar)(const void*,const void*));
 
 #endif

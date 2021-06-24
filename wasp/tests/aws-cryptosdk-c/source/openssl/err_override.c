@@ -14,6 +14,7 @@
  */
 
 #include <openssl/err.h>
+#include <assert.h>
 
 void ERR_print_errors_fp(FILE *fp) {
     assert(fp == stderr);

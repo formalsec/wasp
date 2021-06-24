@@ -83,6 +83,14 @@ typedef struct {
 #define PTHREAD_COND_INITIALIZER \
 {{PTHREAD_SPIN_UNLOCKED},0}
 
+int pthread_cond_init(pthread_cond_t*cond,pthread_condattr_t*cond_attr);
+int pthread_cond_destroy(pthread_cond_t*cond);
+int pthread_cond_signal(pthread_cond_t*cond);
+int pthread_cond_broadcast(pthread_cond_t*cond);
+int pthread_cond_timedwait(pthread_cond_t*cond,pthread_mutex_t*mutex,
+			   const struct timespec*abstime);
+int pthread_cond_wait(pthread_cond_t*cond,pthread_mutex_t*mutex);
+
 typedef int pthread_once_t;
 
 /* Attributes for threads.  */
@@ -137,5 +145,19 @@ int pthread_rwlock_trywrlock(pthread_rwlock_t *rwlock);
 int pthread_rwlockattr_init(pthread_rwlockattr_t *attr);
 int pthread_rwlockattr_destroy(pthread_rwlockattr_t *attr);
 int pthread_rwlock_unlock(pthread_rwlock_t *rwlock);
+
+
+int pthread_detach(pthread_t __th);
+int pthread_once(pthread_once_t*once_control,void(*init_routine)(void));
+int pthread_attr_init(pthread_attr_t*attr);
+int pthread_attr_destroy(pthread_attr_t*attr);
+int pthread_attr_setstacksize(pthread_attr_t*attr,const size_t stacksize);
+int pthread_create(pthread_t*__threadarg,
+		const pthread_attr_t*__attr,
+		void*(*__start_routine)(void *),
+		void*__arg);
+int pthread_join(pthread_t __th,void**__thread_return);
+pthread_t pthread_self(void);
+int pthread_equal(pthread_t __thread1,pthread_t __thread2);
 
 #endif

@@ -12,5 +12,12 @@
 
 int clock_gettime(clockid_t clock_id,struct timespec*tp);
 
+time_t time(time_t *t);
+time_t timegm(struct tm *timeptr);
+time_t mktime(struct tm *timeptr);
+
+struct tm* localtime_r(const time_t* t, struct tm* r);
+struct tm* gmtime_r(const time_t* t, struct tm* r);
+
 #endif
 

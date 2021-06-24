@@ -29,7 +29,7 @@
  * initialized using one of the byte buffer initialization functions. This assures proper
  * clean up and serialization.
  */
-int on_encrypt(
+int stub_on_encrypt(
     struct aws_cryptosdk_keyring *keyring,
     struct aws_allocator *request_alloc,
     struct aws_byte_buf *unencrypted_data_key,

@@ -26,10 +26,13 @@
 #include <proof_helpers/proof_allocators.h>
 #include <proof_helpers/utils.h>
 
-// Stub this until https://github.com/diffblue/cbmc/issues/5344 is fixed
-// Original function is here:
-// https://github.com/aws/aws-encryption-sdk-c/blob/master/source/edk.c#L44
-void aws_cryptosdk_edk_list_clean_up(struct aws_array_list *encrypted_data_keys) {
+#ifdef OVERRIDE_EDK_CLEAN_UP 
+#define EDK_LIST_CLEAN_UP(list) my_edk_list_clean_up(list)
+#else
+#define EDK_LIST_CLEAN_UP(list) aws_cryptosdk_edk_list_clean_up(list)
+#endif
+
+void my_edk_list_clean_up(struct aws_array_list *encrypted_data_keys) {
     assert(aws_cryptosdk_edk_list_is_valid(encrypted_data_keys));
     aws_array_list_clean_up(encrypted_data_keys);
 }
