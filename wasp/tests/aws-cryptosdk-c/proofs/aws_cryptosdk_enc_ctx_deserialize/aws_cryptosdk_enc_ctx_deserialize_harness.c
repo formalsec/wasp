@@ -20,7 +20,9 @@
 #include <proof_helpers/proof_allocators.h>
 #include <proof_helpers/utils.h>
 
-void make_hash_table_with_no_backing_store(struct aws_hash_table *map, size_t max_table_entries);
+void make_hash_table_with_no_backing_store(struct aws_hash_table *map, size_t max_table_entries) {
+
+}
 
 /**
  * In the aws_cryptosdk_enc_ctx_deserilize() proof, the first value we read is the number of elements,

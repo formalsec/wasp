@@ -1,6 +1,6 @@
 CC=clang
-CC_OPT=-emit-llvm -g -O0 --target=wasm32 -c -m32
-LINKER=wasm-ld
+CFLAGS=-emit-llvm -g -O0 --target=wasm32 -c -m32 $(INCLUDES)
+LD=wasm-ld
 
 LIB_DIR=lib
 BUG_LIB_DIR=lib-with-bugs
@@ -10,23 +10,25 @@ NORMAL_TESTS=for-wasp/normal
 BUG_TESTS=for-wasp/bugs
 BUILD_DIR=_build
 
-lib=$(wildcard $(LIB_DIR)/*.c)
-libo=$(addprefix $(BUILD_DIR)/,$(lib:.c=.o))
-libbc=$(addprefix $(BUILD_DIR)/,$(lib:.c=.bc))
+# Includes
+INCLUDES += -I$(MOCKS_DIR)
+INCLUDES += -I$(UTILS_DIR)
 
-libbug=$(wildcard $(BUG_LIB_DIR)/*.c)
-libbugo=$(addprefix $(BUILD_DIR)/,$(libbug:.c=.o))
-libbugbc=$(addprefix $(BUILD_DIR)/,$(libbug:.c=.bc))
+lib   := $(wildcard $(LIB_DIR)/*.c)
+libbc := $(addprefix $(BUILD_DIR)/,$(lib:.c=.bc))
+libo  := $(addprefix $(BUILD_DIR)/,$(lib:.c=.o))
 
-tests=$(wildcard $(NORMAL_TESTS)/**/*.c)
-testso=$(addprefix $(BUILD_DIR)/,$(tests:.c=.o))
-testsbc=$(addprefix $(BUILD_DIR)/,$(tests:.c=.bc))
-testswasm=$(addprefix $(BUILD_DIR)/,$(tests:.c=.wasm))
+libbug   := $(wildcard $(BUG_LIB_DIR)/*.c)
+libbugbc := $(addprefix $(BUILD_DIR)/,$(libbug:.c=.bc))
+libbugo  := $(addprefix $(BUILD_DIR)/,$(libbug:.c=.o))
 
-testbugs=$(wildcard $(BUG_TESTS)/*.c)
-testbugso=$(addprefix $(BUILD_DIR)/,$(testbugs:.c=.o))
-testbugsbc=$(addprefix $(BUILD_DIR)/,$(testbugs:.c=.bc))
-testbugswasm=$(addprefix $(BUILD_DIR)/,$(testbugs:.c=.wasm))
+tests   := $(wildcard $(NORMAL_TESTS)/**/*.c)
+testsbc := $(addprefix $(BUILD_DIR)/,$(tests:.c=.bc))
+testso  := $(addprefix $(BUILD_DIR)/,$(tests:.c=.o))
+
+testbugs   := $(wildcard $(BUG_TESTS)/*.c)
+testbugsbc := $(addprefix $(BUILD_DIR)/,$(testbugs:.c=.bc))
+testbugso  := $(addprefix $(BUILD_DIR)/,$(testbugs:.c=.o))
 
 .PHONY: clean
 
@@ -34,64 +36,62 @@ testbugswasm=$(addprefix $(BUILD_DIR)/,$(testbugs:.c=.wasm))
 
 default: all
 
-all: normal bug wat post
+all: normal bug
 
-bug: $(testbugswasm)
+bug: $(testbugso:.o=.wat)
 
-normal: $(testswasm)
+normal: $(testso:.o=.wat)
 
-wat: $(addprefix $(BUILD_DIR)/,$(tests:.c=.wat)) $(addprefix $(BUILD_DIR)/,$(testbugs:.c=.wat))
+# BUGS
 
-post:
-	@rm -rf $(wildcard $(BUILD_DIR)/*.o) $(wildcard $(BUILD_DIR)/*.bc) $(wildcard $(BUILD_DIR)/*.wasm)
-	@./patch.sh
-
-# TESTS WITH BUGS
-
-$(BUILD_DIR)/for-wasp/bugs/%.bc: for-wasp/bugs/%.c $(libbugbc) $(BUILD_DIR)/for-wasp/utils/utils.bc $(BUILD_DIR)/for-wasp/mockups/mockups.bc
+$(BUILD_DIR)/lib-with-bugs/%.bc: lib-with-bugs/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(UTILS_DIR) -I $(BUG_LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $< > /dev/null 2>&1
 
-$(BUILD_DIR)/for-wasp/bugs/%.o: $(BUILD_DIR)/for-wasp/bugs/%.bc $(libbugo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
+$(BUILD_DIR)/for-wasp/bugs/%.bc: for-wasp/bugs/%.c
+	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@opt -O1 $< -o $<
-	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
+	@$(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $< > /dev/null 2>&1
 
 $(BUILD_DIR)/for-wasp/bugs/%.wasm: $(BUILD_DIR)/for-wasp/bugs/%.o $(libbugo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
 	@echo "Building $@"
-	@$(LINKER) --no-entry --export-all $^ -o $@
+	@$(LD) --no-entry --export-all $^ -o $@
 
-$(BUILD_DIR)/for-wasp/bugs/%.wat: $(BUILD_DIR)/for-wasp/bugs/%.wasm
-	@echo "Building $@"
-	@wasm2wat $^ -o $@
+# NORMAL
 
-# NORMAL TESTS
-
-$(BUILD_DIR)/for-wasp/normal/%.bc: for-wasp/normal/%.c $(libbc) $(BUILD_DIR)/for-wasp/utils/utils.bc $(BUILD_DIR)/for-wasp/mockups/mockups.bc
+$(BUILD_DIR)/for-wasp/normal/%.bc: for-wasp/normal/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(UTILS_DIR) -I $(LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $< > /dev/null 2>&1
 
-$(BUILD_DIR)/for-wasp/normal/%.o: $(BUILD_DIR)/for-wasp/normal/%.bc $(libo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
+$(BUILD_DIR)/for-wasp/normal/%.wasm: $(BUILD_DIR)/for-wasp/normal/%.o $(libo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
+	@echo "Building $@"
+	@$(LD) --no-entry --export-all $^ -o $@
+
+# GENERIC BUILD
+
+$(BUILD_DIR)/%.bc: %.c
+	@mkdir -p $(dir $@)
+	@echo "Building $@"
+	@$(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+
+$(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
 	@echo "Building $@"
 	@opt -O1 $< -o $<
 	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
 
-$(BUILD_DIR)/for-wasp/normal/%.wasm: $(BUILD_DIR)/for-wasp/normal/%.o $(libo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
-	@echo "Building $@"
-	@$(LINKER) --no-entry --export-all $^ -o $@
-
-$(BUILD_DIR)/for-wasp/normal/%.wat: $(BUILD_DIR)/for-wasp/normal/%.wasm
+$(BUILD_DIR)/%.wat: $(BUILD_DIR)/%.wasm
 	@echo "Building $@"
 	@wasm2wat $^ -o $@
+	@./patch.sh $@
 
 # OTHER
 
 $(BUILD_DIR)/for-wasp/utils/utils.bc: $(UTILS_DIR)/utils.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -o $@ $^ > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -o $@ $^ > /dev/null 2>&1
 
 $(BUILD_DIR)/for-wasp/utils/utils.o: $(BUILD_DIR)/for-wasp/utils/utils.bc
 	@echo "Building $@"
@@ -101,31 +101,9 @@ $(BUILD_DIR)/for-wasp/utils/utils.o: $(BUILD_DIR)/for-wasp/utils/utils.bc
 $(BUILD_DIR)/for-wasp/mockups/mockups.bc: $(MOCKS_DIR)/mockups.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CC_OPT) -o $@ $^ > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -o $@ $^ > /dev/null 2>&1
 
 $(BUILD_DIR)/for-wasp/mockups/mockups.o: $(BUILD_DIR)/for-wasp/mockups/mockups.bc
-	@echo "Building $@"
-	@opt -O1 $< -o $<
-	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
-
-# LIBS
-
-$(BUILD_DIR)/lib/%.bc: lib/%.c $(BUILD_DIR)/for-wasp/mockups/mockups.bc
-	@mkdir -p $(dir $@)
-	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(LIB_DIR)/include $< -o $@ > /dev/null 2>&1
-
-$(BUILD_DIR)/lib/%.o: $(BUILD_DIR)/lib/%.bc
-	@echo "Building $@"
-	@opt -O1 $< -o $<
-	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
-
-$(BUILD_DIR)/lib-with-bugs/%.bc: lib-with-bugs/%.c $(BUILD_DIR)/for-wasp/mockups/mockups.bc
-	@mkdir -p $(dir $@)
-	@echo "Building $@"
-	@$(CC) $(CC_OPT) -I $(MOCKS_DIR) -I $(BUG_LIB_DIR)/include $< -o $@ > /dev/null 2>&1
-
-$(BUILD_DIR)/lib-with-bugs/%.o: $(BUILD_DIR)/lib-with-bugs/%.bc
 	@echo "Building $@"
 	@opt -O1 $< -o $<
 	@llc -O1 -march=wasm32 -filetype=obj $< -o $@

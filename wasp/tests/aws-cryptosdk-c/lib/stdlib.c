@@ -175,3 +175,7 @@ void qsort(void* base,size_t nmemb,size_t size,int (*compar)(const void*,const v
   if (nmemb>1)
     quicksort(base,size,0,nmemb-1,compar);
 }
+
+int posix_memalign(void **memptr, size_t alignment, size_t size) {
+  return 0;
+}

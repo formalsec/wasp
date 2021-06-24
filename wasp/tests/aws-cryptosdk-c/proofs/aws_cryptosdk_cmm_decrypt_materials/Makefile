@@ -25,6 +25,7 @@ include ../Makefile.string
 # gets full coverage, property runtime 3 min.
 MAX_NUM_ITEMS ?= 1
 DEFINES += -DMAX_NUM_ITEMS=$(MAX_NUM_ITEMS)
+DEFINES += -DOVERRIDE_EDK_CLEAN_UP
 
 #########
 

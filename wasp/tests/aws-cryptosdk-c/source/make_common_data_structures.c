@@ -487,6 +487,7 @@ void ensure_nondet_allocate_keyring_vtable_members(struct aws_cryptosdk_keyring_
 
 void ensure_nondet_allocate_cmm_vtable_members(struct aws_cryptosdk_cmm_vt *vtable, size_t max_len) {
     if (vtable) {
+        vtable->vt_size = sizeof(struct aws_cryptosdk_cmm_vt);
         vtable->name = ensure_c_str_is_allocated(max_len);
     }
 }

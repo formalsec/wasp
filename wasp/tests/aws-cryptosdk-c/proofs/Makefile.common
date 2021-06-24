@@ -1,6 +1,6 @@
 # Compilation variables
 CC=clang
-CFLAGS=-emit-llvm -g -O0 -ffreestanding --target=wasm32 -c -m32 $(INCLUDE)
+CFLAGS=-emit-llvm -g -O0 -ffreestanding --target=wasm32 -c -m32 $(INCLUDE) $(DEFINES)
 OPT=opt
 OPT_FLAGS=-O1
 LLC=llc
@@ -51,32 +51,34 @@ stubs2c  := $(wildcard $(STUBS)/*.c)
 stubs2bc := $(addprefix $(BUILD_DIR)/stubs/,$(notdir $(stubs2c:.c=.bc)))
 stubs2o  := $(addprefix $(BUILD_DIR)/stubs/,$(notdir $(stubs2c:.c=.o)))
 
+.PHONY: clean
+
 default: all
 
-all: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/$(HARNESS_FILE:.c=.wasm) $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso)
+all: $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat) $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso) $(stubs2o)
 
-$(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wat: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wasm
+$(BUILD_DIR)/tests/%.wat: $(BUILD_DIR)/tests/%.wasm
 	@echo "Building $@..."
 	@wasm2wat $< -o $@
 
-$(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.wasm: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.o $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso) $(stubs2o)
+$(BUILD_DIR)/tests/%.wasm: $(BUILD_DIR)/tests/%.o $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso) $(stubs2o)
 	@echo "Building $@..."
 	@echo "$(LD) $(LD_FLAGS) $^ -o $@"; $(LD) $(LD_FLAGS) $^ -o $@
 
-$(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.o: $(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.bc
+$(BUILD_DIR)/tests/%.o: $(BUILD_DIR)/tests/%.bc
 	@echo "Building $@..."
 	@$(OPT) $(OPT_FLAGS) $< -o $<
 	@$(LLC) $(LLC_FLAGS) $< -o $@
 
-$(BUILD_DIR)/tests/$(HARNESS_ENTRY)/%.bc: %.c
+$(BUILD_DIR)/tests/%.bc: %.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $<
+	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
 
 $(BUILD_DIR)/lib/%.bc: $(LIB)/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $<
+	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
 
 $(BUILD_DIR)/lib/%.o: $(BUILD_DIR)/lib/%.bc
 	@echo "Building $@..."
@@ -96,7 +98,7 @@ $(BUILD_DIR)/source/openssl/%.o: $(BUILD_DIR)/source/openssl/%.bc
 $(BUILD_DIR)/source/common/%.bc: $(SOURCES)/common/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $<
+	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
 
 $(BUILD_DIR)/source/common/%.o: $(BUILD_DIR)/source/common/%.bc
 	@echo "Building $@..."
@@ -116,7 +118,7 @@ $(BUILD_DIR)/source/cryptosdk/%.o: $(BUILD_DIR)/source/cryptosdk/%.bc
 $(BUILD_DIR)/source/%.bc: $(SOURCES)/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $<
+	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
 
 $(BUILD_DIR)/source/%.o: $(BUILD_DIR)/source/%.bc
 	@echo "Building $@..."
@@ -126,7 +128,7 @@ $(BUILD_DIR)/source/%.o: $(BUILD_DIR)/source/%.bc
 $(BUILD_DIR)/stubs/%.bc: $(STUBS)/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $<
+	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
 
 $(BUILD_DIR)/stubs/%.o: $(BUILD_DIR)/stubs/%.bc
 	@echo "Building $@..."

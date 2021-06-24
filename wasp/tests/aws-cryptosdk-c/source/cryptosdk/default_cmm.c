@@ -33,7 +33,7 @@ struct default_cmm {
     enum aws_cryptosdk_alg_id default_alg;
 };
 
-static int default_cmm_generate_enc_materials(
+int default_cmm_generate_enc_materials(
     struct aws_cryptosdk_cmm *cmm,
     struct aws_cryptosdk_enc_materials **output,
     struct aws_cryptosdk_enc_request *request) {

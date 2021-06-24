@@ -12,6 +12,4 @@ long long  sym_long   (char*);
 float  sym_float  (char*);
 double sym_double (char*);
 
-void __CPROVER_assume(int);
-
 #endif

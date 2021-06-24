@@ -38,4 +38,3 @@ void aws_cryptosdk_edk_list_clear_harness() {
     assert(aws_cryptosdk_edk_list_is_valid(&edk_list));
 }
 
-#include <aws/common/error.inl>

@@ -20,3 +20,7 @@ struct tm* localtime_r(const time_t* t, struct tm* r)  {
 struct tm* gmtime_r(const time_t* t, struct tm* r) {
   return (struct tm*)0;
 }
+
+int nanosleep(const struct timespec *rqtp, struct timespec *rmtp) {
+  return 0;
+}

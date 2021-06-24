@@ -1,13 +1,13 @@
 #!/bin/sh
 
-for t in $(find "./_build/for-wasp" -name  "*.wat"); do
-  echo "tranforming $t"
-  sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $t
-  sed -i'' -e 's/\<call $assume\>/sym_assume/' $t
-  sed -i'' -e 's/\<call $assert\>/sym_assert/' $t
-  sed -i'' -e 's/\<call $sym_int\>/sym_int/' $t
-  sed -i'' -e 's/\<call $alloc\>/alloc/' $t
-  sed -i'' -e 's/\<call $free\>/free/' $t
-  sed -i'' -e 's/\<call $dealloc\>/free/' $t
-  sed -i'' -e 's/anyfunc/funcref/' $t
-done
+TEST=$1
+
+echo "Tranforming $TEST..."
+sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $TEST
+sed -i'' -e 's/\<call $assume\>/sym_assume/' $TEST
+sed -i'' -e 's/\<call $assert\>/sym_assert/' $TEST
+sed -i'' -e 's/\<call $sym_int\>/sym_int/' $TEST
+sed -i'' -e 's/\<call $alloc\>/alloc/' $TEST
+sed -i'' -e 's/\<call $free\>/free/' $TEST
+sed -i'' -e 's/\<call $dealloc\>/free/' $TEST
+sed -i'' -e 's/anyfunc/funcref/' $TEST
