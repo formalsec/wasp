@@ -9,7 +9,7 @@ instruction_max = 1000000
 num_threads = 1
 root_dir = '_build'
 # populate with dirs to skip
-ignore = []
+ignore = ['array', 'bitvector']
 tests = {
         'array' : [
             (f'{root_dir}/array-cav19', 'unreach-call'),
@@ -118,7 +118,6 @@ def run(i : int):
     global num_threads 
     global lock
     global srcs
-    global prop
 
     while True:
         verdict  = True
@@ -126,11 +125,13 @@ def run(i : int):
 
         try:
             lock.acquire()
-            test = srcs.pop()
+            data = srcs.pop()
         except IndexError:
             break
         finally:
             lock.release()
+
+        test, prop = data[0], data[1]
 
         yml = test.replace('.wat', '.yml')
         with open(yml, 'r') as f:
@@ -191,18 +192,19 @@ for key, val in tests.items():
     if key in ignore:
         continue
 
+    srcs = []
     for tup in val:
         dir, prop = tup[0], tup[1]
-        srcs = glob.glob(f'tests/sv-comp/{dir}/*.wat')
+        srcs = srcs + list(map(lambda t: (t, prop), glob.glob(f'tests/sv-comp/{dir}/*.wat')))
 
-        threads = []
-        for i in range(num_threads):
-            t = threading.Thread(target=run, args=(i,))
-            threads.append(t)
-            t.start()
+    threads = []
+    for i in range(num_threads):
+        t = threading.Thread(target=run, args=(i,))
+        threads.append(t)
+        t.start()
 
-        for t in threads:
-            t.join()
+    for t in threads:
+        t.join()
 
     tbl_name = f'{key}_t{timeout}_im{instruction_max}'
     with open(f'tests/sv-comp/results/{tbl_name}.csv', 'w', \
