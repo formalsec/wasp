@@ -36,11 +36,7 @@ testbugso  := $(addprefix $(BUILD_DIR)/,$(testbugs:.c=.o))
 
 default: all
 
-all: normal bug
-
-bug: $(testbugso:.o=.wat)
-
-normal: $(testso:.o=.wat)
+all: $(testso:.o=.wat) $(testbugso:.o=.wat)
 
 # BUGS
 

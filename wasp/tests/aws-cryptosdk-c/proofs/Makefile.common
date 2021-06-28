@@ -60,6 +60,7 @@ all: $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat) $(libo) $(opensslo) $(commono) $
 $(BUILD_DIR)/tests/%.wat: $(BUILD_DIR)/tests/%.wasm
 	@echo "Building $@..."
 	@wasm2wat $< -o $@
+	@./$(ROOT_DIR)/patch.sh $@
 
 $(BUILD_DIR)/tests/%.wasm: $(BUILD_DIR)/tests/%.o $(libo) $(opensslo) $(commono) $(cryptosdko) $(stubso) $(stubs2o)
 	@echo "Building $@..."

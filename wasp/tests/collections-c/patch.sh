@@ -2,7 +2,7 @@
 
 TEST=$1
 
-echo "Tranforming $TEST..."
+echo "Patching $TEST"
 sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $TEST
 sed -i'' -e 's/\<call $assume\>/sym_assume/' $TEST
 sed -i'' -e 's/\<call $assert\>/sym_assert/' $TEST

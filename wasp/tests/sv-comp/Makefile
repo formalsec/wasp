@@ -1,3 +1,5 @@
+BUILD=_build
+
 ARRAY=array-cav19 array-crafted array-examples array-fpi array-industry-pattern array-lopstr16 array-multidimensional array-patterns array-programs array-tiling
 BITVECTOR=bitvector bitvector-loops bitvector-regression
 CONTROL_FLOW=ntdrivers-simplified openssl openssl-simplified locks
@@ -22,9 +24,8 @@ default: all
 all: $(TARGET)
 
 $(TARGET):
-	mkdir -p _build/
+	mkdir -p $(BUILD)
 	$(MAKE) -C for-wasp/$@
-	mv -vf for-wasp/$@/_build _build/$@
 
 clean:
-	$(RM) -rf _build
+	$(RM) -rf $(BUILD)

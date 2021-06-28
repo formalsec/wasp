@@ -1,17 +1,17 @@
 #!/bin/sh
 
-for t in $(find "$1/_build" -name "*.wat"); do
-  echo "patching $t"
-  sed -i'' -e 's/\<call $assume\>/sym_assume/' $t
-  sed -i'' -e 's/\<call $assert\>/sym_assert/' $t
-  sed -i'' -e 's/call $sym_int/sym_int/' $t
-  sed -i'' -e 's/call $sym_long/sym_long/' $t
-  sed -i'' -e 's/call $sym_float/sym_float/' $t
-  sed -i'' -e 's/call $sym_double/sym_double/' $t
-  sed -i'' -e 's/call $is_symbolic/is_symbolic/' $t
-  sed -i'' -e 's/\<call $alloc\>/alloc/' $t
-  sed -i'' -e 's/\<call $free\>/free/' $t
-  sed -i'' -e 's/\<call $dealloc\>/free/' $t
-  sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $t
-  sed -i'' -e 's/anyfunc/funcref/' $t
-done
+TEST=$1
+
+echo "Patching $TEST"
+sed -i'' -e 's/\<call $assume\>/sym_assume/' $TEST
+sed -i'' -e 's/\<call $assert\>/sym_assert/' $TEST
+sed -i'' -e 's/call $sym_int/sym_int/' $TEST
+sed -i'' -e 's/call $sym_long/sym_long/' $TEST
+sed -i'' -e 's/call $sym_float/sym_float/' $TEST
+sed -i'' -e 's/call $sym_double/sym_double/' $TEST
+sed -i'' -e 's/call $is_symbolic/is_symbolic/' $TEST
+sed -i'' -e 's/\<call $alloc\>/alloc/' $TEST
+sed -i'' -e 's/\<call $free\>/free/' $TEST
+sed -i'' -e 's/\<call $dealloc\>/free/' $TEST
+sed -i'' -e 's/(elem (;0;) (i32.const 1) func/(elem (;0;) (i32.const 1)/' $TEST
+sed -i'' -e 's/anyfunc/funcref/' $TEST
