@@ -93,10 +93,10 @@ int decrypt_materials(
 
 void aws_cryptosdk_cmm_decrypt_materials_harness() {
     const struct aws_cryptosdk_cmm_vt vtable = { .vt_size                = sizeof(struct aws_cryptosdk_cmm_vt),
-                                                 .name                   = ensure_c_str_is_allocated(SIZE_MAX),
+                                                 .name                   = ensure_c_str_is_allocated(6),
                                                  .destroy                = nondet_voidp(),
                                                  .generate_enc_materials = nondet_voidp(),
-                                                 .decrypt_materials      = nondet_bool() ? decrypt_materials : NULL };
+                                                 .decrypt_materials      = decrypt_materials };
     __CPROVER_assume(aws_cryptosdk_cmm_vtable_is_valid(&vtable));
 
     struct aws_cryptosdk_cmm *cmm = can_fail_malloc(sizeof(*cmm));

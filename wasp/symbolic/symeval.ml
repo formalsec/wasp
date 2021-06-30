@@ -435,10 +435,10 @@ let rec sym_step (c : sym_config) : sym_config =
           if path_cond = [] then
             [AssFail (Logicenv.to_json (Logicenv.to_list logic_env)) @@ e.at]
           else
-            let c = to_constraint (simplify ex) in
-            let asrt = Formula.to_formula (
+            let c = Option.map negate_relop (to_constraint (simplify ex)) in
+            let assertion = Formula.to_formula (
               Option.map_default (fun a -> a :: path_cond) path_cond c) in
-            match Z3Encoding2.check_sat_core asrt with
+            match Z3Encoding2.check_sat_core assertion with
             | None   -> []
             | Some m ->
               let li32 = Logicenv.get_vars_by_type I32Type logic_env

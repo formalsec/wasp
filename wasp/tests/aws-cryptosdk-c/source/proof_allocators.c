@@ -70,11 +70,11 @@ struct aws_allocator *can_fail_allocator() {
 }
 
 void *can_fail_calloc(size_t num, size_t size) {
-    return nondet_bool() ? NULL : bounded_calloc(num, size);
+    return bounded_calloc(num, size);
 }
 
 void *can_fail_malloc(size_t size) {
-    return nondet_bool() ? NULL : bounded_malloc(size);
+    return bounded_malloc(size);
 }
 
 /**
@@ -92,10 +92,8 @@ void *can_fail_realloc(void *ptr, size_t newsize) {
         return NULL;
     }
     if (newsize == 0) {
-        if (nondet_bool()) {
-            free(ptr);
-        }
-        return nondet_voidp();
+        free(ptr);
+        return NULL;
     }
     return realloc(ptr, newsize);
 }

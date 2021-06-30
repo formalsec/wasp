@@ -47,10 +47,14 @@ bool aws_byte_buf_has_allocator(const struct aws_byte_buf *const buf) {
     return (buf->allocator == can_fail_allocator());
 }
 
-void ensure_byte_buf_has_allocated_buffer_member(struct aws_byte_buf *const buf) {
-    if (buf) {
-        buf->allocator = (nondet_bool()) ? NULL : can_fail_allocator();
-        buf->buffer = can_fail_malloc(sizeof(*(buf->buffer)) * buf->capacity);
+void ensure_byte_buf_has_allocated_buffer_member(struct aws_byte_buf *buf) {
+    buf->capacity = 16;
+    buf->allocator = can_fail_allocator();
+    buf->buffer = malloc(sizeof(uint8_t) * buf->capacity);
+    for (size_t i = 0; i < buf->capacity; ++i) {
+      uint8_t c = __VERIFIER_nondet_uchar("buf_char");
+      if (c == '\0') c = c + 1;
+      buf->buffer[i] = c;
     }
 }
 
@@ -88,7 +92,7 @@ void ensure_byte_buf_has_allocated_buffer_member_in_range(struct aws_byte_buf *b
 void ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(
     struct aws_byte_buf *buf,
     struct aws_ring_buffer *ring_buf) {
-    buf->allocator = (nondet_bool()) ? NULL : can_fail_allocator();
+    buf->allocator = can_fail_allocator();
     uint8_t *head = aws_atomic_load_ptr(&ring_buf->head);
     uint8_t *tail = aws_atomic_load_ptr(&ring_buf->tail);
     if (head < tail) { /* [....H    T....] */
@@ -108,9 +112,15 @@ bool aws_byte_cursor_is_bounded(const struct aws_byte_cursor *const cursor, cons
     return cursor->len <= max_size;
 }
 
-void ensure_byte_cursor_has_allocated_buffer_member(struct aws_byte_cursor *const cursor) {
-    if (cursor != NULL) {
+void ensure_byte_cursor_has_allocated_buffer_member(struct aws_byte_cursor *cursor) {
+    if (cursor) {
+        cursor->len = 16;
         cursor->ptr = bounded_malloc(cursor->len);
+        for (size_t i = 0; i < cursor->len; ++i) {
+          uint8_t c = __VERIFIER_nondet_uchar("cursor_char");
+          if (c == '\0') c = c + 1;
+          cursor->ptr[i] = c;
+        }
     }
 }
 
@@ -214,14 +224,11 @@ bool hash_table_state_has_an_empty_slot(const struct hash_table_state *const sta
 void hash_proof_destroy_noop(void *p) {}
 
 struct aws_string *ensure_string_is_allocated_nondet_length() {
-    /* Considers any size up to the maximum possible size for the array [bytes] in aws_string */
-    return nondet_allocate_string_bounded_length(SIZE_MAX - 1 - sizeof(struct aws_string));
+    return nondet_allocate_string_bounded_length(16);
 }
 
 struct aws_string *nondet_allocate_string_bounded_length(size_t max_size) {
-    size_t len;
-    __CPROVER_assume(len < max_size);
-    return ensure_string_is_allocated(len);
+    return ensure_string_is_allocated(max_size);
 }
 
 struct aws_string *ensure_string_is_allocated(size_t len) {
@@ -232,21 +239,28 @@ struct aws_string *ensure_string_is_allocated(size_t len) {
 
     /* Fields are declared const, so we need to copy them in like this */
     if (str != NULL) {
-        *(struct aws_allocator **)(&str->allocator) = nondet_bool() ? can_fail_allocator() : NULL;
+        *(struct aws_allocator **)(&str->allocator) = can_fail_allocator();
         *(size_t *)(&str->len) = len;
+        for (size_t i = 0; i < len; ++i) {
+          char c = __VERIFIER_nondet_char("char");
+          if (c == '\0') c = c + 1;
+          *(uint8_t *)&str->bytes[i] = c;
+        }
         *(uint8_t *)&str->bytes[len] = '\0';
     }
     return str;
 }
 
 const char *ensure_c_str_is_allocated(size_t max_size) {
-    size_t cap;
-    __CPROVER_assume(cap > 0 && cap <= max_size);
-    const char *str = bounded_malloc(cap);
-    /* Ensure that its a valid c string. Since all bytes are nondeterminstic, the actual
-     * string length is 0..str_cap
-     */
-    __CPROVER_assume(IMPLIES(str != NULL, str[cap - 1] == '\0'));
+    size_t i;
+    char *str = bounded_malloc(max_size + 1);
+    for (i = 0; i < max_size; ++i) {
+        char c = __VERIFIER_nondet_char("char");
+        if (c == '\0') c = c + 1;
+        str[i] = c;
+    }
+    str[i] = '\0';
+    __CPROVER_assume(IMPLIES(str != NULL, str[max_size] == '\0'));
     return str;
 }
 

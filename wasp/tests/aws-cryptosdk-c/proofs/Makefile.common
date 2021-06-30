@@ -137,4 +137,4 @@ $(BUILD_DIR)/stubs/%.o: $(BUILD_DIR)/stubs/%.bc
 	@$(LLC) $(LLC_FLAGS) $< -o $@
 
 clean:
-	@echo "rm -rf $(BUILD_DIR)"; rm -rf $(BUILD_DIR)
+	@echo "$(RM) $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat)"; $(RM) $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat)

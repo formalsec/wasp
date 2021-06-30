@@ -29,25 +29,25 @@ void aws_cryptosdk_aes_gcm_decrypt_harness() {
     struct aws_string *key;
 
     /* Assumptions */
-    __CPROVER_assume(aws_byte_buf_is_bounded(&plain, MAX_BUFFER_SIZE));
     ensure_byte_buf_has_allocated_buffer_member(&plain);
+    __CPROVER_assume(aws_byte_buf_is_bounded(&plain, MAX_BUFFER_SIZE));
     __CPROVER_assume(plain.buffer != NULL);
     __CPROVER_assume(aws_byte_buf_is_valid(&plain));
 
-    __CPROVER_assume(aws_byte_cursor_is_bounded(&cipher, MAX_BUFFER_SIZE));
     ensure_byte_cursor_has_allocated_buffer_member(&cipher);
+    __CPROVER_assume(aws_byte_cursor_is_bounded(&cipher, MAX_BUFFER_SIZE));
     __CPROVER_assume(aws_byte_cursor_is_valid(&cipher));
 
-    __CPROVER_assume(aws_byte_cursor_is_bounded(&tag, MAX_BUFFER_SIZE));
     ensure_byte_cursor_has_allocated_buffer_member(&tag);
+    __CPROVER_assume(aws_byte_cursor_is_bounded(&tag, MAX_BUFFER_SIZE));
     __CPROVER_assume(aws_byte_cursor_is_valid(&tag));
 
-    __CPROVER_assume(aws_byte_cursor_is_bounded(&iv, MAX_BUFFER_SIZE));
     ensure_byte_cursor_has_allocated_buffer_member(&iv);
+    __CPROVER_assume(aws_byte_cursor_is_bounded(&iv, MAX_BUFFER_SIZE));
     __CPROVER_assume(aws_byte_cursor_is_valid(&iv));
 
-    __CPROVER_assume(aws_byte_cursor_is_bounded(&aad, MAX_BUFFER_SIZE));
     ensure_byte_cursor_has_allocated_buffer_member(&aad);
+    __CPROVER_assume(aws_byte_cursor_is_bounded(&aad, MAX_BUFFER_SIZE));
     __CPROVER_assume(aws_byte_cursor_is_valid(&aad));
 
     key = ensure_string_is_allocated_nondet_length();
