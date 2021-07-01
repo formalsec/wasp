@@ -479,7 +479,8 @@ let rec sym_step (c : sym_config) : sym_config =
         vs', es', logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 0l, ex) :: vs' ->
-        debug (">>> Assumed false. Finishing..." ^ (Source.string_of_pos e.at.left));
+        debug (">>> Assumed false {line> " ^ (Source.string_of_pos e.at.left) ^
+          "}. Finishing...");
         (* Negate expression because it is false *)
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
         let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in

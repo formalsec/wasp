@@ -119,7 +119,7 @@ $(BUILD_DIR)/source/cryptosdk/%.o: $(BUILD_DIR)/source/cryptosdk/%.bc
 $(BUILD_DIR)/source/%.bc: $(SOURCES)/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/source/%.o: $(BUILD_DIR)/source/%.bc
 	@echo "Building $@..."

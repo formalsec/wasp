@@ -39,6 +39,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef NUM_ELEMS
+#define NUM_ELEMS 2
+#endif
+
+extern int __VERIFIER_nondet_int(char *);
+
 bool aws_byte_buf_is_bounded(const struct aws_byte_buf *const buf, const size_t max_size) {
     return (buf->capacity <= max_size);
 }
@@ -184,7 +190,7 @@ void ensure_allocated_hash_table(struct aws_hash_table *map, size_t max_table_en
     if (map == NULL) {
         return;
     }
-    size_t num_entries;
+    size_t num_entries = __VERIFIER_nondet_int("num_entires");
     __CPROVER_assume(num_entries <= max_table_entries);
     __CPROVER_assume(aws_is_power_of_two(num_entries));
 
@@ -200,8 +206,8 @@ void ensure_allocated_hash_table(struct aws_hash_table *map, size_t max_table_en
 }
 
 void ensure_hash_table_has_valid_destroy_functions(struct aws_hash_table *map) {
-    map->p_impl->destroy_key_fn = nondet_bool() ? NULL : hash_proof_destroy_noop;
-    map->p_impl->destroy_value_fn = nondet_bool() ? NULL : hash_proof_destroy_noop;
+    map->p_impl->destroy_key_fn = hash_proof_destroy_noop;
+    map->p_impl->destroy_value_fn = hash_proof_destroy_noop;
 }
 
 bool aws_hash_table_has_an_empty_slot(const struct aws_hash_table *const map, size_t *const rval) {

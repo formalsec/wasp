@@ -17,9 +17,14 @@
 #include <aws/cryptosdk/private/cipher.h>
 #include <make_common_data_structures.h>
 
+extern int __VERIFIER_nondet_int(char *);
+
 void aws_cryptosdk_genrandom_harness() {
-    size_t len;
+    size_t len = __VERIFIER_nondet_int("len");
+    __CPROVER_assume(len < 0xff);
+
     uint8_t *buf = can_fail_malloc(len);
     __CPROVER_assume(buf != NULL);
-    aws_cryptosdk_genrandom(buf, len);
+
+    assert(!aws_cryptosdk_genrandom(buf, len));
 }

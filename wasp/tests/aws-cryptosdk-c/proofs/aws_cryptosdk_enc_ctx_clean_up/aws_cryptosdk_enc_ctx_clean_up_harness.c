@@ -20,6 +20,7 @@
 #include <proof_helpers/proof_allocators.h>
 #include <proof_helpers/utils.h>
 
+extern int __VERIFIER_nondet_int(char *);
 /*
  * Prove the aws_cryptosdk_enc_ctx_clean_up function for the cases
  * where the map both does and does not have an implementation.
@@ -27,6 +28,7 @@
 void aws_cryptosdk_enc_ctx_clean_up_harness() {
     struct aws_hash_table map;
     bool impl_is_null;
+
     ensure_allocated_hash_table(&map, MAX_TABLE_SIZE);
     __CPROVER_assume(aws_hash_table_is_valid(&map));
     ensure_hash_table_has_valid_destroy_functions(&map);
@@ -51,7 +53,7 @@ void aws_cryptosdk_enc_ctx_clean_up_harness() {
 #pragma CPROVER check push
 #pragma CPROVER check disable "pointer"
     if (map.p_impl != NULL && state->size * sizeof(state->slots[0]) > 0 && &state->slots[0] != NULL) {
-        size_t i;
+        size_t i = __VERIFIER_nondet_int("i");
         __CPROVER_assume(i < state->size * sizeof(state->slots[0]));
         assert(((const uint8_t *const)(&state->slots[0]))[i] == 0);
     }
