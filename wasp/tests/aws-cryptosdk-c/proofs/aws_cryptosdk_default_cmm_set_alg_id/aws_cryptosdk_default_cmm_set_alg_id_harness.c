@@ -27,7 +27,7 @@ void aws_cryptosdk_default_cmm_set_alg_id_harness() {
     struct aws_cryptosdk_keyring *keyring = malloc(sizeof(*keyring));
 
     const struct aws_cryptosdk_keyring_vt vtable = { .vt_size    = sizeof(struct aws_cryptosdk_keyring_vt),
-                                                     .name       = ensure_c_str_is_allocated(SIZE_MAX),
+                                                     .name       = ensure_c_str_is_allocated(6),
                                                      .destroy    = nondet_voidp(),
                                                      .on_encrypt = nondet_voidp(),
                                                      .on_decrypt = nondet_voidp() };

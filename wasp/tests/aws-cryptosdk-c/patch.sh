@@ -3,7 +3,7 @@
 TEST=$1
 
 echo "Patching $TEST"
-sed -i'' -e 's/\<call $assume\>/sym_assume/' $TEST
+sed -i'' -e 's/\<call $__CPROVER_assume\>/sym_assume/' $TEST
 sed -i'' -e 's/\<call $assert\>/sym_assert/' $TEST
 sed -i'' -e 's/call $sym_int/sym_int/' $TEST
 sed -i'' -e 's/call $sym_long/sym_long/' $TEST

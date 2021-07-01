@@ -25,13 +25,13 @@
 void aws_cryptosdk_edk_list_clean_up_harness() {
     struct aws_array_list edk_list;
     /* Precondition: We have a valid list */
-    __CPROVER_assume(aws_cryptosdk_edk_list_is_bounded(&edk_list, NUM_ELEMS));
     ensure_cryptosdk_edk_list_has_allocated_list(&edk_list);
+    __CPROVER_assume(aws_cryptosdk_edk_list_is_bounded(&edk_list, NUM_ELEMS));
     __CPROVER_assume(aws_cryptosdk_edk_list_is_valid(&edk_list));
 
     /* Precondition: The list has valid list elements */
-    __CPROVER_assume(aws_cryptosdk_edk_list_elements_are_bounded(&edk_list, SIZE_MAX));
     ensure_cryptosdk_edk_list_has_allocated_list_elements(&edk_list);
+    __CPROVER_assume(aws_cryptosdk_edk_list_elements_are_bounded(&edk_list, SIZE_MAX));
     __CPROVER_assume(aws_cryptosdk_edk_list_elements_are_valid(&edk_list));
 
     aws_cryptosdk_edk_list_clean_up(&edk_list);

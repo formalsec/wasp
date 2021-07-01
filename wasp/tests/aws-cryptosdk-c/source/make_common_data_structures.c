@@ -49,9 +49,10 @@ bool aws_byte_buf_has_allocator(const struct aws_byte_buf *const buf) {
 
 void ensure_byte_buf_has_allocated_buffer_member(struct aws_byte_buf *buf) {
     buf->capacity = 16;
+    buf->len = 2;
     buf->allocator = can_fail_allocator();
     buf->buffer = malloc(sizeof(uint8_t) * buf->capacity);
-    for (size_t i = 0; i < buf->capacity; ++i) {
+    for (size_t i = 0; i < buf->len; ++i) {
       uint8_t c = __VERIFIER_nondet_uchar("buf_char");
       if (c == '\0') c = c + 1;
       buf->buffer[i] = c;
@@ -393,14 +394,12 @@ bool aws_cryptosdk_edk_list_elements_are_bounded(const struct aws_array_list *co
 
 void ensure_cryptosdk_edk_list_has_allocated_list(struct aws_array_list *list) {
     if (list != NULL) {
-        if (list->current_size == 0) {
-            __CPROVER_assume(list->data == NULL);
-            list->alloc = can_fail_allocator();
-        } else {
-            size_t max_length = list->current_size / sizeof(struct aws_cryptosdk_edk);
-            list->data        = bounded_malloc(sizeof(struct aws_cryptosdk_edk) * max_length);
-            list->alloc       = nondet_bool() ? NULL : can_fail_allocator();
-        }
+        // set some current size
+        list->current_size = (NUM_ELEMS) * sizeof(struct aws_cryptosdk_edk);
+        list->length = NUM_ELEMS;
+        list->item_size = sizeof(struct aws_cryptosdk_edk);
+        list->data = bounded_malloc(sizeof(struct aws_cryptosdk_edk) * list->length);
+        list->alloc = can_fail_allocator();
     }
 }
 
@@ -488,8 +487,8 @@ enum aws_cryptosdk_sha_version aws_cryptosdk_which_sha(enum aws_cryptosdk_alg_id
 void ensure_cryptosdk_keyring_has_allocated_members(
     struct aws_cryptosdk_keyring *keyring, const struct aws_cryptosdk_keyring_vt *vtable) {
     if (keyring) {
-        keyring->refcount.value = malloc(sizeof(size_t));
-        keyring->vtable         = nondet_bool() ? NULL : vtable;
+        aws_atomic_store_int(&keyring->refcount, 1);
+        keyring->vtable         = vtable;
     }
 }
 
