@@ -5,6 +5,8 @@
 #include "assert.h"
 #include <sys/types.h>
 
+void abort(void);
+
 void *alloca(size_t);
 
 void *calloc(size_t, size_t);

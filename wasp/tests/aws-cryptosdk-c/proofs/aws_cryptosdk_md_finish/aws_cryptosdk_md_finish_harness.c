@@ -25,26 +25,23 @@
 void aws_cryptosdk_md_finish_harness() {
     /* arguments */
     struct aws_cryptosdk_md_context *md_context = can_fail_malloc(sizeof(struct aws_cryptosdk_md_context));
-    size_t length;
-    size_t buf_size;
+    size_t length = __VERIFIER_nondet_uchar("length");
+    size_t buf_size = __VERIFIER_nondet_uchar("buf_size");
     void *buf = can_fail_malloc(buf_size);
 
     /* assumptions */
-    __CPROVER_assume(md_context);
+    assume(md_context);
     ensure_md_context_has_allocated_members(md_context);
-    __CPROVER_assume(evp_md_ctx_get0_evp_pkey(md_context->evp_md_ctx) == NULL);
-    __CPROVER_assume(aws_cryptosdk_md_context_is_valid_cbmc(md_context));
-    __CPROVER_assume(buf);
+    assume(evp_md_ctx_get0_evp_pkey(md_context->evp_md_ctx) == NULL);
+    assume(aws_cryptosdk_md_context_is_valid_cbmc(md_context));
+    assume(buf);
     size_t digest_size = evp_md_ctx_get_digest_size(md_context->evp_md_ctx);
-    __CPROVER_assume(length >= digest_size);
-    __CPROVER_assume(buf_size >= length);
+    assume(length >= digest_size);
+    assume(buf_size >= length);
 
     /* operation under verification */
-    if (aws_cryptosdk_md_finish(md_context, buf, &length) == AWS_OP_SUCCESS) {
-        assert(length == digest_size);
-    } else {
-        assert(length == 0);
-    }
+    assert(aws_cryptosdk_md_finish(md_context, buf, &length) == AWS_OP_SUCCESS);
+    assert(length == digest_size);
 
     assert(AWS_MEM_IS_READABLE(buf, length));
 

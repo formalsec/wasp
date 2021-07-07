@@ -129,7 +129,7 @@ $(BUILD_DIR)/source/%.o: $(BUILD_DIR)/source/%.bc
 $(BUILD_DIR)/stubs/%.bc: $(STUBS)/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@..."
-	@$(CC) $(CFLAGS) -o $@ $< > /dev/null 2>&1
+	@$(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/stubs/%.o: $(BUILD_DIR)/stubs/%.bc
 	@echo "Building $@..."
@@ -137,4 +137,4 @@ $(BUILD_DIR)/stubs/%.o: $(BUILD_DIR)/stubs/%.bc
 	@$(LLC) $(LLC_FLAGS) $< -o $@
 
 clean:
-	@echo "$(RM) $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat)"; $(RM) $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat)
+	@echo "$(RM) -rf $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat) $(BUILD_DIR)/{lib,source,stubs}"; $(RM) -rf $(BUILD_DIR)/tests/$(HARNESS_FILE:.c=.wat) $(BUILD_DIR)/{lib,source,stubs}

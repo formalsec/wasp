@@ -1,9 +1,12 @@
+#include "assert.h"
 #include <limits.h>
 #include <errno.h>
 #include <ctype.h>
 #include <stdlib.h>
 
 #define ABS_LONG_MIN 2147483648UL
+
+void abort(void) { assume(0); }
 
 extern unsigned char __heap_base;
 unsigned int bump_pointer = &__heap_base;

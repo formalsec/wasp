@@ -19,6 +19,14 @@
 #include <make_common_data_structures.h>
 #include <proof_helpers/make_common_data_structures.h>
 
+#ifndef MAX_BUFFER_SIZE
+#define MAX_BUFFER_SIZE 1028
+#endif
+
+#ifndef MAX_STRING_LEN
+#define MAX_STRING_LEN 16
+#endif
+
 #ifndef MAX_EDK_LIST_ITEMS
 #define MAX_EDK_LIST_ITEMS 2
 #endif

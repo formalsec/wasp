@@ -877,11 +877,6 @@ int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt) {
     assert(d);
     assert(AWS_MEM_IS_READABLE(d, cnt));
 
-    if (nondet_bool()) {
-        ctx->is_initialized = false;
-        return 0;
-    }
-
     return 1;
 }
 
@@ -900,13 +895,6 @@ int EVP_DigestFinal_ex(EVP_MD_CTX *ctx, unsigned char *md, unsigned int *s) {
 
     write_unconstrained_data(md, ctx->digest_size);
     ctx->is_initialized = false;
-
-    if (nondet_bool()) {
-        // Something went wrong, can't guarantee *s will have the correct value
-        unsigned int garbage;
-        if (s) *s = garbage;
-        return 0;
-    }
 
     if (s) *s = ctx->digest_size;
 

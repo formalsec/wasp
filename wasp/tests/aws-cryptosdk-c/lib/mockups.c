@@ -1,6 +1,5 @@
 #include "assert.h"
 
-void abort (void) { assume(0); }
 void exit (int e) { assert(1); }
 void __assert_fail(const char *id, const char *file,
     unsigned int i, const char *func) {
