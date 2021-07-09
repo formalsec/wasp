@@ -34,16 +34,16 @@ void aws_cryptosdk_keyring_trace_add_record_c_str_harness() {
     const char *c_str_name      = ensure_c_str_is_allocated(MAX_STRING_LEN);
     uint32_t flags;
 
-    __CPROVER_assume(
-        aws_array_list_is_bounded(&trace, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(&trace);
-    __CPROVER_assume(aws_array_list_is_valid(&trace));
     ensure_trace_has_allocated_records(&trace, MAX_STRING_LEN);
-    __CPROVER_assume(aws_cryptosdk_keyring_trace_is_valid(&trace));
+    assert(
+        aws_array_list_is_bounded(&trace, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(aws_array_list_is_valid(&trace));
+    assert(aws_cryptosdk_keyring_trace_is_valid(&trace));
 
-    __CPROVER_assume(aws_c_string_is_valid(c_str_namespace));
-    __CPROVER_assume(aws_c_string_is_valid(c_str_name));
+    assert(aws_c_string_is_valid(c_str_namespace));
+    assert(aws_c_string_is_valid(c_str_name));
 
     struct aws_array_list old = trace;
     struct store_byte_from_buffer old_byte;

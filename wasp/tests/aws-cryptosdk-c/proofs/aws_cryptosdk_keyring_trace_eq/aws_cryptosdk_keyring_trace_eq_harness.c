@@ -29,19 +29,19 @@ void aws_cryptosdk_keyring_trace_eq_harness() {
     struct aws_array_list rhs;
 
     /* assumptions */
-    __CPROVER_assume(aws_array_list_is_bounded(&lhs, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(lhs.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(&lhs);
-    __CPROVER_assume(aws_array_list_is_valid(&lhs));
     ensure_trace_has_allocated_records(&lhs, MAX_STRING_LEN);
-    __CPROVER_assume(aws_cryptosdk_keyring_trace_is_valid(&lhs));
+    assert(aws_array_list_is_bounded(&lhs, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(lhs.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(aws_array_list_is_valid(&lhs));
+    assert(aws_cryptosdk_keyring_trace_is_valid(&lhs));
 
-    __CPROVER_assume(aws_array_list_is_bounded(&rhs, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(rhs.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(&rhs);
-    __CPROVER_assume(aws_array_list_is_valid(&rhs));
     ensure_trace_has_allocated_records(&rhs, MAX_STRING_LEN);
-    __CPROVER_assume(aws_cryptosdk_keyring_trace_is_valid(&rhs));
+    assert(aws_array_list_is_bounded(&rhs, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(rhs.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(aws_array_list_is_valid(&rhs));
+    assert(aws_cryptosdk_keyring_trace_is_valid(&rhs));
 
     /* save current state of the data structure */
     struct aws_array_list old_lhs = lhs;
@@ -55,8 +55,8 @@ void aws_cryptosdk_keyring_trace_eq_harness() {
         /* assertions */
         assert(lhs.length == rhs.length);
         size_t num_records = aws_array_list_length(&lhs);
-        size_t idx;
-        __CPROVER_assume(idx < num_records);
+        size_t idx = 2;
+        assert(idx < num_records);
         struct aws_cryptosdk_keyring_trace_record *lhs_rec;
         struct aws_cryptosdk_keyring_trace_record *rhs_rec;
         aws_array_list_get_at_ptr(&lhs, (void **)&lhs_rec, idx);

@@ -131,17 +131,19 @@ void aws_cryptosdk_edk_list_copy_all_harness() {
     struct aws_array_list *dest = malloc(sizeof(*dest));
     struct aws_array_list *src  = malloc(sizeof(*src));
 
+    ensure_cryptosdk_edk_list_has_allocated_list(dest);
+    ensure_cryptosdk_edk_list_has_allocated_list(src);
+
     /* Assumptions */
     __CPROVER_assume(dest != NULL);
     __CPROVER_assume(aws_array_list_is_bounded(dest, NUM_ELEMS, sizeof(struct aws_cryptosdk_edk)));
     __CPROVER_assume(dest->item_size == sizeof(struct aws_cryptosdk_edk));
-    ensure_array_list_has_allocated_data_member(dest);
     __CPROVER_assume(aws_array_list_is_valid_deep(dest));
 
     __CPROVER_assume(src != NULL);
+    ensure_cryptosdk_edk_list_has_allocated_list_elements(src);
     __CPROVER_assume(aws_array_list_is_bounded(src, NUM_ELEMS, sizeof(struct aws_cryptosdk_edk)));
     __CPROVER_assume(src->item_size == sizeof(struct aws_cryptosdk_edk));
-    ensure_array_list_has_allocated_data_member(src);
     __CPROVER_assume(aws_array_list_is_valid_deep(src));
 
     const struct aws_array_list old_dest = *dest;

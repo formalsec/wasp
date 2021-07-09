@@ -19,7 +19,7 @@
 void aws_cryptosdk_keyring_retain_harness() {
     /* Non-deterministic inputs. */
     const struct aws_cryptosdk_keyring_vt vtable = { .vt_size    = sizeof(struct aws_cryptosdk_keyring_vt),
-                                                     .name       = ensure_c_str_is_allocated(SIZE_MAX),
+                                                     .name       = ensure_c_str_is_allocated(16),
                                                      .destroy    = nondet_voidp(),
                                                      .on_encrypt = nondet_voidp(),
                                                      .on_decrypt = nondet_voidp() };
@@ -27,9 +27,9 @@ void aws_cryptosdk_keyring_retain_harness() {
     ensure_cryptosdk_keyring_has_allocated_members(&keyring, &vtable);
 
     /* Pre-conditions. */
-    __CPROVER_assume(aws_cryptosdk_keyring_is_valid(&keyring));
-    __CPROVER_assume(aws_atomic_var_is_valid_int(&keyring.refcount));
-    __CPROVER_assume(aws_atomic_load_int(&keyring.refcount) < SIZE_MAX);
+    assert(aws_cryptosdk_keyring_is_valid(&keyring));
+    assert(aws_atomic_var_is_valid_int(&keyring.refcount));
+    assert(aws_atomic_load_int(&keyring.refcount) < SIZE_MAX);
 
     /* Save previous reference count. */
     size_t prev_refcount = aws_atomic_load_int(&keyring.refcount);

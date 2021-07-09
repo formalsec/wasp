@@ -25,7 +25,7 @@
 
 void aws_cryptosdk_enc_materials_new_harness() {
     /* Non-deterministic inputs. */
-    struct aws_allocator *alloc = nondet_bool() ? NULL : can_fail_allocator();
+    struct aws_allocator *alloc = can_fail_allocator();
     enum aws_cryptosdk_alg_id alg;
 
     /* Pre-condition. */

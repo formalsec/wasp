@@ -23,11 +23,12 @@ void aws_cryptosdk_keyring_trace_init_harness() {
     struct aws_allocator *alloc = can_fail_allocator(); /* Precondition: alloc must be non-null */
     struct aws_array_list trace;                        /* Precondition: trace must be non-null */
 
-    if (aws_cryptosdk_keyring_trace_init(alloc, &trace) == AWS_OP_SUCCESS) {
-        /* assertions */
-        assert(aws_array_list_is_valid(&trace));
-        assert(trace.alloc == alloc);
-        assert(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
-        assert(trace.length == 0);
-    }
+    int rv = aws_cryptosdk_keyring_trace_init(alloc, &trace);
+    assert(rv == AWS_OP_SUCCESS);
+
+    /* assertions */
+    assert(aws_array_list_is_valid(&trace));
+    assert(trace.alloc == alloc);
+    assert(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(trace.length == 0);
 }

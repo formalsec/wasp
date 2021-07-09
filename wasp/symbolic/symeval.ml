@@ -459,10 +459,12 @@ let rec sym_step (c : sym_config) : sym_config =
           else 
             match simplify ex with
             | Value (I32 v) when not (v = 0l) -> []
+            | Ptr   (I32 v) when not (v = 0l) -> []
             | ex' ->
-              let c = negate_relop (Option.get (to_constraint ex')) in
-              let asrt = Formula.to_formula (c :: path_cond) in
-              match Z3Encoding2.check_sat_core asrt with
+              let c = Option.map negate_relop (to_constraint ex') in
+              let assertion = Formula.to_formula (
+                Option.map_default (fun a -> a :: path_cond) path_cond c) in
+              match Z3Encoding2.check_sat_core assertion with
               | None   -> []
               | Some m -> 
                 let li32 = Logicenv.get_vars_by_type I32Type logic_env
@@ -477,7 +479,8 @@ let rec sym_step (c : sym_config) : sym_config =
         vs', es', logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 0l, ex) :: vs' ->
-        debug ">>> Assumed false. Finishing...";
+        debug (">>> Assumed false {line> " ^ (Source.string_of_pos e.at.left) ^
+          "}. Finishing...");
         (* Negate expression because it is false *)
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
         let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in

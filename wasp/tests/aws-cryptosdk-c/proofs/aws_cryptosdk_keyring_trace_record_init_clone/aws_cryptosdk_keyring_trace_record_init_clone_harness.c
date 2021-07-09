@@ -24,22 +24,16 @@ void aws_cryptosdk_keyring_trace_record_init_clone_harness() {
     struct aws_allocator *alloc = can_fail_allocator();      /* Precondition: alloc must be non-null */
 
     source_record.wrapping_key_namespace = ensure_string_is_allocated_nondet_length();
-    __CPROVER_assume(aws_string_is_valid(source_record.wrapping_key_namespace));
-    __CPROVER_assume(source_record.wrapping_key_namespace->len <= MAX_STRING_LEN);
+    assume(aws_string_is_valid(source_record.wrapping_key_namespace));
+    assume(source_record.wrapping_key_namespace->len <= MAX_STRING_LEN);
 
     source_record.wrapping_key_name = ensure_string_is_allocated_nondet_length();
-    __CPROVER_assume(aws_string_is_valid(source_record.wrapping_key_name));
-    __CPROVER_assume(source_record.wrapping_key_name->len <= MAX_STRING_LEN);
+    assume(aws_string_is_valid(source_record.wrapping_key_name));
+    assume(source_record.wrapping_key_name->len <= MAX_STRING_LEN);
 
-    if (aws_cryptosdk_keyring_trace_record_init_clone(alloc, &dest_record, &source_record) == AWS_OP_SUCCESS) {
-        /* assertions */
-        assert(aws_string_eq(source_record.wrapping_key_namespace, dest_record.wrapping_key_namespace));
-        assert(aws_string_eq(source_record.wrapping_key_name, dest_record.wrapping_key_name));
-        assert(source_record.flags == dest_record.flags);
-    } else {
-        /* assertions */
-        assert(dest_record.flags == 0);
-        assert(dest_record.wrapping_key_name == NULL);
-        assert(dest_record.wrapping_key_namespace == NULL);
-    }
+
+    assert(aws_cryptosdk_keyring_trace_record_init_clone(alloc, &dest_record, &source_record) == AWS_OP_SUCCESS);
+    assert(aws_string_eq(source_record.wrapping_key_namespace, dest_record.wrapping_key_namespace));
+    assert(aws_string_eq(source_record.wrapping_key_name, dest_record.wrapping_key_name));
+    assert(source_record.flags == dest_record.flags);
 }

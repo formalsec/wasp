@@ -21,5 +21,5 @@ void aws_cryptosdk_enc_ctx_init_harness() {
     struct aws_allocator *alloc = can_fail_allocator();
     struct aws_hash_table enc_ctx;
 
-    aws_cryptosdk_enc_ctx_init(alloc, &enc_ctx);
+    assert(!aws_cryptosdk_enc_ctx_init(alloc, &enc_ctx));
 }

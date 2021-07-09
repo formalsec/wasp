@@ -25,15 +25,15 @@
 void aws_cryptosdk_md_update_harness() {
     /* arguments */
     struct aws_cryptosdk_md_context *md_context = can_fail_malloc(sizeof(*md_context));
-    size_t length;
+    size_t length = __VERIFIER_nondet_uchar("length");
     void *buf = can_fail_malloc(length);
 
     /* assumptions */
-    __CPROVER_assume(md_context);
+    assume(md_context);
     ensure_md_context_has_allocated_members(md_context);
-    __CPROVER_assume(evp_md_ctx_get0_evp_pkey(md_context->evp_md_ctx) == NULL);
-    __CPROVER_assume(aws_cryptosdk_md_context_is_valid_cbmc(md_context));
-    __CPROVER_assume(buf);
+    assume(evp_md_ctx_get0_evp_pkey(md_context->evp_md_ctx) == NULL);
+    assume(aws_cryptosdk_md_context_is_valid_cbmc(md_context));
+    assume(buf);
 
     struct store_byte_from_buffer old_byte;
     save_byte_from_array(buf, length, &old_byte);

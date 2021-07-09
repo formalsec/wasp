@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include <aws/common/atomics.h>
 #include <aws/cryptosdk/materials.h>
 #include <proof_helpers/cryptosdk/make_common_data_structures.h>
 #include <proof_helpers/make_common_data_structures.h>
@@ -24,13 +25,14 @@
 
 void aws_cryptosdk_cmm_retain_harness() {
     const struct aws_cryptosdk_cmm_vt vtable = { .vt_size                = sizeof(struct aws_cryptosdk_cmm_vt),
-                                                 .name                   = ensure_c_str_is_allocated(SIZE_MAX),
+                                                 .name                   = ensure_c_str_is_allocated(6),
                                                  .destroy                = nondet_voidp(),
                                                  .generate_enc_materials = nondet_voidp(),
                                                  .decrypt_materials      = nondet_voidp() };
     __CPROVER_assume(aws_cryptosdk_cmm_vtable_is_valid(&vtable));
 
     struct aws_cryptosdk_cmm cmm;  // Precondition: non-null
+    aws_atomic_store_int(&cmm.refcount, 1);
     cmm.vtable = &vtable;
     __CPROVER_assume(aws_cryptosdk_cmm_base_is_valid(&cmm));
     __CPROVER_assume(AWS_ATOMIC_VAR_INTVAL(&cmm.refcount) < SIZE_MAX);

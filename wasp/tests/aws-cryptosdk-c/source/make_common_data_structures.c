@@ -39,6 +39,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+extern int __VERIFIER_nondet_int(char *);
+
+#ifndef NUM_ELEMS
+#define NUM_ELEMS 2
+#endif
+
 bool aws_byte_buf_is_bounded(const struct aws_byte_buf *const buf, const size_t max_size) {
     return (buf->capacity <= max_size);
 }
@@ -49,9 +55,10 @@ bool aws_byte_buf_has_allocator(const struct aws_byte_buf *const buf) {
 
 void ensure_byte_buf_has_allocated_buffer_member(struct aws_byte_buf *buf) {
     buf->capacity = 16;
+    buf->len = 2;
     buf->allocator = can_fail_allocator();
     buf->buffer = malloc(sizeof(uint8_t) * buf->capacity);
-    for (size_t i = 0; i < buf->capacity; ++i) {
+    for (size_t i = 0; i < buf->len; ++i) {
       uint8_t c = __VERIFIER_nondet_uchar("buf_char");
       if (c == '\0') c = c + 1;
       buf->buffer[i] = c;
@@ -134,8 +141,11 @@ bool aws_array_list_is_bounded(
 }
 
 void ensure_array_list_has_allocated_data_member(struct aws_array_list *const list) {
+    list->item_size = sizeof(struct aws_cryptosdk_keyring_trace_record);
+    list->current_size = (NUM_ELEMS) * list->item_size;
+    list->length = NUM_ELEMS;
     list->data = can_fail_malloc(list->current_size);
-    list->alloc = nondet_bool() ? NULL : can_fail_allocator();
+    list->alloc = can_fail_allocator();
 }
 
 void ensure_linked_list_is_allocated(struct aws_linked_list *const list, size_t max_length) {
@@ -183,7 +193,7 @@ void ensure_allocated_hash_table(struct aws_hash_table *map, size_t max_table_en
     if (map == NULL) {
         return;
     }
-    size_t num_entries;
+    size_t num_entries = __VERIFIER_nondet_int("num_entires");
     __CPROVER_assume(num_entries <= max_table_entries);
     __CPROVER_assume(aws_is_power_of_two(num_entries));
 
@@ -199,8 +209,8 @@ void ensure_allocated_hash_table(struct aws_hash_table *map, size_t max_table_en
 }
 
 void ensure_hash_table_has_valid_destroy_functions(struct aws_hash_table *map) {
-    map->p_impl->destroy_key_fn = nondet_bool() ? NULL : hash_proof_destroy_noop;
-    map->p_impl->destroy_value_fn = nondet_bool() ? NULL : hash_proof_destroy_noop;
+    map->p_impl->destroy_key_fn = hash_proof_destroy_noop;
+    map->p_impl->destroy_value_fn = hash_proof_destroy_noop;
 }
 
 bool aws_hash_table_has_an_empty_slot(const struct aws_hash_table *const map, size_t *const rval) {
@@ -242,9 +252,9 @@ struct aws_string *ensure_string_is_allocated(size_t len) {
         *(struct aws_allocator **)(&str->allocator) = can_fail_allocator();
         *(size_t *)(&str->len) = len;
         for (size_t i = 0; i < len; ++i) {
-          char c = __VERIFIER_nondet_char("char");
-          if (c == '\0') c = c + 1;
-          *(uint8_t *)&str->bytes[i] = c;
+            char c = __VERIFIER_nondet_char("char");
+            if (c == '\0') c = c + 1;
+            *(uint8_t *)&str->bytes[i] = c;
         }
         *(uint8_t *)&str->bytes[len] = '\0';
     }
@@ -252,15 +262,25 @@ struct aws_string *ensure_string_is_allocated(size_t len) {
 }
 
 const char *ensure_c_str_is_allocated(size_t max_size) {
-    size_t i;
+    /* Pre-conditions. */
+    __CPROVER_assume(max_size + 1 <= MAX_MALLOC);
+
     char *str = bounded_malloc(max_size + 1);
+
+    if (str == NULL) {
+        return NULL;
+    }
+
+    size_t i;
     for (i = 0; i < max_size; ++i) {
         char c = __VERIFIER_nondet_char("char");
         if (c == '\0') c = c + 1;
         str[i] = c;
     }
     str[i] = '\0';
-    __CPROVER_assume(IMPLIES(str != NULL, str[max_size] == '\0'));
+
+    /* Post-conditions. */
+    assert(IMPLIES(str != NULL, str[max_size] == '\0'));
     return str;
 }
 
@@ -329,8 +349,15 @@ void ensure_trace_has_allocated_records(struct aws_array_list *trace, size_t max
 }
 
 void ensure_md_context_has_allocated_members(struct aws_cryptosdk_md_context *ctx) {
-    ctx->alloc      = nondet_bool() ? NULL : can_fail_allocator();
-    ctx->evp_md_ctx = evp_md_ctx_nondet_alloc();
+    ctx->alloc      = can_fail_allocator();
+
+    EVP_MD_CTX *md_ctx = can_fail_malloc(sizeof(EVP_MD_CTX));
+    if (md_ctx) {
+        md_ctx->is_initialized = true;
+        md_ctx->pkey           = NULL;
+        md_ctx->digest_size    = __VERIFIER_nondet_uchar("digest_size");
+    }
+    ctx->evp_md_ctx = md_ctx;
 }
 
 struct aws_cryptosdk_sig_ctx *ensure_nondet_sig_ctx_has_allocated_members() {
@@ -393,14 +420,12 @@ bool aws_cryptosdk_edk_list_elements_are_bounded(const struct aws_array_list *co
 
 void ensure_cryptosdk_edk_list_has_allocated_list(struct aws_array_list *list) {
     if (list != NULL) {
-        if (list->current_size == 0) {
-            __CPROVER_assume(list->data == NULL);
-            list->alloc = can_fail_allocator();
-        } else {
-            size_t max_length = list->current_size / sizeof(struct aws_cryptosdk_edk);
-            list->data        = bounded_malloc(sizeof(struct aws_cryptosdk_edk) * max_length);
-            list->alloc       = nondet_bool() ? NULL : can_fail_allocator();
-        }
+        // set some current size
+        list->current_size = (NUM_ELEMS) * sizeof(struct aws_cryptosdk_edk);
+        list->length = NUM_ELEMS;
+        list->item_size = sizeof(struct aws_cryptosdk_edk);
+        list->data = bounded_malloc(sizeof(struct aws_cryptosdk_edk) * list->length);
+        list->alloc = can_fail_allocator();
     }
 }
 
@@ -488,13 +513,15 @@ enum aws_cryptosdk_sha_version aws_cryptosdk_which_sha(enum aws_cryptosdk_alg_id
 void ensure_cryptosdk_keyring_has_allocated_members(
     struct aws_cryptosdk_keyring *keyring, const struct aws_cryptosdk_keyring_vt *vtable) {
     if (keyring) {
-        keyring->refcount.value = malloc(sizeof(size_t));
-        keyring->vtable         = nondet_bool() ? NULL : vtable;
+        /* TODO: symbolic refcount */
+        keyring->vtable = vtable;
+        aws_atomic_init_int(&keyring->refcount, 1);
     }
 }
 
 void ensure_nondet_allocate_keyring_vtable_members(struct aws_cryptosdk_keyring_vt *vtable, size_t max_len) {
     if (vtable) {
+        vtable->vt_size = sizeof(struct aws_cryptosdk_keyring_vt);
         vtable->name = ensure_c_str_is_allocated(max_len);
     }
 }

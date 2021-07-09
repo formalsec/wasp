@@ -24,7 +24,7 @@ void aws_cryptosdk_keyring_trace_record_clean_up_harness() {
     struct aws_cryptosdk_keyring_trace_record record; /* Precondition: record is non-null */
 
     ensure_record_has_allocated_members(&record, MAX_STRING_LEN);
-    __CPROVER_assume(aws_cryptosdk_keyring_trace_record_is_valid(&record));
+    assume(aws_cryptosdk_keyring_trace_record_is_valid(&record));
 
     aws_cryptosdk_keyring_trace_record_clean_up(&record);
     assert(record.flags == 0);

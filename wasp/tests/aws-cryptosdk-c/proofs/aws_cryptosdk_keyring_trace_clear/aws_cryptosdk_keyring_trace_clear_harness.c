@@ -26,14 +26,15 @@ void aws_cryptosdk_keyring_trace_clear_harness() {
     /* data structure */
     struct aws_array_list trace;
 
-    /* assumptions */
-    __CPROVER_assume(
-        aws_array_list_is_bounded(&trace, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(&trace);
-    __CPROVER_assume(aws_array_list_is_valid(&trace));
     ensure_trace_has_allocated_records(&trace, MAX_STRING_LEN);
-    __CPROVER_assume(aws_cryptosdk_keyring_trace_is_valid(&trace));
+
+    /* assumptions */
+    assert(
+        aws_array_list_is_bounded(&trace, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(aws_array_list_is_valid(&trace));
+    assert(aws_cryptosdk_keyring_trace_is_valid(&trace));
 
     /* save current state of the data structure */
     struct aws_array_list old = trace;

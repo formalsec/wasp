@@ -29,21 +29,21 @@ void aws_cryptosdk_keyring_trace_add_record_buf_harness() {
     struct aws_byte_buf name;
     uint32_t flags;
 
-    __CPROVER_assume(
-        aws_array_list_is_bounded(&trace, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(&trace);
-    __CPROVER_assume(aws_array_list_is_valid(&trace));
     ensure_trace_has_allocated_records(&trace, MAX_STRING_LEN);
-    __CPROVER_assume(aws_cryptosdk_keyring_trace_is_valid(&trace));
+    assert(
+        aws_array_list_is_bounded(&trace, MAX_ITEM_SIZE, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(trace.item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(aws_array_list_is_valid(&trace));
+    assert(aws_cryptosdk_keyring_trace_is_valid(&trace));
 
-    __CPROVER_assume(aws_byte_buf_is_bounded(&namespace, MAX_BUFFER_SIZE));
     ensure_byte_buf_has_allocated_buffer_member(&namespace);
-    __CPROVER_assume(aws_byte_buf_is_valid(&namespace));
+    assert(aws_byte_buf_is_bounded(&namespace, MAX_BUFFER_SIZE));
+    assert(aws_byte_buf_is_valid(&namespace));
 
-    __CPROVER_assume(aws_byte_buf_is_bounded(&name, MAX_BUFFER_SIZE));
     ensure_byte_buf_has_allocated_buffer_member(&name);
-    __CPROVER_assume(aws_byte_buf_is_valid(&name));
+    assert(aws_byte_buf_is_bounded(&name, MAX_BUFFER_SIZE));
+    assert(aws_byte_buf_is_valid(&name));
 
     struct aws_array_list old = trace;
     struct store_byte_from_buffer old_byte;

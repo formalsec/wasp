@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+
 /* Allocates alg_properties members and ensures that internal pointers are pointing to the correct objects. */
 struct aws_cryptosdk_alg_properties *ensure_alg_properties_attempt_allocation(const size_t max_len);
 

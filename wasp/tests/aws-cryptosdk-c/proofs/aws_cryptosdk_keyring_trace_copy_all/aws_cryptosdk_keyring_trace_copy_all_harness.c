@@ -117,20 +117,20 @@ void aws_cryptosdk_keyring_trace_copy_all_harness() {
     struct aws_array_list *dest = malloc(sizeof(*dest));
     struct aws_array_list *src  = malloc(sizeof(*src));
 
-    /* Assumptions */
-    __CPROVER_assume(dest != NULL);
-    __CPROVER_assume(aws_array_list_is_bounded(dest, NUM_ELEMS, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(dest->item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(dest);
-    __CPROVER_assume(stub_array_list_is_valid_deep(dest));
-    __CPROVER_assume(stub_trace_is_valid(dest));
+    /* Assumptions */
+    assert(dest != NULL);
+    assert(aws_array_list_is_bounded(dest, NUM_ELEMS, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(dest->item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(stub_array_list_is_valid_deep(dest));
+    assert(stub_trace_is_valid(dest));
 
-    __CPROVER_assume(src != NULL);
-    __CPROVER_assume(aws_array_list_is_bounded(src, NUM_ELEMS, sizeof(struct aws_cryptosdk_keyring_trace_record)));
-    __CPROVER_assume(src->item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
     ensure_array_list_has_allocated_data_member(src);
-    __CPROVER_assume(stub_array_list_is_valid_deep(src));
-    __CPROVER_assume(stub_trace_is_valid(src));
+    assert(src != NULL);
+    assert(aws_array_list_is_bounded(src, NUM_ELEMS, sizeof(struct aws_cryptosdk_keyring_trace_record)));
+    assert(src->item_size == sizeof(struct aws_cryptosdk_keyring_trace_record));
+    assert(stub_array_list_is_valid_deep(src));
+    assert(stub_trace_is_valid(src));
 
     const struct aws_array_list old_dest = *dest;
     const struct aws_array_list old_src  = *src;

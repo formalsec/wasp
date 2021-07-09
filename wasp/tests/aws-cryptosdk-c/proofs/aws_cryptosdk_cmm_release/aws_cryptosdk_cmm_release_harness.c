@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include <aws/common/atomics.h>
 #include <aws/cryptosdk/materials.h>
 #include <proof_helpers/cryptosdk/make_common_data_structures.h>
 #include <proof_helpers/make_common_data_structures.h>
@@ -30,8 +31,8 @@ void destroy(struct aws_cryptosdk_cmm *cmm) {
 
 void aws_cryptosdk_cmm_release_harness() {
     const struct aws_cryptosdk_cmm_vt vtable = { .vt_size                = sizeof(struct aws_cryptosdk_cmm_vt),
-                                                 .name                   = ensure_c_str_is_allocated(SIZE_MAX),
-                                                 .destroy                = nondet_bool() ? destroy : NULL,
+                                                 .name                   = ensure_c_str_is_allocated(6),
+                                                 .destroy                = destroy,
                                                  .generate_enc_materials = nondet_voidp(),
                                                  .decrypt_materials      = nondet_voidp() };
     __CPROVER_assume(aws_cryptosdk_cmm_vtable_is_valid(&vtable));
@@ -39,6 +40,7 @@ void aws_cryptosdk_cmm_release_harness() {
     struct aws_cryptosdk_cmm *cmm = can_fail_malloc(sizeof(struct aws_cryptosdk_cmm));
 
     if (cmm) {
+        aws_atomic_store_int(&cmm->refcount, 1);
         cmm->vtable = &vtable;
         __CPROVER_assume(aws_cryptosdk_cmm_base_is_valid(cmm));
     }

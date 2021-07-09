@@ -2,7 +2,8 @@ open Si32
 open Types
 open Values
 
-type symbolic = SymInt32 | SymInt64 | SymFloat32 | SymFloat64
+type symbolic = SymInt8 | SymInt16 | SymInt32 | SymInt64 | 
+                SymFloat32 | SymFloat64
 
 type sym_expr =
   (* Value *)
@@ -41,6 +42,8 @@ type sym_value = value * sym_expr
 type path_conditions = sym_expr list
 
 let type_of_symbolic = function
+  | SymInt8    -> I32Type
+  | SymInt16   -> I32Type
   | SymInt32   -> I32Type
   | SymInt64   -> I64Type
   | SymFloat32 -> F32Type
@@ -171,6 +174,8 @@ let rec get_symbols (e : sym_expr) : (string * symbolic) list =
 (*  String representation of an symbolic types  *)
 let string_of_symbolic (op : symbolic) : string =
   begin match op with 
+  | SymInt8    -> "SymInt8"
+  | SymInt16   -> "SymInt16"
 	| SymInt32   -> "SymInt32"
 	| SymInt64   -> "SymInt64"
 	| SymFloat32 -> "SymFloat32"

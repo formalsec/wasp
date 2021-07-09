@@ -16,6 +16,8 @@
 #include <make_common_data_structures.h>
 #include <openssl/rand.h>
 
+extern int __VERIFIER_nondet_int(char *);
+
 /*
  * RAND_bytes() puts num cryptographically strong pseudo-random bytes into buf.
  * An error occurs if the PRNG has not been seeded with enough randomness to ensure an unpredictable byte sequence.
@@ -23,7 +25,8 @@
  */
 int RAND_bytes(unsigned char *buf, size_t num) {
     assert(AWS_MEM_IS_WRITABLE(buf, num));
-    int rv;
-    __CPROVER_assume(rv == 0 || rv == 1);
+
+    int rv = __VERIFIER_nondet_int("rv");
+    __CPROVER_assume((rv == 0) || (rv == 1));
     return rv;
 }
