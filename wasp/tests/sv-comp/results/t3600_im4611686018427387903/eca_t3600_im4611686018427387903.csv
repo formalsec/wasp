@@ -1,0 +1,8 @@
+test,answer,verdict,complete,time
+tests/sv-comp/_build/psyco/psyco_abp_1-1.wat,Timeout,False,False,3600.13
+tests/sv-comp/_build/psyco/psyco_abp_1-2.wat,Timeout,True,False,3600.12
+tests/sv-comp/_build/psyco/psyco_abp_1-3.wat,Timeout,True,False,3600.11
+tests/sv-comp/_build/psyco/psyco_accelerometer_1.wat,Timeout,True,False,3600.13
+tests/sv-comp/_build/psyco/psyco_security.wat,Timeout,True,False,3600.14
+tests/sv-comp/_build/psyco/psyco_io_1.wat,Timeout,True,False,3600.42
+tests/sv-comp/_build/psyco/psyco_math_1.wat,Timeout,True,False,3600.48

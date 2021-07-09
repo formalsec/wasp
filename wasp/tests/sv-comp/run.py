@@ -10,6 +10,7 @@ num_threads = 1
 root_dir = '_build'
 # populate with dirs to skip
 ignore = []
+
 tests = {
         'array' : [
             (f'{root_dir}/array-cav19', 'unreach-call'),
