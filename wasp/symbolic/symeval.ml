@@ -120,6 +120,9 @@ let lines_total = ref []
 
 let incomplete  = ref false
 
+(* Time statistics *)
+let solver_time = ref 0.
+
 let chunk_table = Hashtbl.create 512
 
 (* Helpers *)
@@ -438,7 +441,10 @@ let rec sym_step (c : sym_config) : sym_config =
             let c = Option.map negate_relop (to_constraint (simplify ex)) in
             let assertion = Formula.to_formula (
               Option.map_default (fun a -> a :: path_cond) path_cond c) in
-            match Z3Encoding2.check_sat_core assertion with
+            let start = Sys.time () in
+            let model = Z3Encoding2.check_sat_core assertion in
+            solver_time := !solver_time +. ((Sys.time ()) -. start);
+            match model with
             | None   -> []
             | Some m ->
               let li32 = Logicenv.get_vars_by_type I32Type logic_env
@@ -464,7 +470,10 @@ let rec sym_step (c : sym_config) : sym_config =
               let c = Option.map negate_relop (to_constraint ex') in
               let assertion = Formula.to_formula (
                 Option.map_default (fun a -> a :: path_cond) path_cond c) in
-              match Z3Encoding2.check_sat_core assertion with
+              let start = Sys.time () in
+              let model = Z3Encoding2.check_sat_core assertion in
+              solver_time := !solver_time +. ((Sys.time ()) -. start);
+              match model with
               | None   -> []
               | Some m -> 
                 let li32 = Logicenv.get_vars_by_type I32Type logic_env
@@ -794,7 +803,6 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   (* Assume constraints are stored here *)
   let finish_constraints = Constraints.create in
   (* Concolic execution *)
-  let global_time = ref 0. in
   let rec loop global_pc =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
@@ -830,7 +838,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     let start = Sys.time () in
     let opt_model = Z3Encoding2.check_sat_core global_pc in
     let curr_time = (Sys.time ()) -. start in
-    global_time := !global_time +. curr_time;
+    solver_time := !solver_time +. curr_time;
+
 
     let model = try Option.get opt_model with _ ->
       raise Unsatisfiable in
@@ -871,6 +880,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   in 
 
   debug ((String.make 92 '~') ^ "\n");
+  let loop_start = Sys.time () in
   let spec, reason, wit = try loop (Formula.True) with
     | Unsatisfiable -> 
         debug "Model is no longer satisfiable. All paths have been verified.\n";
@@ -893,7 +903,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
         in false, reason, "{}"
     | e -> raise e
   in
-
+  let loop_time = (Sys.time ()) -. loop_start in
   (* DEBUG: *)
   debug ("\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n" ^
       (Constraints.to_string finish_constraints) ^ "\n");
@@ -904,7 +914,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     "\"reason\" : "              ^ reason                           ^ ", " ^
     "\"witness\" : "             ^ wit                              ^ ", " ^
     "\"coverage\" : \""          ^ (Ranges.range_list !lines_total) ^ "\", " ^
-    "\"solver_time\" : \""       ^ (string_of_float !global_time)   ^ "\", " ^
+    "\"loop_time\" : \""         ^ (string_of_float loop_time)      ^ "\", " ^
+    "\"solver_time\" : \""       ^ (string_of_float !solver_time)   ^ "\", " ^
     "\"paths_explored\" : "      ^ (string_of_int !iterations)      ^ ", " ^
     "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)       ^ ", " ^
     "\"incomplete\" : "            ^ (string_of_bool !incomplete)       ^
