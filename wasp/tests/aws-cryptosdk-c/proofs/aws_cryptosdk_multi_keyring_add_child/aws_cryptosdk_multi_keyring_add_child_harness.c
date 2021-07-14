@@ -23,13 +23,13 @@
 void aws_cryptosdk_multi_keyring_add_child_harness() {
     /* Non-deterministic inputs to initialize a multi_keyring object. */
     const struct aws_cryptosdk_keyring_vt vtable_generator = { .vt_size    = sizeof(struct aws_cryptosdk_keyring_vt),
-                                                               .name       = ensure_c_str_is_allocated(SIZE_MAX),
+                                                               .name       = ensure_c_str_is_allocated(6),
                                                                .destroy    = nondet_voidp(),
                                                                .on_encrypt = nondet_voidp(),
                                                                .on_decrypt = nondet_voidp() };
     struct aws_cryptosdk_keyring generator;
     ensure_cryptosdk_keyring_has_allocated_members(&generator, &vtable_generator);
-    __CPROVER_assume(aws_cryptosdk_keyring_is_valid(&generator));
+    assert(aws_cryptosdk_keyring_is_valid(&generator));
 
     struct aws_allocator *alloc = can_fail_allocator();
 
@@ -40,26 +40,23 @@ void aws_cryptosdk_multi_keyring_add_child_harness() {
      * in the multi_keyring.c file.
      */
     struct multi_keyring *multi = aws_cryptosdk_multi_keyring_new(alloc, &generator);
-    __CPROVER_assume(aws_cryptosdk_multi_keyring_is_valid(multi));
+    assert(aws_cryptosdk_multi_keyring_is_valid(multi));
 
     const struct aws_cryptosdk_keyring_vt vtable_child = { .vt_size    = sizeof(struct aws_cryptosdk_keyring_vt),
-                                                           .name       = ensure_c_str_is_allocated(SIZE_MAX),
+                                                           .name       = ensure_c_str_is_allocated(6),
                                                            .destroy    = nondet_voidp(),
                                                            .on_encrypt = nondet_voidp(),
                                                            .on_decrypt = nondet_voidp() };
     struct aws_cryptosdk_keyring child;
     ensure_cryptosdk_keyring_has_allocated_members(&child, &vtable_child);
-    __CPROVER_assume(aws_cryptosdk_keyring_is_valid(&child));
+    assert(aws_cryptosdk_keyring_is_valid(&child));
 
     /* save current state of the data structure */
     struct aws_array_list old = multi->children;
 
     /* Operation under verification. */
-    if (aws_cryptosdk_multi_keyring_add_child(multi, &child) == AWS_OP_SUCCESS) {
-        assert(multi->children.length == (old.length + 1));
-    } else {
-        assert(multi->children.length == old.length);
-    }
+    assert(aws_cryptosdk_multi_keyring_add_child(multi, &child) == AWS_OP_SUCCESS);
+    assert(multi->children.length == (old.length + 1));
 
     /* Post-conditions. */
     assert(aws_cryptosdk_multi_keyring_is_valid(multi));

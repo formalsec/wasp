@@ -19,7 +19,7 @@ include ../Makefile.local_default
 
 #########
 
-PROOF_UID = MultiKeyringNew
+PROOF_UID = aws_cryptosdk_multi_keyring_new
 
 HARNESS_ENTRY = $(PROOF_UID)_harness
 HARNESS_FILE = $(HARNESS_ENTRY).c
