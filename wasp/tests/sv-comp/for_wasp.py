@@ -92,8 +92,6 @@ dirs = [
         'for-wasp/heap-manipulation'
 ]
 
-dirs = ['for-wasp/loops-crafted-1']
-
 comby = cby.Comby()
 for dir in dirs:
     tests = glob.glob(f'{dir}/*.c')
