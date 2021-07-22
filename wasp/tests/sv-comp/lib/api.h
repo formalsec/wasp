@@ -2,7 +2,11 @@
 #define API_H_
 
 #define symbolic void*
-#define NULL 0x0
+#undef NULL
+#define NULL (void*)0
+
+#define PTR_SIZE (sizeof(void*) * 8)
+
 #define false 0
 
 typedef unsigned long long restr_t;

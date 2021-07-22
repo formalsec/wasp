@@ -51,7 +51,10 @@ tests = {
             (f'{root_dir}/list-ext2-properties', 'unreach-call'),
             (f'{root_dir}/list-ext3-properties', 'unreach-call'),
             (f'{root_dir}/list-properties', 'unreach-call'),
-            (f'{root_dir}/list-simple', 'unreach-call')
+            (f'{root_dir}/list-simple', 'unreach-call'),
+            (f'{root_dir}/ldv-sets', 'unreach-call'),
+            (f'{root_dir}/ldv-regression', 'unreach-call'),
+            (f'{root_dir}/heap-manipulation', 'unreach-call')
             ],
         'loops' : [
             (f'{root_dir}/loop-crafted', 'unreach-call'),
@@ -62,8 +65,8 @@ tests = {
             (f'{root_dir}/loop-new', 'unreach-call'),
             (f'{root_dir}/loop-simple', 'unreach-call'),
             (f'{root_dir}/loop-zilu', 'no-overflow'),
-            #f'{root_dir}/loops',),
-            #f'{root_dir}/loops-crafted-1'),
+            (f'{root_dir}/loops',),
+            (f'{root_dir}/loops-crafted-1'),
             (f'{root_dir}/verifythis', 'unreach-call'),
             (f'{root_dir}/nla-digbench', 'no-overflow'),
             (f'{root_dir}/nla-digbench-scaling', 'unreach-call')

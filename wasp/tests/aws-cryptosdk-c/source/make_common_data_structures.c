@@ -193,15 +193,26 @@ void ensure_allocated_hash_table(struct aws_hash_table *map, size_t max_table_en
     if (map == NULL) {
         return;
     }
-    size_t num_entries = __VERIFIER_nondet_int("num_entires");
-    __CPROVER_assume(num_entries <= max_table_entries);
-    __CPROVER_assume(aws_is_power_of_two(num_entries));
+    size_t num_entries = max_table_entries;
+    assume(num_entries <= max_table_entries);
+    assume(aws_is_power_of_two(num_entries) != 0);
 
     size_t required_bytes;
-    __CPROVER_assume(!hash_table_state_required_bytes(num_entries, &required_bytes));
+    assume(!hash_table_state_required_bytes(num_entries, &required_bytes));
     struct hash_table_state *impl = bounded_malloc(required_bytes);
     if (impl) {
+        impl->hash_fn = aws_hash_c_string;
+        impl->equals_fn = aws_hash_callback_string_eq;
+        impl->destroy_key_fn = NULL;
+        impl->destroy_value_fn = NULL;
+        impl->alloc = can_fail_allocator();
+        impl->entry_count = 0;
+        impl->max_load_factor = 0.95;
+
         impl->size = num_entries;
+        impl->max_load = (size_t)(0.95 * (double)impl->size);
+        impl->mask = impl->size - 1;
+
         map->p_impl = impl;
     } else {
         map->p_impl = NULL;
@@ -440,7 +451,7 @@ void ensure_cryptosdk_edk_list_has_allocated_list_elements(struct aws_array_list
 
 void ensure_nondet_hdr_has_allocated_members_ref(struct aws_cryptosdk_hdr *hdr, const size_t max_table_size) {
     if (hdr) {
-        hdr->alloc = nondet_bool() ? NULL : can_fail_allocator();
+        hdr->alloc = can_fail_allocator();
         ensure_byte_buf_has_allocated_buffer_member(&hdr->iv);
         ensure_byte_buf_has_allocated_buffer_member(&hdr->auth_tag);
         ensure_byte_buf_has_allocated_buffer_member(&hdr->message_id);
@@ -453,7 +464,7 @@ void ensure_nondet_hdr_has_allocated_members_ref(struct aws_cryptosdk_hdr *hdr, 
 struct aws_cryptosdk_hdr *ensure_nondet_hdr_has_allocated_members(const size_t max_table_size) {
     struct aws_cryptosdk_hdr *hdr = malloc(sizeof(*hdr));
     if (hdr != NULL) {
-        hdr->alloc = nondet_bool() ? NULL : can_fail_allocator();
+        hdr->alloc = can_fail_allocator();
         ensure_byte_buf_has_allocated_buffer_member(&hdr->iv);
         ensure_byte_buf_has_allocated_buffer_member(&hdr->auth_tag);
         ensure_byte_buf_has_allocated_buffer_member(&hdr->message_id);
@@ -482,14 +493,14 @@ bool aws_cryptosdk_hdr_members_are_bounded(
 struct aws_cryptosdk_hdr *hdr_setup(
     const size_t max_table_size, const size_t max_edk_item_size, const size_t max_item_size) {
     struct aws_cryptosdk_hdr *hdr = ensure_nondet_hdr_has_allocated_members(max_table_size);
-    __CPROVER_assume(aws_cryptosdk_hdr_members_are_bounded(hdr, max_edk_item_size, max_item_size));
-
     /* Precondition: The edk list has allocated list elements */
     ensure_cryptosdk_edk_list_has_allocated_list_elements(&hdr->edk_list);
-    __CPROVER_assume(aws_cryptosdk_hdr_is_valid(hdr));
-
-    __CPROVER_assume(hdr->enc_ctx.p_impl != NULL);
     ensure_hash_table_has_valid_destroy_functions(&hdr->enc_ctx);
+
+    /* Postconditions */
+    assert(aws_cryptosdk_hdr_members_are_bounded(hdr, max_edk_item_size, max_item_size));
+    assert(aws_cryptosdk_hdr_is_valid(hdr));
+    assert(hdr->enc_ctx.p_impl != NULL);
     return hdr;
 }
 

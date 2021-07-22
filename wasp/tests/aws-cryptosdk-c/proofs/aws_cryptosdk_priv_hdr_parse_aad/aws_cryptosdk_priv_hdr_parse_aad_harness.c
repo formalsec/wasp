@@ -29,10 +29,10 @@ static int flag = 0;
  */
 uint16_t aws_byte_cursor_read_be16_generator_for_parse_aads(const struct aws_byte_cursor *cursor) {
     (void)cursor;
-    uint16_t rval;
+    uint16_t rval = __VERIFIER_nondet_short("rval");
     flag++;
     if (flag == 2) {
-        __CPROVER_assume(rval <= MAX_TABLE_SIZE);
+        assume(rval <= MAX_TABLE_SIZE);
     }
     return rval;
 }
@@ -43,10 +43,10 @@ void aws_cryptosdk_priv_hdr_parse_aad_harness() {
     struct aws_byte_cursor *pcursor = malloc(sizeof(*pcursor));
 
     /* Assumptions */
-    __CPROVER_assume(pcursor != NULL);
-    __CPROVER_assume(aws_byte_cursor_is_bounded(pcursor, MAX_BUFFER_SIZE));
+    assert(pcursor != NULL);
     ensure_byte_cursor_has_allocated_buffer_member(pcursor);
-    __CPROVER_assume(aws_byte_cursor_is_valid(pcursor));
+    assert(aws_byte_cursor_is_bounded(pcursor, MAX_BUFFER_SIZE));
+    assert(aws_byte_cursor_is_valid(pcursor));
 
     /* Save current state of the data structure */
     struct aws_byte_buf old_iv = hdr->iv;
@@ -66,12 +66,12 @@ void aws_cryptosdk_priv_hdr_parse_aad_harness() {
     save_byte_from_array(hdr->alg_suite_data.buffer, hdr->alg_suite_data.len, &old_byte_from_alg_suite_data);
 
     /* Operation under verification */
-    if (aws_cryptosdk_priv_hdr_parse_aad(hdr, pcursor) == AWS_OP_SUCCESS) {
-        /* Postconditions */
-        assert(aws_cryptosdk_hdr_is_valid(hdr));
-        assert_byte_buf_equivalence(&hdr->iv, &old_iv, &old_byte_from_iv);
-        assert_byte_buf_equivalence(&hdr->auth_tag, &old_auth_tag, &old_byte_from_auth_tag);
-        assert_byte_buf_equivalence(&hdr->message_id, &old_message_id, &old_byte_from_message_id);
-        assert_byte_buf_equivalence(&hdr->alg_suite_data, &old_alg_suite_data, &old_byte_from_alg_suite_data);
-    }
+    assert(aws_cryptosdk_priv_hdr_parse_aad(hdr, pcursor) == AWS_OP_SUCCESS);
+
+    /* Postconditions */
+    assert(aws_cryptosdk_hdr_is_valid(hdr));
+    assert_byte_buf_equivalence(&hdr->iv, &old_iv, &old_byte_from_iv);
+    assert_byte_buf_equivalence(&hdr->auth_tag, &old_auth_tag, &old_byte_from_auth_tag);
+    assert_byte_buf_equivalence(&hdr->message_id, &old_message_id, &old_byte_from_message_id);
+    assert_byte_buf_equivalence(&hdr->alg_suite_data, &old_alg_suite_data, &old_byte_from_alg_suite_data);
 }

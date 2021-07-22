@@ -24,7 +24,7 @@ HARNESS_FILE = $(HARNESS_ENTRY).c
 
 # Values are chosen for performance. Increasing values does not improve coverage.
 MAX_EDK_LIST_ITEMS ?= 2
-MAX_TABLE_SIZE ?= 2
+MAX_TABLE_SIZE ?= 4
 
 DEFINES += -DARRAY_LIST_TYPE="struct aws_cryptosdk_edk"
 DEFINES += -DARRAY_LIST_TYPE_HEADER=\"aws/cryptosdk/edk.h\"

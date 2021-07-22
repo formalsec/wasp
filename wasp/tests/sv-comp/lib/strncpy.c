@@ -1,5 +1,5 @@
 #include "api.h"
-#include "utils.h"
+#include "summ_utils.h"
 
 /*
 * Definition of Libc's function summaries

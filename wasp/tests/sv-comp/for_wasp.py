@@ -64,9 +64,9 @@ dirs = [
         'for-wasp/loop-new',
         'for-wasp/loop-simple',
         'for-wasp/loop-zilu',
-        #'for-wasp/loops',
-        #'for-wasp/loops-crafted-1'
-        #'for-wasp/ntdrivers',
+        'for-wasp/loops',
+        'for-wasp/loops-crafted-1'
+        'for-wasp/ntdrivers',
         'for-wasp/ntdrivers-simplified',
         'for-wasp/openssl',
         'for-wasp/openssl-simplified',
@@ -86,8 +86,13 @@ dirs = [
         'for-wasp/memsafety-bftpd',
         'for-wasp/memsafety-ext',
         'for-wasp/memsafety-ext2',
-        'for-wasp/termination-numeric'
+        'for-wasp/termination-numeric',
+        'for-wasp/ldv-sets',
+        'for-wasp/ldv-regression',
+        'for-wasp/heap-manipulation'
 ]
+
+dirs = ['for-wasp/loops-crafted-1']
 
 comby = cby.Comby()
 for dir in dirs:

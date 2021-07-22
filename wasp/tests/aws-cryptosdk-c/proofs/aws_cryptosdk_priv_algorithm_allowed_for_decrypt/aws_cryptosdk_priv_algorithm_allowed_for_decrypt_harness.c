@@ -23,7 +23,7 @@ void aws_cryptosdk_priv_algorithm_allowed_for_decrypt_harness() {
     enum aws_cryptosdk_commitment_policy policy;
 
     /* Assumptions */
-    __CPROVER_assume(aws_cryptosdk_commitment_policy_is_valid(policy));
+    assert(aws_cryptosdk_commitment_policy_is_valid(policy));
 
     /* Function under test */
     int ret = aws_cryptosdk_priv_algorithm_allowed_for_decrypt(alg_id, policy);

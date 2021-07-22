@@ -1,6 +1,30 @@
 #include "string.h"
 
 /***************
+* 	memmove()
+****************/
+void* (*memmove_array[2])(void*, void*, int) = {memmove1, memmove2};
+void*  memmove(void *dest, void *src, int n){
+	return(*memmove_array[MEMMOVE_ACCURACY-1])(dest,src,n);
+}
+
+/***************
+* 	memcmp()
+****************/
+int (*memcmp_array[4])(void*, void*, int) = {memcmp1, memcmp2, memcmp3, memcmp4};
+int memcmp(void* s1, void* s2, int n){
+	return(*memcmp_array[MEMCMP_ACCURACY-1])(s1,s2,n);
+}
+
+/***************
+* 	memchr()
+****************/
+char* (*memchr_array[4]) (char*, int, int) = {memchr1, memchr2, memchr3, memchr4};
+char *memchr(char* s, int c, int n){
+	return (*memchr_array[STRCHR_ACCURACY-1])(s, c, n);
+}
+
+/***************
 * 	memcpy()
 ****************/
 void* (*memcpy_array[1])(void*, void*, int) = {memcpy1};

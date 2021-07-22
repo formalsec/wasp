@@ -1,0 +1,18 @@
+format_version: '2.0'
+
+# very old file name: sizeofparameters_test_true-termination.c_true-unreach-call.i
+# old file name: sizeofparameters_test.i
+input_files: 'sizeofparameters_test.c'
+
+properties:
+  - property_file: ../properties/termination.prp
+    expected_verdict: true
+  - property_file: ../properties/unreach-call.prp
+    expected_verdict: true
+  - property_file: ../properties/coverage-branches.prp
+  - property_file: ../properties/coverage-conditions.prp
+  - property_file: ../properties/coverage-statements.prp
+
+options:
+  language: C
+  data_model: ILP32
