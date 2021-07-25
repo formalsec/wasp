@@ -435,7 +435,7 @@ void timer_expire()
 /************************** CPU interface ****************************/
 
 
-UINT8 read(int offset)
+UINT8 stubread(int offset)
 {
 	switch (offset)
 	{
@@ -448,7 +448,7 @@ UINT8 read(int offset)
 	return 0;
 }
 
-void write(int offset, UINT8 data)
+void stubwrite(int offset, UINT8 data)
 {
 	switch (offset)
 	{
@@ -518,11 +518,11 @@ int main()
         device_start();
         while (1) {
                 switch (__VERIFIER_nondet_int()) {
-                case 0: read(__VERIFIER_nondet_int()); break;
+                case 0: stubread(__VERIFIER_nondet_int()); break;
                 case 1: 
                         arg0 = __VERIFIER_nondet_int();
                         arg1 = __VERIFIER_nondet_uchar();
-                        write(arg0, arg1); 
+                        stubwrite(arg0, arg1); 
                         break;
                 case 2: if (timer_enabled) timer_expire(); break;
                 case 3: device_reset(); break;

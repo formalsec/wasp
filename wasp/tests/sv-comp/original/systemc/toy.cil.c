@@ -46,7 +46,7 @@ void write_loop(void) ;
 void compute1(void) ;
 void compute2(void) ;
 void write_back(void) ;
-void read(void) ;
+void stubread(void) ;
 int d  ;
 int data  ;
 int processed  ;
@@ -248,7 +248,7 @@ void write_back(void)
   return;
 }
 }
-void read(void) 
+void stubread(void) 
 { 
 
   {
@@ -377,7 +377,7 @@ void eval(void)
       if (tmp___3) {
         {
         r_st = 1;
-        read();
+        stubread();
         }
       } else {
 
