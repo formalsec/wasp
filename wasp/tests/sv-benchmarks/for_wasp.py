@@ -56,6 +56,7 @@ dirs = [
         'for-wasp/list-simple',
         'for-wasp/locks',
         'for-wasp/loop-crafted',
+        'for-wasp/loop-acceleration',
         'for-wasp/loop-floats-scientific-comp',
         'for-wasp/loop-industry-pattern',
         'for-wasp/loop-invariants',
@@ -91,6 +92,8 @@ dirs = [
         'for-wasp/ldv-regression',
         'for-wasp/heap-manipulation'
 ]
+
+dirs = ['for-wasp/loop-floats-scientific-comp']
 
 comby = cby.Comby()
 for dir in dirs:

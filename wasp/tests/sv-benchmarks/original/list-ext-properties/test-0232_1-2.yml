@@ -6,8 +6,6 @@ input_files: 'test-0232_1-2.i'
 properties:
   - property_file: ../properties/termination.prp
     expected_verdict: true
-  - property_file: ../properties/unreach-call.prp
-    expected_verdict: true
   - property_file: ../properties/valid-memsafety.prp
     expected_verdict: true
   - property_file: ../properties/coverage-branches.prp
