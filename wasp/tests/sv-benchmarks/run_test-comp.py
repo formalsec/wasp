@@ -76,7 +76,6 @@ tests = {
             (f'{root_dir}/recursive-simple', 'coverage-error-call'),
             (f'{root_dir}/recursive-with-pointer', 'coverage-error-call')
             ],
-            ],
         #'sequentialized' : [(f'{root_dir}/systemc', 'coverage-error-call')],
         'xcsp'           : [(f'{root_dir}/xcsp', 'coverage-error-call')],
 }
@@ -196,7 +195,7 @@ for key, val in tests.items():
         t.join()
 
     tbl_name = f'{key}_t{timeout}_im{instruction_max}'
-    with open(f'tests/sv-comp/results/{tbl_name}.csv', 'w', \
+    with open(f'tests/sv-benchmarks/results/{tbl_name}.csv', 'w', \
             newline='') as f:
         writer = csv.writer(f)
         writer.writerows(results)
