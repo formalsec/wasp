@@ -93,8 +93,6 @@ dirs = [
         'for-wasp/heap-manipulation'
 ]
 
-dirs = ['for-wasp/loop-floats-scientific-comp']
-
 comby = cby.Comby()
 for dir in dirs:
     tests = glob.glob(f'{dir}/*.c')

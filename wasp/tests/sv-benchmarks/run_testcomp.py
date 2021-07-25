@@ -69,7 +69,7 @@ tests = {
             (f'{root_dir}/loops-crafted-1/*'        , 'coverage-error-call'),
             (f'{root_dir}/loop-invariants/*'        , 'coverage-error-call'),
             (f'{root_dir}/loop-simple/*'            , 'coverage-error-call'),
-            (f'{root_dir}/loop-zilu/*'              , 'no-overflow'),
+            (f'{root_dir}/loop-zilu/*'              , 'coverage-error-call'),
             (f'{root_dir}/verifythis/duplets'       , 'coverage-error-call'),
             (f'{root_dir}/verifythis/elimination_max', 'coverage-error-call'),
             (f'{root_dir}/verifythis/lcp'           , 'coverage-error-call'),

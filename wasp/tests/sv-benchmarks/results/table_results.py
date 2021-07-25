@@ -90,10 +90,10 @@ if __name__ == '__main__':
 |complete   (T-)|{m['completeTrueNeg']}| {(m['completeTrueNeg']/(m['totalOk']+1)) * 100} |
 |incomplete (T-)|{m['incompleteTrueNeg']}|{(m['incompleteTrueNeg']/(m['totalOk']+1)) * 100} |
 |timeout/ram(T-)|{m['timeoutsTrueNeg']}|{(m['timeoutsTrueNeg']/(m['totalOk']+1)) * 100} |
-|           (T+)|{m['truePos']}|{(m['truePos']/m['totalNok']) * 100} |
-|complete   (F-)|{m['completeFalseNeg']}|{(m['completeFalseNeg']/m['totalNok']) * 100} |
-|incomplete (F-)|{m['incompleteFalseNeg']}|{(m['incompleteFalseNeg']/m['totalNok']) * 100} |
-|timeout/ram(F-)|{m['timeoutFalseNeg']}|{(m['timeoutFalseNeg']/m['totalNok']) * 100} |
+|           (T+)|{m['truePos']}|{(m['truePos']/(m['totalNok']+1)) * 100} |
+|complete   (F-)|{m['completeFalseNeg']}|{(m['completeFalseNeg']/(m['totalNok']+1)) * 100} |
+|incomplete (F-)|{m['incompleteFalseNeg']}|{(m['incompleteFalseNeg']/(m['totalNok']+1)) * 100} |
+|timeout/ram(F-)|{m['timeoutFalseNeg']}|{(m['timeoutFalseNeg']/(m['totalNok']+1)) * 100} |
 |complete   (F+)|{m['completeFalsePos']}|{(m['completeFalsePos']/(m['totalOk']+1)) * 100} |
 |incomplete (F+)|{m['incompleteFalsePos']}|{(m['incompleteFalsePos']/(m['totalOk']+1)) * 100} |
 |timeout        |{m['timeout']}| |
