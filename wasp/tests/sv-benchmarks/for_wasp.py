@@ -90,8 +90,11 @@ dirs = [
         'for-wasp/termination-numeric',
         'for-wasp/ldv-sets',
         'for-wasp/ldv-regression',
-        'for-wasp/heap-manipulation'
+        'for-wasp/heap-manipulation',
+        'for-wasp/seq-mthreaded'
 ]
+
+dirs = ['for-wasp/seq-mthreaded']
 
 comby = cby.Comby()
 for dir in dirs:

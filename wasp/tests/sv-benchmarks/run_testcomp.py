@@ -91,8 +91,11 @@ tests = {
             (f'{root_dir}/verifythis/elimination_max_rec', 'coverage-error-call'),
             (f'{root_dir}/verifythis/elimination_max_rec_onepoint', 'coverage-error-call'),
             ],
-        'Sequentialized' : [(f'{root_dir}/systemc/*', 'coverage-error-call')],
-        'XCSP'           : [(f'{root_dir}/xcsp/*'   , 'coverage-error-call')],
+        'Sequentialized' : [
+            (f'{root_dir}/systemc/*'                , 'coverage-error-call'),
+            (f'{root_dir}/seq-mthreaded/*'          , 'coverage-error-call')
+            ],
+        'XCSP' : [(f'{root_dir}/xcsp/*'             , 'coverage-error-call')],
 }
 #-----------------------------------------------------------
 
