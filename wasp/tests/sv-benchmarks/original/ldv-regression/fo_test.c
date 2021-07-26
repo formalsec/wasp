@@ -21,7 +21,7 @@ ssize_t l_read(int,char*,size_t);
 int l_open(char*,int);
 
 int
-main(int argc, char* argv[]) {
+main() {
  int file = l_open("unknown",00);
  void* cbuf = (void*) malloc(sizeof(char)*100);
  int a = l_read(file,cbuf,99);

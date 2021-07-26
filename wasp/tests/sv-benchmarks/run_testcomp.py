@@ -94,6 +94,7 @@ tests = {
         'Sequentialized' : [
             (f'{root_dir}/systemc/*'                , 'coverage-error-call'),
             (f'{root_dir}/seq-mthreaded/*'          , 'coverage-error-call')
+            (f'{root_dir}/seq-pthread/*'          , 'coverage-error-call')
             ],
         'XCSP' : [(f'{root_dir}/xcsp/*'             , 'coverage-error-call')],
 }

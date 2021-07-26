@@ -375,7 +375,7 @@ void *main_thread(void *arg)
 	__CS_cs(); if (__CS_ret != 0) return 0;
 	}
 
-int main(int argc, char **argv)
+int main(void)
 {
 	//cseq: Copies of global variables
 	__CS_type __CS_cp___CS_thread_status[__CS_ROUNDS][__CS_THREADS+1];
