@@ -22,7 +22,9 @@ patterns = [
                 ':[cond] (:[h2]__VERIFIER_nondet_:[h1](\":[cond]_:[id()]\"):[h3])'),
         ('void assume(...) {...}', ''),
         ('void assert(...) {...}', ''),
-        ('void abort(...) {...}' , '')
+        ('void abort(...) {...}' , ''),
+        ('__VERIFIER_nondet_:[h2]()', \
+                '__VERIFIER_nondet_:[h2](\":[id()]\")')
 ]
 
 dirs = [
