@@ -4,6 +4,8 @@ import os, glob, comby as cby
 patterns = [
         (':[[h1]] __VERIFIER_nondet_:[[h2]](:[_])', \
                 ':[h1] __VERIFIER_nondet_:[h2](char *)'),
+        (':[[h1]] *__VERIFIER_nondet_:[[h2]](:[_])', \
+                ':[h1] *__VERIFIER_nondet_:[h2](char *)'),
         ('unsigned :[[h1]] __VERIFIER_nondet_u:[[h1]](:[_])', \
                 'unsigned :[h1] __VERIFIER_nondet_u:[h1](char *)'),
         ('return __VERIFIER_nondet_:[[h1]](...)', \
@@ -68,7 +70,7 @@ dirs = [
         'for-wasp/loop-simple',
         'for-wasp/loop-zilu',
         'for-wasp/loops',
-        'for-wasp/loops-crafted-1'
+        'for-wasp/loops-crafted-1',
         'for-wasp/ntdrivers',
         'for-wasp/ntdrivers-simplified',
         'for-wasp/openssl',

@@ -11,7 +11,7 @@ void reach_error() { __assert_fail("0", "McCarthy91-1.c", 3, "reach_error"); }
  * 
  */
 
-extern int __VERIFIER_nondet_int(void);
+extern int __VERIFIER_nondet_uint(void);
 
 
 int f91(int x) {
@@ -24,7 +24,7 @@ int f91(int x) {
 
 
 int main() {
-    int x = __VERIFIER_nondet_int();
+    int x = __VERIFIER_nondet_uint();
     int result = f91(x);
     if (result == 91 || x > 102 && result == x - 10) {
         return 0;

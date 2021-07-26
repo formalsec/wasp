@@ -17,7 +17,7 @@ char __VERIFIER_nondet_char(char *name) {
 }
 unsigned char __VERIFIER_nondet_uchar(char *name) { 
   int sym_var = sym_int(name);
-  //assume(sym_var >= 0U && sym_var <= 255U);
+  assume(sym_var >= 0U); //&& sym_var <= 255U);
   return sym_var & 0x000000ff;
 }
 short __VERIFIER_nondet_short(char *name) { 
@@ -27,7 +27,7 @@ short __VERIFIER_nondet_short(char *name) {
 }
 unsigned short __VERIFIER_nondet_ushort(char *name) { 
   int sym_var = sym_int(name);
-  //assume(sym_var >= 0U && sym_var <= 65535U);
+  assume(sym_var >= 0U); // && sym_var <= 65535U);
   return sym_var & 0x0000ffff;
 }
 
@@ -35,8 +35,8 @@ int __VERIFIER_nondet_int(char *name) { return sym_int(name); }
 
 unsigned int __VERIFIER_nondet_uint(char *name) { 
   unsigned int sym_var = sym_int(name);
-  //assume(sym_var >= 0U && sym_var <= 4294967295U);
-  return sym_var & 0x7fffffff;
+  assume(sym_var >= 0U);
+  return sym_var;
 }
 
 unsigned int __VERIFIER_nondet_charp(char *name) { return sym_int(name); }

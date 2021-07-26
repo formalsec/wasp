@@ -6,7 +6,7 @@ void reach_error() { __assert_fail("0", "compact.c", 3, "reach_error"); }
 
 extern char __VERIFIER_nondet_char(void);
 
-int main(int argc, char **argv)
+int main()
 {
 	static char array[1024 * 100];
 	char ND = __VERIFIER_nondet_char();

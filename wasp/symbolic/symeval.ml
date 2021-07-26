@@ -102,7 +102,7 @@ let sym_config inst vs es sym_m = {
   logic_env  = Logicenv.create []; 
   path_cond  = [];
   sym_mem    = sym_m;
-  sym_budget = 600
+  sym_budget = 1000 (* models default recursion limit in a system *)
 }
 
 exception AssumeFail of sym_config * path_conditions
@@ -860,6 +860,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Symmem2.clear !c.sym_mem;
     Symmem2.init !c.sym_mem initial_memory;
     Instance.set_globals !inst initial_globals;
+    c := {!c with sym_budget = 1000};
 
     let z3_model_str = Z3.Model.to_string model in
     debug ("SATISFIABLE\nMODEL: \n" ^ z3_model_str ^ "\n\n\n" ^
