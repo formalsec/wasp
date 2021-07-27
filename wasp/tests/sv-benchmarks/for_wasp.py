@@ -96,8 +96,17 @@ dirs = [
         'for-wasp/ldv-regression',
         'for-wasp/heap-manipulation',
         'for-wasp/seq-mthreaded',
-        'for-wasp/seq-pthread'
+        'for-wasp/seq-pthread',
+        'for-wasp/eca-programs',
+        'for-wasp/eca-rers2012',
+        'for-wasp/eca-rers2018'
 ]
+
+dirs = [
+        'for-wasp/eca-programs',
+        'for-wasp/eca-rers2012',
+        'for-wasp/eca-rers2018'
+        ]
 
 comby = cby.Comby()
 for dir in dirs:
