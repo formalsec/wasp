@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-emit-llvm -g -O0 --target=wasm32 -c -m32 $(INCLUDES)
+CFLAGS=-emit-llvm -g $(OPTIMIZE) --target=wasm32 -c -m32 $(INCLUDES) $(WARN)
 LD=wasm-ld
 
 LIB_DIR=lib
@@ -9,11 +9,21 @@ MOCKS_DIR=for-wasp/mockups
 NORMAL_TESTS=for-wasp/normal
 BUG_TESTS=for-wasp/bugs
 BUILD_DIR=_build
+OPTIMIZE ?= -O0
 
 # Includes
 INCLUDES += -I$(MOCKS_DIR)
 INCLUDES += -I$(UTILS_DIR)
 
+# Warnings
+WARN += -Wno-incompatible-library-redeclaration
+WARN += -Wno-incompatible-pointer-types
+WARN += -Wno-implicit-function-declaration
+WARN += -Wno-return-type
+WARN += -Wno-int-conversion
+WARN += -Wno-pointer-integer-compare
+
+# Sources
 lib   := $(wildcard $(LIB_DIR)/*.c)
 libbc := $(addprefix $(BUILD_DIR)/,$(lib:.c=.bc))
 libo  := $(addprefix $(BUILD_DIR)/,$(lib:.c=.o))
@@ -43,12 +53,12 @@ all: $(testso:.o=.wat) $(testbugso:.o=.wat)
 $(BUILD_DIR)/lib-with-bugs/%.bc: lib-with-bugs/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+	@echo "$(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $<"; $(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $<
 
 $(BUILD_DIR)/for-wasp/bugs/%.bc: for-wasp/bugs/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+	@echo "$(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $<"; $(CC) $(CFLAGS) -I$(BUG_LIB_DIR)/include -o $@ $<
 
 $(BUILD_DIR)/for-wasp/bugs/%.wasm: $(BUILD_DIR)/for-wasp/bugs/%.o $(libbugo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
 	@echo "Building $@"
@@ -59,7 +69,7 @@ $(BUILD_DIR)/for-wasp/bugs/%.wasm: $(BUILD_DIR)/for-wasp/bugs/%.o $(libbugo) $(B
 $(BUILD_DIR)/for-wasp/normal/%.bc: for-wasp/normal/%.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+	@echo "$(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $<"; $(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $<
 
 $(BUILD_DIR)/for-wasp/normal/%.wasm: $(BUILD_DIR)/for-wasp/normal/%.o $(libo) $(BUILD_DIR)/for-wasp/utils/utils.o $(BUILD_DIR)/for-wasp/mockups/mockups.o
 	@echo "Building $@"
@@ -70,7 +80,7 @@ $(BUILD_DIR)/for-wasp/normal/%.wasm: $(BUILD_DIR)/for-wasp/normal/%.o $(libo) $(
 $(BUILD_DIR)/%.bc: %.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $< > /dev/null 2>&1
+	@echo "$(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $<"; $(CC) $(CFLAGS) -I$(LIB_DIR)/include -o $@ $<
 
 $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
 	@echo "Building $@"
@@ -87,7 +97,7 @@ $(BUILD_DIR)/%.wat: $(BUILD_DIR)/%.wasm
 $(BUILD_DIR)/for-wasp/utils/utils.bc: $(UTILS_DIR)/utils.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -o $@ $^ > /dev/null 2>&1
+	@echo "$(CC) $(CFLAGS) -o $@ $^"; $(CC) $(CFLAGS) -o $@ $^
 
 $(BUILD_DIR)/for-wasp/utils/utils.o: $(BUILD_DIR)/for-wasp/utils/utils.bc
 	@echo "Building $@"
@@ -97,7 +107,7 @@ $(BUILD_DIR)/for-wasp/utils/utils.o: $(BUILD_DIR)/for-wasp/utils/utils.bc
 $(BUILD_DIR)/for-wasp/mockups/mockups.bc: $(MOCKS_DIR)/mockups.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -o $@ $^ > /dev/null 2>&1
+	@echo "$(CC) $(CFLAGS) -o $@ $^"; $(CC) $(CFLAGS) -o $@ $^
 
 $(BUILD_DIR)/for-wasp/mockups/mockups.o: $(BUILD_DIR)/for-wasp/mockups/mockups.bc
 	@echo "Building $@"
