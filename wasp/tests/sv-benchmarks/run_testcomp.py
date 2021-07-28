@@ -13,7 +13,7 @@ root_dir = '_build'
 # populate with dirs to skip
 ignore = ['ControlFlow']
 
-specification {
+specification = {
         'coverage-error-call' : 'COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )',
         'coverage-branches' : 'COVER( init(main()), FQL(COVER EDGES(@DECISIONEDGE)) )' 
         }
@@ -168,11 +168,11 @@ def run(i : int):
                     preexec_fn=limit_virtual_memory)
             report = json.loads(out)
             complete = not report['incomplete']
-            metadata = xml_converter.test_metadata(specification[prop], test)
+            metadata = xml_converter.test_metadata(specification[prop], test.replace('_build', 'original').replace('.wat', '.c'))
             xml_binds = list(map(xml_converter.binds_to_xml, report['coverage']))
-            file_binds = list(map(lambda i d : (f'testcase-{i}.xml', d), xml_binds))
+            file_binds = list(map(lambda t : (f'testcase-{t[0]}.xml', t[1]), enumerate(xml_binds)))
             test_base = os.path.basename(test).replace('.wat', '.zip')
-            xml_converter.map_write_suite_zip(f'output/{test_base}', file_binds)
+            xml_converter.map_write_suite_zip(f'tests/sv-benchmarks/output/{test_base}', file_binds + [('metadata.xml', metadata)])
             ret = str(report['specification'])
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             ret = 'Timeout'

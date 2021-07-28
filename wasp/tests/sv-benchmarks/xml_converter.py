@@ -3,13 +3,14 @@ import xml.etree.cElementTree as e
 from datetime import datetime
 
 def test_metadata(specification, file, ):
+    with open(file, 'r') as source:
+        code_hash = hashlib.sha256(source.read().encode('UTF-8')).hexdigest()
     metadata = e.Element('test-metadata') 
     e.SubElement(metadata, 'sourcecodelang').text = "C"
     e.SubElement(metadata, 'producer'      ).text = "WASP"
-    e.subElement(metadata, 'specification' ).text = specification
+    e.SubElement(metadata, 'specification' ).text = specification
     e.SubElement(metadata, 'programfile'   ).text = file
-    e.SubElement(metadata, 'programhash'   ).text = \
-            hashlib.sha256(open(file, 'r')).hexdigest()
+    e.SubElement(metadata, 'programhash'   ).text = code_hash
     e.SubElement(metadata, 'entryfunction' ).text = "main"
     e.SubElement(metadata, 'architecture'  ).text = "32bit"
     e.SubElement(metadata, 'creationtime'  ).text = str(datetime.now())
