@@ -1,4 +1,4 @@
-extern int __VERIFIER_nondet_int();
+extern int __VERIFIER_nondet_int(char *);
 
 extern void __assert_fail (const char *__assertion, const char *__file,
       unsigned int __line, const char *__function)
@@ -2449,7 +2449,7 @@ int main()
     {
         // read input
         int input;
-        input = __VERIFIER_nondet_int();        
+        input = __VERIFIER_nondet_int("input_91c58c0d-c232-34e5-1d9f-9d232231d25c");        
         // operate eca engine
         if((input != 7) && (input != 10) && (input != 6) && (input != 2) && (input != 5) && (input != 3) && (input != 9) && (input != 4) && (input != 8) && (input != 1))
           return -2;

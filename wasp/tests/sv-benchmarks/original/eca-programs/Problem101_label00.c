@@ -47,7 +47,7 @@ int calculate_output46(int);
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));
 void reach_error() { __assert_fail("0", "Problem101_label00.c", 49, "reach_error"); }
-extern int __VERIFIER_nondet_int(void);
+extern int __VERIFIER_nondet_int(char *);
 extern void exit(int);
 
 	// inputs
@@ -73690,7 +73690,7 @@ int main()
     {
         // read input
         int input;
-        input = __VERIFIER_nondet_int();
+        input = __VERIFIER_nondet_int("input");
 	int var1=1;
 	int var2=2;
 	int var3=3;

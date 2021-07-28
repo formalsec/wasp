@@ -2557,7 +2557,7 @@ int main(void)
 }
 }
 char _SLAM_alloc_dummy  ;
-char *malloc(int i ) 
+char *stubedmalloc(int i ) 
 { int __BLAST_NONDET = __VERIFIER_nondet_int() ;
 
   {
@@ -2594,7 +2594,7 @@ PVOID ExAllocatePoolWithTag(POOL_TYPE PoolType , SIZE_T NumberOfBytes ,
 
   {
   {
-  tmp = malloc(NumberOfBytes);
+  tmp = stubedmalloc(NumberOfBytes);
   x = tmp;
   }
   return (x);
@@ -2659,7 +2659,7 @@ PMDL IoAllocateMdl(PVOID VirtualAddress , ULONG Length , BOOLEAN SecondaryBuffer
     if (0) {
       switch_5_0: /* CIL Label */ 
       {
-      tmp = malloc(sizeof(MDL ));
+      tmp = stubedmalloc(sizeof(MDL ));
       }
       return ((void *)tmp);
       switch_5_default: /* CIL Label */ ;
@@ -2716,7 +2716,7 @@ PIRP IoBuildAsynchronousFsdRequest(ULONG MajorFunction , PDEVICE_OBJECT DeviceOb
     if (0) {
       switch_7_0: /* CIL Label */ 
       {
-      tmp = malloc(sizeof(IRP ));
+      tmp = stubedmalloc(sizeof(IRP ));
       }
       return ((void *)tmp);
       switch_7_default: /* CIL Label */ ;
@@ -2754,7 +2754,7 @@ PIRP IoBuildDeviceIoControlRequest(ULONG IoControlCode , PDEVICE_OBJECT DeviceOb
     if (0) {
       switch_8_0: /* CIL Label */ 
       {
-      tmp = malloc(sizeof(IRP ));
+      tmp = stubedmalloc(sizeof(IRP ));
       }
       return ((void *)tmp);
       switch_8_default: /* CIL Label */ ;
@@ -2786,7 +2786,7 @@ NTSTATUS IoCreateDevice(PDRIVER_OBJECT DriverObject , ULONG DeviceExtensionSize 
     if (0) {
       switch_9_0: /* CIL Label */ 
       {
-      tmp = malloc(sizeof(DEVICE_OBJECT ));
+      tmp = stubedmalloc(sizeof(DEVICE_OBJECT ));
       *DeviceObject = (void *)tmp;
       }
       return (0L);
@@ -2882,7 +2882,7 @@ PCONFIGURATION_INFORMATION IoGetConfigurationInformation(void)
 
   {
   {
-  tmp = malloc(sizeof(CONFIGURATION_INFORMATION ));
+  tmp = stubedmalloc(sizeof(CONFIGURATION_INFORMATION ));
   }
   return ((void *)tmp);
 }
@@ -3263,7 +3263,7 @@ PVOID MmAllocateContiguousMemory(SIZE_T NumberOfBytes , PHYSICAL_ADDRESS Highest
       if (0) {
         switch_18_0: /* CIL Label */ 
         {
-        tmp = malloc(NumberOfBytes);
+        tmp = stubedmalloc(NumberOfBytes);
         }
         return (tmp);
         switch_18_1: /* CIL Label */ ;

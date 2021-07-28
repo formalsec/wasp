@@ -12,6 +12,10 @@ int sprintf(char *str, const char *format, ...) {
   return 0;
 }
 
+int swprintf(wchar_t *ptr1, const wchar_t *ptr2, ...) {
+  return 0;
+}
+
 int snprintf(char *str, size_t size, const char *format, ...) {
   return 0;
 }

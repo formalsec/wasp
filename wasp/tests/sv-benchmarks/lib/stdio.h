@@ -41,6 +41,7 @@ extern FILE *stdin, *stdout, *stderr;
 int printf(const char *format, ...);
 int fprintf(FILE *stream, const char *format, ...);
 int sprintf(char *str, const char *format, ...);
+int swprintf(wchar_t *, wchar_t const *, ...);
 int snprintf(char *str, size_t size, const char *format, ...);
 int asprintf(char **ptr, const char* format, ...);
 

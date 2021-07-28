@@ -11,7 +11,7 @@ int calculate_output2(int);
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__ ((__nothrow__ , __leaf__)) __attribute__ ((__noreturn__));
 void reach_error() { __assert_fail("0", "Problem17_label00.c", 5, "reach_error"); }
-extern int __VERIFIER_nondet_int(void);
+extern int __VERIFIER_nondet_int(char *);
 extern void exit(int);
 
 	// inputs
@@ -2591,7 +2591,7 @@ int main()
     {
         // read input
         int input;
-        input = __VERIFIER_nondet_int();
+        input = __VERIFIER_nondet_int("input_96dcf0c0-1ac6-3def-b6be-23a545801e2d");
         if ((input != 1) && (input != 2) && (input != 3) && (input != 4) && (input != 5) && (input != 6)) return -2;
 
         // operate eca engine

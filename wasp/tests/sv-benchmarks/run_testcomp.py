@@ -34,9 +34,14 @@ tests = {
             (f'{root_dir}/ntdrivers-simplified/*'   , 'coverage-error-call'),
             (f'{root_dir}/openssl-simplified/*'     , 'coverage-error-call'),
             (f'{root_dir}/locks/*'                  , 'coverage-error-call'),
-            #(f'{root_dir}/ntdrivers/*'              , 'coverage-error-call'),
+            (f'{root_dir}/ntdrivers/*'              , 'coverage-error-call'),
             (f'{root_dir}/openssl/*'                , 'coverage-error-call')
             ],
+        'ECA' : [
+            (f'{root_dir}/eca-programs/*'           , 'coverage-error-call'),
+            (f'{root_dir}/eca-rers2012/*'           , 'coverage-error-call'),
+            (f'{root_dir}/eca-rers2018/*'           , 'coverage-error-call')
+        ],
         'Floats' : [
             (f'{root_dir}/floats-cdfpl/*'               , 'coverage-error-call'),
             (f'{root_dir}/floats-cbmc-regression/*'     , 'coverage-error-call'),

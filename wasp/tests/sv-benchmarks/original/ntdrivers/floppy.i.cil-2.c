@@ -7188,7 +7188,7 @@ int main(void)
 }
 }
 char _SLAM_alloc_dummy  ;
-char *malloc(int i ) 
+char *stubedmalloc(int i ) 
 { 
 
   {

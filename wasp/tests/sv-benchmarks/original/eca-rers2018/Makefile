@@ -10,4 +10,6 @@ LEVEL := ../
 
 IGNORE_DIRS := ./properties/
 
+OPTIMIZE := -O1
+
 include $(LEVEL)/Makefile.config

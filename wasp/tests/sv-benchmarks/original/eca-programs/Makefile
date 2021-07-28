@@ -8,4 +8,6 @@
 
 LEVEL := ../
 
+OPTIMIZE := -O1
+
 include $(LEVEL)/Makefile.config
