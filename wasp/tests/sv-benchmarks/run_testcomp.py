@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import glob, yaml, csv, subprocess
+import glob, yaml, csv, subprocess, os
 import sys, threading, logging, time, resource, json
+
+import xml_converter
 
 # globals --------------------------------------------------
 # default SV-COMP is 15 mins
@@ -9,7 +11,12 @@ instruction_max = 1000000
 num_threads = 1
 root_dir = '_build'
 # populate with dirs to skip
-ignore = []
+ignore = ['ControlFlow']
+
+specification {
+        'coverage-error-call' : 'COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )',
+        'coverage-branches' : 'COVER( init(main()), FQL(COVER EDGES(@DECISIONEDGE)) )' 
+        }
 
 tests = {
         'Arrays' : [
@@ -161,6 +168,11 @@ def run(i : int):
                     preexec_fn=limit_virtual_memory)
             report = json.loads(out)
             complete = not report['incomplete']
+            metadata = xml_converter.test_metadata(specification[prop], test)
+            xml_binds = list(map(xml_converter.binds_to_xml, report['coverage']))
+            file_binds = list(map(lambda i d : (f'testcase-{i}.xml', d), xml_binds))
+            test_base = os.path.basename(test).replace('.wat', '.zip')
+            xml_converter.map_write_suite_zip(f'output/{test_base}', file_binds)
             ret = str(report['specification'])
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as e:
             ret = 'Timeout'
@@ -201,7 +213,7 @@ lock = threading.Lock()
 for key, val in tests.items():
     results = [['test', 'answer', 'verdict', 'complete', 'time']]
 
-    if key in ignore:
+    if key not in ignore:
         continue
 
     srcs = []

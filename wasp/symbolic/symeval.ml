@@ -802,6 +802,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let initial_globals = Global.contents !inst.globals in
   (* Assume constraints are stored here *)
   let finish_constraints = Constraints.create in
+  let coverage = ref [] in
   (* Concolic execution *)
   let rec loop global_pc =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
@@ -821,6 +822,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     Counter.reset sym_counter;
     Hashtbl.reset chunk_table;
+    coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
 
     (* DEBUG: *)
     let delim = String.make 6 '$' in
@@ -885,7 +887,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let spec, reason, wit = try loop (Formula.True) with
     | Unsatisfiable -> 
         debug "Model is no longer satisfiable. All paths have been verified.\n";
-        true, "{}", "{}"
+        true, "{}", "[]"
     | AssertFail (r, wit) ->
         incomplete := true;
         let reason = "{" ^
@@ -901,7 +903,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
           "\"line\" : \"" ^ (Source.string_of_pos r.left ^ 
               (if r.right = r.left then "" else "-" ^ string_of_pos r.right)) ^ "\"" ^
         "}" 
-        in false, reason, "{}"
+        in false, reason, "[]"
     | e -> raise e
   in
   let loop_time = (Sys.time ()) -. loop_start in
@@ -909,12 +911,14 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   debug ("\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n" ^
       (Constraints.to_string finish_constraints) ^ "\n");
 
+  coverage := wit :: !coverage;
+
   (* Execution report *)
   let fmt_str = "{" ^
     "\"specification\": "        ^ (string_of_bool spec)            ^ ", " ^
     "\"reason\" : "              ^ reason                           ^ ", " ^
     "\"witness\" : "             ^ wit                              ^ ", " ^
-    "\"coverage\" : \""          ^ (Ranges.range_list !lines_total) ^ "\", " ^
+    "\"coverage\" : ["           ^ (String.concat ", " !coverage)   ^ "], " ^
     "\"loop_time\" : \""         ^ (string_of_float loop_time)      ^ "\", " ^
     "\"solver_time\" : \""       ^ (string_of_float !solver_time)   ^ "\", " ^
     "\"paths_explored\" : "      ^ (string_of_int !iterations)      ^ ", " ^
