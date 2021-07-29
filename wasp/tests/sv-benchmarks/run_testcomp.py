@@ -11,7 +11,7 @@ instruction_max = 1000000
 num_threads = 1
 root_dir = '_build'
 # populate with dirs to skip
-ignore = ['ControlFlow']
+ignore = ['Arrays']
 
 specification = {
         'coverage-error-call' : 'COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )',

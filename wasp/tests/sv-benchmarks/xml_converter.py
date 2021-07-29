@@ -1,26 +1,32 @@
 import hashlib
-import xml.etree.cElementTree as e
+from lxml import etree
 from datetime import datetime
 
 def test_metadata(specification, file, ):
     with open(file, 'r') as source:
         code_hash = hashlib.sha256(source.read().encode('UTF-8')).hexdigest()
-    metadata = e.Element('test-metadata') 
-    e.SubElement(metadata, 'sourcecodelang').text = "C"
-    e.SubElement(metadata, 'producer'      ).text = "WASP"
-    e.SubElement(metadata, 'specification' ).text = specification
-    e.SubElement(metadata, 'programfile'   ).text = file
-    e.SubElement(metadata, 'programhash'   ).text = code_hash
-    e.SubElement(metadata, 'entryfunction' ).text = "main"
-    e.SubElement(metadata, 'architecture'  ).text = "32bit"
-    e.SubElement(metadata, 'creationtime'  ).text = str(datetime.now())
-    return e.tostring(metadata)
+    metadata = etree.Element('test-metadata') 
+    etree.SubElement(metadata, 'sourcecodelang').text = "C"
+    etree.SubElement(metadata, 'producer'      ).text = "WASP"
+    etree.SubElement(metadata, 'specification' ).text = specification
+    etree.SubElement(metadata, 'programfile'   ).text = file
+    etree.SubElement(metadata, 'programhash'   ).text = code_hash
+    etree.SubElement(metadata, 'entryfunction' ).text = "main"
+    etree.SubElement(metadata, 'architecture'  ).text = "32bit"
+    etree.SubElement(metadata, 'creationtime'  ).text = str(datetime.now())
+    return etree.tostring(metadata, encoding='UTF-8', \
+                        xml_declaration=True, \
+                        pretty_print=True,
+                        doctype='<!DOCTYPE test-metadata PUBLIC "+//IDN sosy-lab.org//DTD test-format test-metadata 1.1//EN" "https://sosy-lab.org/test-format/test-metadata-1.1.dtd">')
 
 def binds_to_xml(binds):
-    suite = e.Element('testsuite')
+    suite = etree.Element('testsuite')
     for bind in binds:
-        e.SubElement(suite, 'input').text = bind['value']
-    return e.tostring(suite)
+        etree.SubElement(suite, 'input').text = bind['value']
+    return etree.tostring(suite, encoding='UTF-8', \
+                        xml_declaration=True,
+                        pretty_print=True,
+                        doctype='<!DOCTYPE testcase PUBLIC "+//IDN sosy-lab.org//DTD test-format testcase 1.1//EN" "https://sosy-lab.org/test-format/testcase-1.1.dtd">')
 
 from zipfile import ZipFile
 

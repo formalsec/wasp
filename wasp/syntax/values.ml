@@ -28,6 +28,12 @@ let default_value = function
 
 let value_of_bool b = I32 (if b then 1l else 0l)
 
+let pp_string_of_value = function
+  | I32 i -> Int32.to_string i
+  | I64 i -> Int64.to_string i
+  | F32 f -> string_of_float (F32.to_float f)
+  | F64 f -> string_of_float (F64.to_float f)
+
 let string_of_value = function
   | I32 i -> I32.to_string_s i
   | I64 i -> I64.to_string_s i

@@ -39,7 +39,7 @@ let to_json (env : bind list) : string =
     let (n, v) = b in
     "{" ^
         "\"name\" : \"" ^ n ^ "\", " ^
-        "\"value\" : \"" ^ (string_of_value v) ^ "\", " ^
+        "\"value\" : \"" ^ (pp_string_of_value v) ^ "\", " ^
         "\"type\" : \"" ^ (string_of_value_type (Values.type_of v)) ^ "\"" ^
     "}"
   in
