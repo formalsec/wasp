@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from ..verifier import Runner
+
 import glob, yaml, csv, subprocess, os
 import sys, threading, logging, time, resource, json
 
@@ -113,28 +115,20 @@ tests = {
 #-----------------------------------------------------------
 
 # helpers --------------------------------------------------
-cmd  = lambda p, i : ['./wasp', p, '-e', '(invoke \"__original_main\")', \
-                   '-m', str(i)]
-
 def get_arg(i : int) -> str:
     try:
         return sys.argv[i]
     except:
         return None
 
-# Sets maximum virtual memory of a process
-def limit_virtual_memory():
-    # SV-COMP 15GiB Limit
-    limit = 15 * 1024 * 1024 * 1024
-    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-
-def run(i : int):
+def execute(i : int):
     global results
     global timeout
     global instruction_max 
     global num_threads 
     global lock
     global srcs
+    global runner
 
     while True:
         verdict  = True
@@ -161,6 +155,33 @@ def run(i : int):
         else:
             continue
 
+        complete = False
+        run_result = runner.run(test)
+        if run_result.timeout:
+            ret = 'Timeout'
+        elif run_result.crashed:
+            ret = 'Crash'
+        else:
+            report = json.loads(run_result.output)
+            ret = str(report['specification'])
+            complete = not report['incomplete']
+
+            metadata = xml_converted.test_metadata(
+                    specification[prop],
+                    test.replace('_build', 'original').replace('.wat', '.c')
+                )
+            xml_binds = list(map(xml.converted.binds_to_xml, 
+                report['coverage']))
+            file_binds = list(map(lambda t : (f'testcase-{t[0]}.xml', t[1]),
+                enumerate(xml_binds)))
+            test_base = os.path.basename(test).replace('.wat', '.zip')
+            xml_converter.map_write_suite_zip(
+                    f'tests/sv-benchmarks/output/{test_base}',
+                    file_binds + [('metadata.xml', metadata)]
+                )
+
+        
+
         t0 = time.time()
         try:
             out = subprocess.check_output(cmd(test, instruction_max), \
@@ -182,7 +203,6 @@ def run(i : int):
             ret = 'Crash'
             complete = False
 
-        delta = round(time.time() - t0, 2)
 
         lock.acquire()
         results.append([test, ret, verdict, complete, delta])
@@ -210,6 +230,7 @@ logging.info(f'Using instruction_max={instruction_max}')
 logging.info(f'Using num_threads={num_threads}')
 
 lock = threading.Lock()
+runner = Runner(instruction_max, timeout, 15 * 1024 * 1024 * 1024)
 
 for key, val in tests.items():
     results = [['test', 'answer', 'verdict', 'complete', 'time']]

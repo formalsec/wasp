@@ -4,10 +4,10 @@
 |complete   (T-)|0| 0.0 |
 |incomplete (T-)|0|0.0 |
 |timeout/ram(T-)|0|0.0 |
-|           (T+)|387|65.59322033898304 |
+|           (T+)|390|66.10169491525424 |
 |complete   (F-)|6|1.0169491525423728 |
 |incomplete (F-)|0|0.0 |
-|timeout/ram(F-)|196|33.220338983050844 |
+|timeout/ram(F-)|193|32.71186440677966 |
 |complete   (F+)|0|0.0 |
 |incomplete (F+)|0|0.0 |
 |timeout        |0| |
@@ -17,7 +17,7 @@
 | Actual Property\Reported Property | holds | does not hold |
 |------------------------------------|-------|---------------|
 | holds | 0+0+0=0/0 | 0+0=0 |
-| does not hold | 6+0+196=202 | 387=387/589 |
+| does not hold | 6+0+193=199 | 390=390/589 |
 
-SV-COMP Score: 387/589
+SV-COMP Score: 390/589
 

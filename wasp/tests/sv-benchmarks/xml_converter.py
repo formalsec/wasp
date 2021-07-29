@@ -2,6 +2,9 @@ import hashlib
 from lxml import etree
 from datetime import datetime
 
+METADATA_DTD = '<!DOCTYPE test-metadata PUBLIC "+//IDN sosy-lab.org//DTD test-format test-metadata 1.1//EN" "https://sosy-lab.org/test-format/test-metadata-1.1.dtd">'
+TESTCASE_DTD = '<!DOCTYPE testcase PUBLIC "+//IDN sosy-lab.org//DTD test-format testcase 1.1//EN" "https://sosy-lab.org/test-format/testcase-1.1.dtd">'
+
 def test_metadata(specification, file, ):
     with open(file, 'r') as source:
         code_hash = hashlib.sha256(source.read().encode('UTF-8')).hexdigest()
@@ -14,19 +17,26 @@ def test_metadata(specification, file, ):
     etree.SubElement(metadata, 'entryfunction' ).text = "main"
     etree.SubElement(metadata, 'architecture'  ).text = "32bit"
     etree.SubElement(metadata, 'creationtime'  ).text = str(datetime.now())
-    return etree.tostring(metadata, encoding='UTF-8', \
-                        xml_declaration=True, \
+    return etree.tostring(metadata, encoding='UTF-8',
+                        xml_declaration=True,
                         pretty_print=True,
-                        doctype='<!DOCTYPE test-metadata PUBLIC "+//IDN sosy-lab.org//DTD test-format test-metadata 1.1//EN" "https://sosy-lab.org/test-format/test-metadata-1.1.dtd">')
+                        doctype=METADATA_DTD)
+
+def create_tag(parent, name, val, attrs=None):
+    if attrs is None:
+        attrs = {}
+    tag = etree.SubElement(parent, name, attrs)
+    tag.text = val
 
 def binds_to_xml(binds):
     suite = etree.Element('testsuite')
     for bind in binds:
-        etree.SubElement(suite, 'input').text = bind['value']
+        attrs = dict(variable=bind['name'], type=bind['type'])
+        create_tag(suite, 'input', bind['value'])
     return etree.tostring(suite, encoding='UTF-8', \
                         xml_declaration=True,
                         pretty_print=True,
-                        doctype='<!DOCTYPE testcase PUBLIC "+//IDN sosy-lab.org//DTD test-format testcase 1.1//EN" "https://sosy-lab.org/test-format/testcase-1.1.dtd">')
+                        doctype=TESTCASE_DTD)
 
 from zipfile import ZipFile
 
