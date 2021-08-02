@@ -7,6 +7,14 @@ from datetime import datetime
 METADATA_DTD = '<!DOCTYPE test-metadata PUBLIC "+//IDN sosy-lab.org//DTD test-format test-metadata 1.1//EN" "https://sosy-lab.org/test-format/test-metadata-1.1.dtd">'
 TESTCASE_DTD = '<!DOCTYPE testcase PUBLIC "+//IDN sosy-lab.org//DTD test-format testcase 1.1//EN" "https://sosy-lab.org/test-format/testcase-1.1.dtd">'
 
+ERROR_SPEC = 'COVER( init(main()), FQL(COVER EDGES(@CALL(reach_error))) )'
+BRANCH_SPEC = 'COVER( init(main()), FQL(COVER EDGES(@DECISIONEDGE)) )'
+
+SPECIFICATION = {
+        'coverage-error-call' : ERROR_SPEC,
+        'coverage-branches' : BRANCH_SPEC
+    }
+
 class XMLSuiteGenerator:
     def __init__(
             self,
@@ -29,6 +37,9 @@ class XMLSuiteGenerator:
     @staticmethod
     def get_datetime(self):
         return str(datetime.now())
+
+    def get_spec(self):
+        return SPECIFICATION[self.specification]
 
     def create_tag(parent, name, val, attrs=None):
         if attrs is None:
@@ -56,9 +67,9 @@ class XMLSuiteGenerator:
                 doctype=METADATA_DTD
             )
 
-        def build_testsuite(self):
+        def build_testsuite(self, tv):
             parent = etree.Element('testsuite')
-            for test in json_suite:
+            for test in tv:
                 attrs = dict(variable=json_suite['name'],
                              type=json_suite['type'])
                 create_tag(parent, 'input', json_suite['value'])
@@ -69,3 +80,9 @@ class XMLSuiteGenerator:
                     pretty_print=True,
                     doctype=TESTCASE_DTD
                 )
+
+        def write(self, suite):
+            metadata = self.build_metadata()
+            testcases = map(self.build_testsuite, self.json_suite)
+
+

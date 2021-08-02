@@ -5,6 +5,7 @@ open Symvalue
 type name = string
 type bind = name * value
 
+(* TODO: pair hashtbl, list *)
 type logicenv = (name, value) Hashtbl.t
 type t = logicenv
 

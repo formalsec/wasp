@@ -165,7 +165,9 @@ def execute(i : int):
             report = json.loads(run_result.output)
             ret = str(report['specification'])
             complete = not report['incomplete']
-
+            suite = XMLSuiteGenerator('WASP', test, prop, report['coverage'])
+            suite.write(
+                    f'tests/sv-benchmarks/output/{os.path.basename(test).replace(".wat", ".c")}')
             metadata = xml_converted.test_metadata(
                     specification[prop],
                     test.replace('_build', 'original').replace('.wat', '.c')
