@@ -1,8 +1,0 @@
-test,answer,verdict,complete,time
-tests/sv-comp/_build/psyco/psyco_security.wat,True,True,False,0.45
-tests/sv-comp/_build/psyco/psyco_abp_1-1.wat,True,False,False,1.69
-tests/sv-comp/_build/psyco/psyco_abp_1-3.wat,True,True,False,1.69
-tests/sv-comp/_build/psyco/psyco_abp_1-2.wat,True,True,False,1.42
-tests/sv-comp/_build/psyco/psyco_io_1.wat,True,True,False,0.46
-tests/sv-comp/_build/psyco/psyco_math_1.wat,True,True,False,0.67
-tests/sv-comp/_build/psyco/psyco_accelerometer_1.wat,True,True,False,6.11

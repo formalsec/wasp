@@ -1,9 +1,0 @@
-CC_EXECUTABLES=dudu
-CC := $(foreach t, $(CC_EXECUTABLES),\
-					$(if $(shell which $(t)),$(t),))
-
-check:
-ifndef CC
-	$(error "No compiler installed, consider doing: apt-get install clang")
-endif
-
