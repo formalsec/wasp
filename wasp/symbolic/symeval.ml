@@ -436,7 +436,7 @@ let rec sym_step (c : sym_config) : sym_config =
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
           if path_cond = [] then
-            [AssFail (Logicenv.to_json (Logicenv.to_list logic_env)) @@ e.at]
+            [AssFail Logicenv.(to_json (to_list logic_env)) @@ e.at]
           else
             let c = Option.map negate_relop (to_constraint (simplify ex)) in
             let assertion = Formula.to_formula (
@@ -452,7 +452,8 @@ let rec sym_step (c : sym_config) : sym_config =
               and lf32 = Logicenv.get_vars_by_type F32Type logic_env
               and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
               let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-              [AssFail (Logicenv.to_json binds) @@ e.at]
+              Logicenv.update logic_env binds;
+              [AssFail Logicenv.(to_json (to_list logic_env)) @@ e.at]
         in
         if es' = [] then
           debug "\n\n###### Assertion passed ######";
@@ -481,7 +482,8 @@ let rec sym_step (c : sym_config) : sym_config =
                 and lf32 = Logicenv.get_vars_by_type F32Type logic_env
                 and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
                 let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-                [AssFail (Logicenv.to_json binds) @@ e.at]
+                Logicenv.update logic_env binds;
+                [AssFail Logicenv.(to_json (to_list logic_env)) @@ e.at]
         in 
         if es' = [] then 
           debug "\n\n###### Assertion passed ######";
