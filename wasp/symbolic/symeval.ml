@@ -78,12 +78,17 @@ and sym_admin_instr' =
   | SBreaking of int32 * sym_value stack
   | SLabel of int * instr list * sym_code
   | SFrame of int * sym_frame * sym_code
+  (** 
+    * Wasp's administrative instructions to halt 
+    * small-step semantic intepretation
+    *)
+  | IntLimit
   | AsmFail of path_conditions
   | AssFail of string
   | Bug of bug
 
 
-(*  Symbolic configuration  *)
+(* Symbolic configuration  *)
 type sym_config =
 {
   sym_frame  : sym_frame;
@@ -94,7 +99,7 @@ type sym_config =
   sym_budget : int;  (* to model stack overflow *)
 }
 
-(*  Symbolic frame and configuration  *)
+(* Symbolic frame and configuration  *)
 let sym_frame sym_inst sym_locals = {sym_inst; sym_locals}
 let sym_config inst vs es sym_m = {
   sym_frame  = sym_frame inst []; 
@@ -105,6 +110,7 @@ let sym_config inst vs es sym_m = {
   sym_budget = 1000 (* models default recursion limit in a system *)
 }
 
+exception InstrLimit of sym_config
 exception AssumeFail of sym_config * path_conditions
 exception AssertFail of region * string
 exception BugException of bug * region
@@ -223,10 +229,6 @@ let fresh_sym_var : (unit -> string) =
 (*  Symbolic step  *)
 let rec sym_step (c : sym_config) : sym_config =
   instr_cnt := !instr_cnt + 1;
-  if !instr_cnt >= !Flags.instr_max then begin
-    incomplete := true; 
-    raise Unsatisfiable;
-  end;
   let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond; sym_mem; _} = c in
   let e = List.hd es in
   if not (List.memq (Source.get_line e.at) !lines) then
@@ -234,7 +236,10 @@ let rec sym_step (c : sym_config) : sym_config =
   if not (List.memq (Source.get_line e.at) !lines_total) then 
     lines_total := !lines_total @ [(Source.get_line e.at)];
   let vs', es', logic_env', path_cond', sym_mem' =
-    match e.it, vs with
+    if !instr_cnt >= !Flags.instr_max then (
+      incomplete := true;
+      vs, [IntLimit @@ e.at], logic_env, path_cond, sym_mem
+    ) else (match e.it, vs with
     | SPlain e', vs -> 
       (*Printf.printf ("\n Instr: %s\nStack:\n %s\n##################################################\n\n") (instr_str e') (Symvalue.print_c_sym_values vs);*)
       (match e', vs with
@@ -682,6 +687,9 @@ let rec sym_step (c : sym_config) : sym_config =
     | STrapping msg, vs ->
       assert false
 
+    | IntLimit, vs ->
+      assert false
+
     | AsmFail pc, vs ->
       assert false
 
@@ -708,6 +716,9 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | SLabel (n, es0, (vs', {it = Bug b; at} :: es')), vs ->
       vs, [Bug b @@ at], logic_env, path_cond, sym_mem
+
+    | SLabel (n, es0, (vs', {it = IntLimit; at} :: es')), vs ->
+      vs, [IntLimit @@ at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -736,6 +747,9 @@ let rec sym_step (c : sym_config) : sym_config =
 
     | SFrame (n, frame', (vs', {it = Bug b; at} :: es')), vs ->
       vs, [Bug b @@ at], logic_env, path_cond, sym_mem
+
+    | SFrame (n, frame', (vs', {it = IntLimit; at} :: es')), vs ->
+      vs, [IntLimit @@ at], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -767,6 +781,7 @@ let rec sym_step (c : sym_config) : sym_config =
         with Crash (_, msg) -> Crash.error e.at msg
          *)
       )
+    )
   in {c with sym_code = vs', es' @ List.tl es; logic_env = logic_env'; path_cond = path_cond'; sym_mem = sym_mem'}
 
 
@@ -778,6 +793,9 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
 
   | vs, {it = STrapping msg; at} :: _ ->
     Trap.error at msg
+
+  | vs, {it = IntLimit; at} :: _ ->
+    raise (InstrLimit c)
 
   | vs, {it = AsmFail pc; at} :: _ ->
     raise (AssumeFail (c, pc))
@@ -810,6 +828,13 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
     let {logic_env; path_cond = pc; sym_frame; _} = try sym_eval !c with
+      | InstrLimit conf ->
+          let {logic_env; _} = conf in
+          (* Always add current logical environment as a test-suite 
+           * FIXME: logical env might not be complete.
+           *)
+          coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
+          raise Unsatisfiable
       | AssumeFail (conf, cons) -> 
           Constraints.add finish_constraints !iterations cons;
           conf
@@ -913,7 +938,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   debug ("\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n" ^
       (Constraints.to_string finish_constraints) ^ "\n");
 
-  coverage := wit :: !coverage;
+  if not (wit = "[]") then
+    coverage := wit :: !coverage;
 
   (* Execution report *)
   let fmt_str = "{" ^
