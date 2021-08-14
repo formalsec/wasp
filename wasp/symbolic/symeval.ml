@@ -50,13 +50,18 @@ let numeric_error at = function
        string_of_int i ^ ", got " ^ Types.string_of_value_type (Values.type_of v))
   | exn -> raise exn
 
-
-(* Administrative Expressions & Configurations *)
 type bug =
   | Overflow
   | UAF
   | InvalidFree 
 
+type interruption =
+  | IntLimit
+  | AsmFail of path_conditions
+  | AssFail of string
+  | Bug of bug
+
+(* Administrative Expressions & Configurations *)
 type 'a stack = 'a list
 
 (*  Symbolic Frame  *)
@@ -82,11 +87,7 @@ and sym_admin_instr' =
     * Wasp's administrative instructions to halt 
     * small-step semantic intepretation
     *)
-  | IntLimit
-  | AsmFail of path_conditions
-  | AssFail of string
-  | Bug of bug
-
+  | Interrupt of interruption
 
 (* Symbolic configuration  *)
 type sym_config =
@@ -238,7 +239,7 @@ let rec sym_step (c : sym_config) : sym_config =
   let vs', es', logic_env', path_cond', sym_mem' =
     if !instr_cnt >= !Flags.instr_max then (
       incomplete := true;
-      vs, [IntLimit @@ e.at], logic_env, path_cond, sym_mem
+      vs, [(Interrupt (IntLimit)) @@ e.at], logic_env, path_cond, sym_mem
     ) else (match e.it, vs with
     | SPlain e', vs -> 
       (*Printf.printf ("\n Instr: %s\nStack:\n %s\n##################################################\n\n") (instr_str e') (Symvalue.print_c_sym_values vs);*)
@@ -359,7 +360,7 @@ let rec sym_step (c : sym_config) : sym_config =
           in (v, e) :: vs', [], logic_env, path_cond, sym_mem
         with 
         | BugException (b, at) -> 
-          vs', [(Bug b) @@ e.at], logic_env, path_cond, sym_mem
+          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, path_cond, sym_mem
         | exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
         end
@@ -384,7 +385,7 @@ let rec sym_step (c : sym_config) : sym_config =
           vs', [], logic_env, path_cond, sym_mem
         with
         | BugException (b, at) -> 
-          vs', [(Bug b) @@ e.at], logic_env, path_cond, sym_mem
+          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, path_cond, sym_mem
         | exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
         end
@@ -441,7 +442,7 @@ let rec sym_step (c : sym_config) : sym_config =
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
           if path_cond = [] then
-            [AssFail Logicenv.(to_json (to_list logic_env)) @@ e.at]
+            [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
           else
             let c = Option.map negate_relop (to_constraint (simplify ex)) in
             let assertion = Formula.to_formula (
@@ -458,7 +459,7 @@ let rec sym_step (c : sym_config) : sym_config =
               and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
               let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
               Logicenv.update logic_env binds;
-              [AssFail Logicenv.(to_json (to_list logic_env)) @@ e.at]
+              [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
         in
         if es' = [] then
           debug "\n\n###### Assertion passed ######";
@@ -488,7 +489,7 @@ let rec sym_step (c : sym_config) : sym_config =
                 and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
                 let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
                 Logicenv.update logic_env binds;
-                [AssFail Logicenv.(to_json (to_list logic_env)) @@ e.at]
+                [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
         in 
         if es' = [] then 
           debug "\n\n###### Assertion passed ######";
@@ -500,7 +501,7 @@ let rec sym_step (c : sym_config) : sym_config =
         (* Negate expression because it is false *)
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
         let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        [], [AsmFail path_cond @@ e.at], logic_env, path_cond, sym_mem
+        [], [Interrupt (AsmFail path_cond) @@ e.at], logic_env, path_cond, sym_mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
         let cond = to_constraint (simplify ex) in
@@ -574,7 +575,7 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | Free, (I32 i, _) :: vs' ->
         let es' = 
-          if not (Hashtbl.mem chunk_table i) then [(Bug InvalidFree) @@ e.at]
+          if not (Hashtbl.mem chunk_table i) then [Interrupt (Bug InvalidFree) @@ e.at]
                                              else (Hashtbl.remove chunk_table i; [])
         in vs', es', logic_env, path_cond, sym_mem
 
@@ -687,16 +688,7 @@ let rec sym_step (c : sym_config) : sym_config =
     | STrapping msg, vs ->
       assert false
 
-    | IntLimit, vs ->
-      assert false
-
-    | AsmFail pc, vs ->
-      assert false
-
-    | AssFail msg, vs ->
-      assert false
-    
-    | Bug b, vs ->
+    | Interrupt i, vs ->
       assert false
 
     | SReturning vs', vs ->
@@ -708,17 +700,8 @@ let rec sym_step (c : sym_config) : sym_config =
     | SLabel (n, es0, (vs', [])), vs ->
       vs' @ vs, [], logic_env, path_cond, sym_mem
 
-    | SLabel (n, es0, (vs', {it = AsmFail pc; at} :: es')), vs ->
-      vs, [AsmFail pc @@ at], logic_env, path_cond, sym_mem
-
-    | SLabel (n, es0, (vs', {it = AssFail msg; at} :: es')), vs ->
-      vs, [AssFail msg @@ at], logic_env, path_cond, sym_mem
-
-    | SLabel (n, es0, (vs', {it = Bug b; at} :: es')), vs ->
-      vs, [Bug b @@ at], logic_env, path_cond, sym_mem
-
-    | SLabel (n, es0, (vs', {it = IntLimit; at} :: es')), vs ->
-      vs, [IntLimit @@ at], logic_env, path_cond, sym_mem
+    | SLabel (n, es0, (vs', {it = Interrupt i; at} :: es')), vs ->
+      vs, [Interrupt i @@ at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -739,17 +722,8 @@ let rec sym_step (c : sym_config) : sym_config =
     | SFrame (n, frame', (vs', [])), vs ->
       vs' @ vs, [], logic_env, path_cond, sym_mem
 
-    | SFrame (n, frame', (vs', {it = AsmFail pc; at} :: es')), vs ->
-      vs, [AsmFail pc @@ at], logic_env, path_cond, sym_mem
-
-    | SFrame (n, frame', (vs', {it = AssFail msg; at} :: es')), vs ->
-      vs, [AssFail msg @@ at], logic_env, path_cond, sym_mem
-
-    | SFrame (n, frame', (vs', {it = Bug b; at} :: es')), vs ->
-      vs, [Bug b @@ at], logic_env, path_cond, sym_mem
-
-    | SFrame (n, frame', (vs', {it = IntLimit; at} :: es')), vs ->
-      vs, [IntLimit @@ at], logic_env, path_cond, sym_mem
+    | SFrame (n, frame', (vs', {it = Interrupt i; at} :: es')), vs ->
+      vs, [Interrupt i @@ at], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -794,24 +768,22 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
   | vs, {it = STrapping msg; at} :: _ ->
     Trap.error at msg
 
-  | vs, {it = IntLimit; at} :: _ ->
-    raise (InstrLimit c)
-
-  | vs, {it = AsmFail pc; at} :: _ ->
-    raise (AssumeFail (c, pc))
-
-  | vs, {it = AssFail witness; at} :: _ ->
-    raise (AssertFail (at, witness))
-
-  | vs, {it = Bug b; at} :: _ ->
-    raise (BugException (b, at))
-
+  | vs, {it = Interrupt i; at} :: _ ->
+      let exn = match i with
+        | IntLimit  -> InstrLimit c
+        | AsmFail pc  -> AssumeFail (c, pc)
+        | AssFail wit -> AssertFail (at, wit)
+        | Bug b       -> BugException (b, at)
+      in raise exn
+      
   | vs, es ->
     sym_eval (sym_step c)
 
 (* Functions & Constants *)
 
 let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
+  Sys.(set_signal sigalrm (Signal_handle (fun i -> instr_cnt := !Flags.instr_max)));
+  ignore (Unix.alarm 897);
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
     Crash.error at ("sym_invoke: " ^ s) in
