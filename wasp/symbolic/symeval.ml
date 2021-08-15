@@ -782,8 +782,8 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
 (* Functions & Constants *)
 
 let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
-  Sys.(set_signal sigalrm (Signal_handle (fun i -> instr_cnt := !Flags.instr_max)));
-  ignore (Unix.alarm 897);
+  Sys.(set_signal sigalrm (Signal_handle (fun i -> raise Unsatisfiable)));
+  ignore (Unix.alarm 895);
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
     Crash.error at ("sym_invoke: " ^ s) in
