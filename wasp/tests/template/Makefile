@@ -1,7 +1,7 @@
 CC=clang
 LIB=lib
 SRC=src
-BUILD=build
+BUILD=_build
 
 # Optimizations
 OPT ?= -O0
