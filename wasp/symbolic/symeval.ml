@@ -117,6 +117,7 @@ exception AssertFail of region * string
 exception BugException of bug * region
 exception Unsatisfiable
 
+let path : History.path ref = ref []
 let sym_counter = Counter.create ()
 let instr_cnt   = ref 0
 
@@ -639,6 +640,11 @@ let rec sym_step (c : sym_config) : sym_config =
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
         in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
+      | TraceCondition, (I32 id, _) :: (I32 ci, si) :: vs' ->
+        (*Printf.printf "id=%ld, ci=%ld, si=%s\n" id ci (Symvalue.to_string si);*)
+        History.add_record path id (I32 ci, si);
+        (I32 ci, si) :: vs', [], logic_env, path_cond, sym_mem
+
       | PrintStack, vs' ->
         debug ("STACK STATE: " ^ (string_of_sym_value vs'));
         vs', [], logic_env, path_cond, sym_mem
@@ -821,7 +827,11 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
 
     Counter.reset sym_counter;
     Hashtbl.reset chunk_table;
-    coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
+
+    (* only add models that haven't been covered *)
+    if History.add_path path then
+      coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
+    History.clear_path path;
 
     (* DEBUG: *)
     let delim = String.make 6 '$' in

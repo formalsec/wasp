@@ -320,6 +320,8 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
 
   | GetSymFloat64 _ -> [] --> [F64Type]
 
+  | TraceCondition -> [I32Type; I32Type] --> [I32Type]
+
   | PrintStack -> [] --> []
 
   | PrintMemory -> [] --> []

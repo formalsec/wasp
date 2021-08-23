@@ -37,6 +37,7 @@ let get_sym_int32 x = GetSymInt32 x
 let get_sym_int64 x = GetSymInt64 x
 let get_sym_float32 x = GetSymFloat32 x
 let get_sym_float64 x = GetSymFloat64 x
+let trace_condition = TraceCondition
 let print_stack = PrintStack
 let print_memory = PrintMemory
 let print_btree = PrintBtree

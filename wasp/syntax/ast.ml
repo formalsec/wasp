@@ -118,6 +118,7 @@ and instr' =
   | GetSymInt64 of string
   | GetSymFloat32 of string
   | GetSymFloat64 of string
+  | TraceCondition
   | PrintStack
   | PrintMemory
   | PrintBtree

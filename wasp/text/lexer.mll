@@ -375,6 +375,7 @@ rule token = parse
   | "sym_assert" { SYM_ASSERT }
   | "sym_assume" { SYM_ASSUME }
 
+  | "__trace_condition" { TRACE_CONDITION }
   | "print_stack" { PRINT_STACK }
   | "print_memory" { PRINT_MEMORY }
   | "print_btree" { PRINT_BTREE }
