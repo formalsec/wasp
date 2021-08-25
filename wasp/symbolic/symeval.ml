@@ -117,7 +117,6 @@ exception AssertFail of region * string
 exception BugException of bug * region
 exception Unsatisfiable
 
-let path : History.path ref = ref []
 let sym_counter = Counter.create ()
 let instr_cnt   = ref 0
 
@@ -640,10 +639,10 @@ let rec sym_step (c : sym_config) : sym_config =
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
         in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
 
-      | TraceCondition, (I32 id, _) :: (I32 ci, si) :: vs' ->
+      | TraceCondition, (I32 id, _) :: (v :: vs' as vs'') ->
         (*Printf.printf "id=%ld, ci=%ld, si=%s\n" id ci (Symvalue.to_string si);*)
-        History.add_record path id (I32 ci, si);
-        (I32 ci, si) :: vs', [], logic_env, path_cond, sym_mem
+        History.add id v;
+        vs'', [], logic_env, path_cond, sym_mem
 
       | PrintStack, vs' ->
         debug ("STACK STATE: " ^ (string_of_sym_value vs'));
@@ -704,10 +703,11 @@ let rec sym_step (c : sym_config) : sym_config =
       Crash.error e.at "undefined label"
 
     | SLabel (n, es0, (vs', [])), vs ->
+      Printf.printf "endLabel\n";
       vs' @ vs, [], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = Interrupt i; at} :: es')), vs ->
-      vs, [Interrupt i @@ at], logic_env, path_cond, sym_mem
+      vs, [Interrupt i @@ at] @ [SLabel (n, es0, (vs', es')) @@ e.at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -722,14 +722,17 @@ let rec sym_step (c : sym_config) : sym_config =
       vs, [SBreaking (Int32.sub k 1l, vs0) @@ at], logic_env, path_cond, sym_mem
 
     | SLabel (n, es0, code'), vs ->
+      Printf.printf "stepLabel\n";
       let c' = sym_step {c with sym_code = code'} in
       vs, [SLabel (n, es0, c'.sym_code) @@ e.at], c'.logic_env, c'.path_cond, c'.sym_mem
 
     | SFrame (n, frame', (vs', [])), vs ->
+      Printf.printf "endFrame\n";
       vs' @ vs, [], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = Interrupt i; at} :: es')), vs ->
-      vs, [Interrupt i @@ at], logic_env, path_cond, sym_mem
+      Printf.printf "intFrame\n";
+      vs, [Interrupt i @@ at] @ [SFrame (n, frame', (vs', es')) @@ e.at], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
       vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
@@ -738,6 +741,7 @@ let rec sym_step (c : sym_config) : sym_config =
       take n vs0 e.at @ vs, [], logic_env, path_cond, sym_mem
 
     | SFrame (n, frame', code'), vs ->
+      Printf.printf "stepFrame\n";
       let c' = sym_step {sym_frame = frame'; sym_code = code'; logic_env = c.logic_env; path_cond = c.path_cond; sym_mem = c.sym_mem; sym_budget = c.sym_budget - 1} in
       vs, [SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at], c'.logic_env, c'.path_cond, c'.sym_mem
 
@@ -769,23 +773,37 @@ let rec sym_step (c : sym_config) : sym_config =
 let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
   match c.sym_code with
   | vs, [] ->
+    Printf.printf "endEval\n";
     c
 
   | vs, {it = STrapping msg; at} :: _ ->
     Trap.error at msg
 
-  | vs, {it = Interrupt i; at} :: _ ->
+  | vs, {it = Interrupt i; at} :: es ->
       let exn = match i with
         | IntLimit  -> InstrLimit c
-        | AsmFail pc  -> AssumeFail (c, pc)
+        | AsmFail pc  -> AssumeFail ({c with sym_code = vs, es}, pc)
         | AssFail wit -> AssertFail (at, wit)
         | Bug b       -> BugException (b, at)
       in raise exn
       
   | vs, es ->
+    Printf.printf "stepEval\n";
     sym_eval (sym_step c)
 
 (* Functions & Constants *)
+let eval_sym_expr (e : sym_expr) (env : Logicenv.t) : value =
+  match e with
+  | Symbolic (ty, var) -> Logicenv.find env var
+  | _ -> failwith "NotImplementedError"
+
+let update_locals (frame : sym_frame) (env : Logicenv.t) =
+  Printf.printf "Here!\n";
+  List.iter (fun a -> 
+    let (_, v) = !a in
+    a := (eval_sym_expr v env, v);
+    Printf.printf "local=%s\n" (Symvalue.to_string v)
+  ) frame.sym_locals
 
 let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   Sys.(set_signal sigalrm (Signal_handle (fun i -> raise Unsatisfiable)));
@@ -800,12 +818,14 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let initial_globals = Global.contents !inst.globals in
   (* Assume constraints are stored here *)
   let finish_constraints = Constraints.create in
+  let initial_sym_code = !c.sym_code in
+  let resume = ref false in
   let coverage = ref [] in
   (* Concolic execution *)
   let rec loop global_pc =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
-    let {logic_env; path_cond = pc; sym_frame; _} = try sym_eval !c with
+    let {logic_env; path_cond = pc; sym_frame; sym_code; _} = try sym_eval !c with
       | InstrLimit conf ->
           let {logic_env; _} = conf in
           (* Always add current logical environment as a test-suite 
@@ -814,6 +834,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
           coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
           raise Unsatisfiable
       | AssumeFail (conf, cons) -> 
+          resume := true;
           Constraints.add finish_constraints !iterations cons;
           conf
       | AssertFail (at, wit) ->
@@ -825,15 +846,11 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     if pc = [] then 
       raise Unsatisfiable;
 
-    Counter.reset sym_counter;
-    Hashtbl.reset chunk_table;
-
     (* only add models that haven't been covered *)
-    if History.add_path path then
+    if History.commit () then
       coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
-    History.clear_path path;
 
-    (* DEBUG: *)
+   (* DEBUG: *)
     let delim = String.make 6 '$' in
     debug ("\n\n" ^ delim ^ " LOGICAL ENVIRONMENT BEFORE Z3 STATE " ^ delim ^
            "\n" ^ (Logicenv.to_string logic_env) ^ (String.make 48 '$') ^ "\n");
@@ -866,12 +883,27 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       raise Unsatisfiable;
 
     (* Prepare next iteration *)
-    Logicenv.clear logic_env;
-    Logicenv.init logic_env binds;
-    Symmem2.clear !c.sym_mem;
-    Symmem2.init !c.sym_mem initial_memory;
-    Instance.set_globals !inst initial_globals;
-    c := {!c with sym_budget = 1000};
+    if !resume then (
+      let (vs, es) = sym_code in
+      let e = List.hd es in
+      let frame = match e.it with SFrame (_, frame', _) -> frame' | _ -> sym_frame in
+      Logicenv.clear logic_env;
+      Logicenv.init logic_env binds;
+      update_locals frame logic_env;
+      let pc'' = negate_relop (List.hd pc) :: List.tl pc in
+      c := {!c with sym_code = sym_code; path_cond = pc''};
+      resume := false;
+    ) else (
+      History.reset ();
+      Counter.reset sym_counter;
+      Hashtbl.reset chunk_table;
+      Logicenv.reset logic_env;
+      Logicenv.init logic_env binds;
+      Symmem2.clear !c.sym_mem;
+      Symmem2.init !c.sym_mem initial_memory;
+      Instance.set_globals !inst initial_globals;
+      c := {!c with sym_budget = 1000; sym_code = initial_sym_code; path_cond = []};
+    );
 
     let z3_model_str = Z3.Model.to_string model in
     debug ("SATISFIABLE\nMODEL: \n" ^ z3_model_str ^ "\n\n\n" ^

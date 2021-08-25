@@ -6,13 +6,14 @@ type path = (id * sym_value) list
 type history = string list
 type t = history
 
-let hist : t ref = ref []
+let history : t ref    = ref []
+let current : path ref = ref []
 
-let add_record (p : path ref) (i : id) (v : sym_value) : unit =
-  p := (i, v) :: !p
+let add (i : id) (v : sym_value) : unit =
+  current := (i, v) :: !current
 
-let clear_path (p : path ref) : unit =
-  p := []
+let reset () : unit =
+  current := []
 
 let string_of_path (p : path ref) : string =
   List.fold_left (
@@ -21,10 +22,10 @@ let string_of_path (p : path ref) : string =
       a ^ (Int32.to_string id) ^ (string_of_int b)
   ) "" !p
 
-let add_path (p : path ref) : bool =
-  let path_s = string_of_path p in
-  if List.mem path_s !hist then false
+let commit () : bool =
+  let current_s = (string_of_path current) in
+  if List.mem current_s !history then false
   else (
-    hist := path_s :: !hist;
+    history := current_s :: !history;
     true
   )

@@ -10,11 +10,14 @@ type t = logicenv
 
 let order : (name list) ref = ref []
 
-let clear (env : logicenv) : unit =
+let reset (env : t) : unit =
   order := [];
   Hashtbl.clear env
 
-let init (env : logicenv) (binds : bind list) : unit =
+let clear (env : t) : unit =
+  Hashtbl.clear env
+
+let init (env : t) (binds : bind list) : unit =
   List.iter (fun (k, v) -> Hashtbl.add env k v) binds
 
 let create (binds : bind list) : logicenv = 
@@ -22,23 +25,23 @@ let create (binds : bind list) : logicenv =
   init env binds;
   env
 
-let add (env : logicenv) (k : name) (v : value) : unit =
+let add (env : t) (k : name) (v : value) : unit =
   order := k :: !order;
   Hashtbl.replace env k v
 
-let find (env : logicenv) (k : name) : value = 
+let find (env : t) (k : name) : value = 
   Hashtbl.find env k
 
-let exists (env : logicenv) (x : name) : bool =
+let exists (env : t) (x : name) : bool =
   Hashtbl.mem env x
 
-let is_empty (env : logicenv) : bool =
+let is_empty (env : t) : bool =
   0 = (Hashtbl.length env)
 
-let update (env : logicenv) (binds : bind list) : unit =
+let update (env : t) (binds : bind list) : unit =
   List.iter (fun (x, v) -> Hashtbl.replace env x v) binds
 
-let to_list (env : logicenv) : (bind list) =
+let to_list (env : t) : (bind list) =
   List.map (fun x -> (x, find env x)) (List.rev !order)
 
 let to_json (env : bind list) : string =
