@@ -1,3 +1,7 @@
+open Si32
+open Si64
+open Sf32
+open Sf64
 open Types
 open Values
 open Symvalue
@@ -55,18 +59,18 @@ let to_json (env : bind list) : string =
   in
   "[" ^ (String.concat ", " (List.map jsonify_bind env)) ^ "]"
 
-let to_string (env : logicenv) : string = 
+let to_string (env : t) : string = 
   List.fold_left (fun a b ->
     let (k, v) = b in
     a ^ "(" ^ k ^ "->" ^ (string_of_value v) ^ ")\n"
   ) "" (to_list env)
 
-let get_vars_by_type (t : value_type) (env : logicenv) : string list =
+let get_vars_by_type (t : value_type) (env : t) : string list =
   Hashtbl.fold (fun k v acc ->
     if (Values.type_of v) = t then k :: acc else acc
   ) env []
 
-let to_expr (env : logicenv) : sym_expr list =
+let to_expr (env : t) : sym_expr list =
   Hashtbl.fold (fun k v acc ->
     let e = match v with
       | I32 _ -> I32Relop (Si32.I32Eq, Symbolic (SymInt32  , k), Value v)
@@ -74,4 +78,184 @@ let to_expr (env : logicenv) : sym_expr list =
       | F32 _ -> F32Relop (Sf32.F32Eq, Symbolic (SymFloat32, k), Value v)
       | F64 _ -> F64Relop (Sf64.F64Eq, Symbolic (SymFloat64, k), Value v)
     in e :: acc) env []
-  
+
+let rec eval (env : t) (e : sym_expr) : value =
+  match e with
+  | Ptr p   -> p
+  | Value v -> v
+  | I32Binop (op, e1, e2) ->
+    let v1 = eval env e1 
+    and v2 = eval env e2
+    and op' = match op with
+      | I32Add  -> I32 Ast.I32Op.Add
+      | I32Sub  -> I32 Ast.I32Op.Sub
+      | I32Mul  -> I32 Ast.I32Op.Mul
+      | I32Shl  -> I32 Ast.I32Op.Shl
+      | I32DivU -> I32 Ast.I32Op.DivU
+      | I32DivS -> I32 Ast.I32Op.DivS
+      | I32RemU -> I32 Ast.I32Op.RemU
+      | I32RemS -> I32 Ast.I32Op.RemS
+      | I32ShrU -> I32 Ast.I32Op.ShrU
+      | I32ShrS -> I32 Ast.I32Op.ShrS
+      | I32And  -> I32 Ast.I32Op.And
+      | I32Or   -> I32 Ast.I32Op.Or
+      | I32Xor  -> I32 Ast.I32Op.Xor
+    in Eval_numeric.eval_binop op' v1 v2
+  | I32Unop (op, e') ->
+    let v   = eval env e'
+    and op' = match op with
+      | I32Clz -> I32 Ast.I32Op.Clz
+    in Eval_numeric.eval_unop op' v
+  | I32Relop (op, e1, e2) ->
+    let v1 = eval env e1
+    and v2 = eval env e2
+    and op' = match op with
+      | I32Eq -> I32 Ast.I32Op.Eq
+      | I32Ne -> I32 Ast.I32Op.Ne
+      | I32LtU -> I32 Ast.I32Op.LtU
+      | I32GtU -> I32 Ast.I32Op.GtU
+      | I32LtS -> I32 Ast.I32Op.LtS
+      | I32GtS -> I32 Ast.I32Op.GtS
+      | I32LeU -> I32 Ast.I32Op.LeU
+      | I32GeU -> I32 Ast.I32Op.GeU
+      | I32LeS -> I32 Ast.I32Op.LeS
+      | I32GeS -> I32 Ast.I32Op.GeS
+    in value_of_bool (Eval_numeric.eval_relop op' v1 v2)
+  | I32Cvtop (op, e') ->
+    let v = eval env e'
+    and op' = match op with
+      | I32TruncSF32 -> I32 Ast.I32Op.TruncSF32
+      | I32TruncUF32 -> I32 Ast.I32Op.TruncUF32
+      | I32TruncSF64 -> I32 Ast.I32Op.TruncSF64
+      | I32TruncUF64 -> I32 Ast.I32Op.TruncUF64
+      | I32ReinterpretFloat -> I32 Ast.I32Op.ReinterpretFloat
+    in Eval_numeric.eval_cvtop op' v
+  | I64Binop (op, e1, e2) ->
+    let v1 = eval env e1 
+    and v2 = eval env e2
+    and op' = match op with
+      | I64Add  -> I64 Ast.I64Op.Add
+      | I64Sub  -> I64 Ast.I64Op.Sub
+      | I64Mul  -> I64 Ast.I64Op.Mul
+      | I64Shl  -> I64 Ast.I64Op.Shl
+      | I64DivU -> I64 Ast.I64Op.DivU
+      | I64DivS -> I64 Ast.I64Op.DivS
+      | I64RemU -> I64 Ast.I64Op.RemU
+      | I64RemS -> I64 Ast.I64Op.RemS
+      | I64ShrU -> I64 Ast.I64Op.ShrU
+      | I64ShrS -> I64 Ast.I64Op.ShrS
+      | I64And  -> I64 Ast.I64Op.And
+      | I64Or   -> I64 Ast.I64Op.Or
+      | I64Xor  -> I64 Ast.I64Op.Xor
+    in Eval_numeric.eval_binop op' v1 v2
+  | I64Unop (op, e') ->
+    let v   = eval env e'
+    and op' = match op with
+      | I64Clz -> I64 Ast.I64Op.Clz
+    in Eval_numeric.eval_unop op' v
+  | I64Relop (op, e1, e2) ->
+    let v1 = eval env e1
+    and v2 = eval env e2
+    and op' = match op with
+      | I64Eq -> I64 Ast.I64Op.Eq
+      | I64Ne -> I64 Ast.I64Op.Ne
+      | I64LtU -> I64 Ast.I64Op.LtU
+      | I64GtU -> I64 Ast.I64Op.GtU
+      | I64LtS -> I64 Ast.I64Op.LtS
+      | I64GtS -> I64 Ast.I64Op.GtS
+      | I64LeU -> I64 Ast.I64Op.LeU
+      | I64GeU -> I64 Ast.I64Op.GeU
+      | I64LeS -> I64 Ast.I64Op.LeS
+      | I64GeS -> I64 Ast.I64Op.GeS
+    in value_of_bool (Eval_numeric.eval_relop op' v1 v2)
+  | I64Cvtop (op, e') ->
+    let v = eval env e'
+    and op' = match op with
+      | I64ExtendSI32 -> I64 Ast.I64Op.ExtendSI32
+      | I64ExtendUI32 -> I64 Ast.I64Op.ExtendUI32
+      | I64TruncSF32 -> I64 Ast.I64Op.TruncSF32
+      | I64TruncUF32 -> I64 Ast.I64Op.TruncUF32
+      | I64TruncSF64 -> I64 Ast.I64Op.TruncSF64
+      | I64TruncUF64 -> I64 Ast.I64Op.TruncUF64
+      | I64ReinterpretFloat -> I64 Ast.I64Op.ReinterpretFloat
+    in Eval_numeric.eval_cvtop op' v
+  | F32Binop (op, e1, e2) ->
+    let v1 = eval env e1
+    and v2 = eval env e2
+    and op' = match op with
+      | F32Add -> F32 Ast.F32Op.Add
+      | F32Sub -> F32 Ast.F32Op.Sub
+      | F32Mul -> F32 Ast.F32Op.Mul
+      | F32Div -> F32 Ast.F32Op.Div
+    in Eval_numeric.eval_binop op' v1 v2
+  | F32Unop (op, e') ->
+    let v = eval env e'
+    and op' = match op with
+      | F32Neg -> F32 Ast.F32Op.Neg
+      | F32Abs -> F32 Ast.F32Op.Abs
+    in Eval_numeric.eval_unop op' v
+  | F32Relop (op, e1, e2) ->
+    let v1 = eval env e1
+    and v2 = eval env e2
+    and op' = match op with
+      | F32Eq -> F32 Ast.F32Op.Eq
+      | F32Ne -> F32 Ast.F32Op.Ne
+      | F32Lt -> F32 Ast.F32Op.Lt
+      | F32Gt -> F32 Ast.F32Op.Gt
+      | F32Le -> F32 Ast.F32Op.Le
+      | F32Ge -> F32 Ast.F32Op.Ge
+    in value_of_bool (Eval_numeric.eval_relop op' v1 v2)
+  | F32Cvtop (op, e') ->
+    let v = eval env e'
+    and op' = match op with
+      | F32ConvertSI32 -> F32 Ast.F32Op.ConvertSI32
+      | F32ConvertUI32 -> F32 Ast.F32Op.ConvertUI32
+      | F32ConvertSI64 -> F32 Ast.F32Op.ConvertSI64
+      | F32ConvertUI64 -> F32 Ast.F32Op.ConvertUI64
+      | F32ReinterpretInt -> F32 Ast.F32Op.ReinterpretInt
+    in Eval_numeric.eval_cvtop op' v
+  | F64Binop (op, e1, e2) ->
+    let v1 = eval env e1
+    and v2 = eval env e2
+    and op' = match op with
+      | F64Add -> F64 Ast.F64Op.Add
+      | F64Sub -> F64 Ast.F64Op.Sub
+      | F64Mul -> F64 Ast.F64Op.Mul
+      | F64Div -> F64 Ast.F64Op.Div
+    in Eval_numeric.eval_binop op' v1 v2
+  | F64Unop (op, e') ->
+    let v = eval env e'
+    and op' = match op with
+      | F64Neg -> F64 Ast.F64Op.Neg
+      | F64Abs -> F64 Ast.F64Op.Abs
+    in Eval_numeric.eval_unop op' v
+  | F64Relop (op, e1, e2) ->
+    let v1 = eval env e1
+    and v2 = eval env e2
+    and op' = match op with
+      | F64Eq -> F64 Ast.F64Op.Eq
+      | F64Ne -> F64 Ast.F64Op.Ne
+      | F64Lt -> F64 Ast.F64Op.Lt
+      | F64Gt -> F64 Ast.F64Op.Gt
+      | F64Le -> F64 Ast.F64Op.Le
+      | F64Ge -> F64 Ast.F64Op.Ge
+    in value_of_bool (Eval_numeric.eval_relop op' v1 v2)
+  | F64Cvtop (op, e') ->
+    let v = eval env e'
+    and op' = match op with
+      | F64ConvertSI32 -> F64 Ast.F64Op.ConvertSI32
+      | F64ConvertUI32 -> F64 Ast.F64Op.ConvertUI32
+      | F64ConvertSI64 -> F64 Ast.F64Op.ConvertSI64
+      | F64ConvertUI64 -> F64 Ast.F64Op.ConvertUI64
+      | F64ReinterpretInt -> F64 Ast.F64Op.ReinterpretInt
+    in Eval_numeric.eval_cvtop op' v
+  | Symbolic (ty, var) -> find env var
+  | Extract (e', h, l) ->
+    let v = match eval env e' with
+      | I32 x -> Int64.of_int32 x
+      | I64 x -> x
+      | F32 x -> Int64.of_int32 (F32.to_bits x)
+      | F64 x -> F64.to_bits x
+    in I64 Int64.(logand (shift_right v (l * 8)) 0xffL)
+  | Concat (e1, e2) ->
+      eval env (simplify (Concat (e1, e2)))

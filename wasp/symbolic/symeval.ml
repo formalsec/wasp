@@ -117,6 +117,8 @@ exception AssertFail of region * string
 exception BugException of bug * region
 exception Unsatisfiable
 
+let prefix      = ref ""
+
 let sym_counter = Counter.create ()
 let instr_cnt   = ref 0
 
@@ -230,111 +232,111 @@ let fresh_sym_var : (unit -> string) =
 (*  Symbolic step  *)
 let rec sym_step (c : sym_config) : sym_config =
   instr_cnt := !instr_cnt + 1;
-  let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond; sym_mem; _} = c in
+  let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond = pc; sym_mem = mem; _} = c in
   let e = List.hd es in
   if not (List.memq (Source.get_line e.at) !lines) then
     lines := !lines @ [(Source.get_line e.at)];
   if not (List.memq (Source.get_line e.at) !lines_total) then 
     lines_total := !lines_total @ [(Source.get_line e.at)];
-  let vs', es', logic_env', path_cond', sym_mem' =
+  let vs', es', logic_env', pc', mem' =
     if !instr_cnt >= !Flags.instr_max then (
       incomplete := true;
-      vs, [(Interrupt (IntLimit)) @@ e.at], logic_env, path_cond, sym_mem
+      vs, [(Interrupt (IntLimit)) @@ e.at], logic_env, pc, mem
     ) else (match e.it, vs with
     | SPlain e', vs -> 
       (*Printf.printf ("\n Instr: %s\nStack:\n %s\n##################################################\n\n") (instr_str e') (Symvalue.print_c_sym_values vs);*)
       (match e', vs with
       | Unreachable, vs ->
-        vs, [STrapping "unreachable executed" @@ e.at], logic_env, path_cond, sym_mem
+        vs, [STrapping "unreachable executed" @@ e.at], logic_env, pc, mem
 
       | Nop, vs ->
-        vs, [], logic_env, path_cond, sym_mem
+        vs, [], logic_env, pc, mem
 
       | Block (ts, es'), vs ->
-        vs, [SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at], logic_env, path_cond, sym_mem
+        vs, [SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at], logic_env, pc, mem
 
       | Loop (ts, es'), vs ->
-        vs, [SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at], logic_env, path_cond, sym_mem
+        vs, [SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at], logic_env, pc, mem
 
       | If (ts, es1, es2), (I32 0l, ex) :: vs' -> 
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        (*Printf.printf ("\n\n###### Entered IF, with 0 on top of stack. ######\nPath conditions are now:\n %s\n#################################################\n\n")   (Symvalue.str_path_cond ([v'] @ path_cond));*)
-        vs', [SPlain (Block (ts, es2)) @@ e.at], logic_env, path_cond, sym_mem
+        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        (*Printf.printf ("\n\n###### Entered IF, with 0 on top of stack. ######\nPath conditions are now:\n %s\n#################################################\n\n")   (Symvalue.str_pc ([v'] @ pc));*)
+        vs', [SPlain (Block (ts, es2)) @@ e.at], logic_env, pc, mem
 
       | If (ts, es1, es2), (I32 i, ex) :: vs' -> 
         let cond = to_constraint (simplify ex) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack. ######\nPath conditions are now:\n %s\n##################################################\n\n")   (Symvalue.str_path_cond ([v'] @ path_cond));*)
-        vs', [SPlain (Block (ts, es1)) @@ e.at], logic_env, path_cond, sym_mem
+        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack. ######\nPath conditions are now:\n %s\n##################################################\n\n")   (Symvalue.str_pc ([v'] @ pc));*)
+        vs', [SPlain (Block (ts, es1)) @@ e.at], logic_env, pc, mem
 
       | Br x, vs ->
-        [], [SBreaking (x.it, vs) @@ e.at], logic_env, path_cond, sym_mem
+        [], [SBreaking (x.it, vs) @@ e.at], logic_env, pc, mem
 
       | BrIf x, (I32 0l, ex) :: vs' ->
         (* Negate expression because it is false *)
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
+        let pc = Option.map_default (fun a -> a :: pc) pc cond in
         (*Printf.printf ("\n\n###### Entered BRIF, with 0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n#################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc
-         (to_add @ path_cond));*)
-        vs', [], logic_env, path_cond, sym_mem
+         (to_add @ pc));*)
+        vs', [], logic_env, pc, mem
 
       | BrIf x, (I32 i, ex) :: vs' -> 
         let cond = to_constraint (simplify ex) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n##################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc (to_add @ path_cond));*)
-        vs', [SPlain (Br x) @@ e.at], logic_env, path_cond, sym_mem
+        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n##################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc (to_add @ pc));*)
+        vs', [SPlain (Br x) @@ e.at], logic_env, pc, mem
 
       | BrTable (xs, x), (I32 i, _) :: vs' when I32.ge_u i (Lib.List32.length xs) ->
-        vs', [SPlain (Br x) @@ e.at], logic_env, path_cond, sym_mem
+        vs', [SPlain (Br x) @@ e.at], logic_env, pc, mem
 
       | BrTable (xs, x), (I32 i, _) :: vs' ->
-        vs', [SPlain (Br (Lib.List32.nth xs i)) @@ e.at], logic_env, path_cond, sym_mem
+        vs', [SPlain (Br (Lib.List32.nth xs i)) @@ e.at], logic_env, pc, mem
 
       | Return, vs ->
-        [], [SReturning vs @@ e.at], logic_env, path_cond, sym_mem
+        [], [SReturning vs @@ e.at], logic_env, pc, mem
 
       | Call x, vs ->
-        vs, [SInvoke (func frame.sym_inst x) @@ e.at], logic_env, path_cond, sym_mem
+        vs, [SInvoke (func frame.sym_inst x) @@ e.at], logic_env, pc, mem
 
       | CallIndirect x, (I32 i, _) :: vs ->
         let func = func_elem frame.sym_inst (0l @@ e.at) i e.at in
         if type_ frame.sym_inst x <> Func.type_of func then
-          vs, [STrapping "indirect call type mismatch" @@ e.at], logic_env, path_cond, sym_mem
+          vs, [STrapping "indirect call type mismatch" @@ e.at], logic_env, pc, mem
         else
-          vs, [SInvoke func @@ e.at], logic_env, path_cond, sym_mem
+          vs, [SInvoke func @@ e.at], logic_env, pc, mem
 
       | Drop, v :: vs' ->
-        vs', [], logic_env, path_cond, sym_mem
+        vs', [], logic_env, pc, mem
 
       | Select, (I32 0l, ex) :: v2 :: v1 :: vs' ->
         let cond = Option.map negate_relop (to_constraint (simplify ex)) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        v2 :: vs', [], logic_env, path_cond, sym_mem
+        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        v2 :: vs', [], logic_env, pc, mem
 
       | Select, (I32 i, ex) :: v2 :: v1 :: vs' ->
         let cond = to_constraint (simplify ex) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        v1 :: vs', [], logic_env, path_cond , sym_mem
+        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        v1 :: vs', [], logic_env, pc , mem
 
       | LocalGet x, vs ->
-        !(local frame x) :: vs, [], logic_env, path_cond, sym_mem
+        !(local frame x) :: vs, [], logic_env, pc, mem
 
       | LocalSet x, v :: vs' ->
         local frame x := v;
-        vs', [], logic_env, path_cond, sym_mem 
+        vs', [], logic_env, pc, mem 
 
       | LocalTee x, v :: vs' ->
         local frame x := v;
-        v :: vs', [], logic_env, path_cond, sym_mem
+        v :: vs', [], logic_env, pc, mem
 
       | GlobalGet x, vs ->
         let v' = Global.load (global frame.sym_inst x) in
-        (v', Value v') :: vs, [], logic_env, path_cond, sym_mem
+        (v', Value v') :: vs, [], logic_env, pc, mem
 
       | GlobalSet x, (v, _) :: vs' ->
         (try 
-          Global.store (global frame.sym_inst x) v; vs', [], logic_env, path_cond, sym_mem
+          Global.store (global frame.sym_inst x) v; vs', [], logic_env, pc, mem
         with  Global.NotMutable -> Crash.error e.at "write to immutable global"
             | Global.Type -> Crash.error e.at "type mismatch at global write")
 
@@ -355,14 +357,14 @@ let rec sym_step (c : sym_config) : sym_config =
           end;
           let (v, e) =
             match sz with
-            | None           -> Symmem2.load_value sym_mem base offset ty
-            | Some (sz, ext) -> Symmem2.load_packed sz ext sym_mem base offset ty
-          in (v, e) :: vs', [], logic_env, path_cond, sym_mem
+            | None           -> Symmem2.load_value mem base offset ty
+            | Some (sz, ext) -> Symmem2.load_packed sz ext mem base offset ty
+          in (v, e) :: vs', [], logic_env, pc, mem
         with 
         | BugException (b, at) -> 
-          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, path_cond, sym_mem
+          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, pc, mem
         | exn -> 
-          vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
+          vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, pc, mem
         end
 
       | Store {offset; sz; _}, (v, ex) :: (I32 i, sym_ptr) :: vs' ->
@@ -379,96 +381,75 @@ let rec sym_step (c : sym_config) : sym_config =
               raise (BugException (Overflow, e.at))
           end;
           begin match sz with
-          | None    -> Symmem2.store_value sym_mem base offset (v, ex)
-          | Some sz -> Symmem2.store_packed sz sym_mem base offset (v, ex)
+          | None    -> Symmem2.store_value mem base offset (v, ex)
+          | Some sz -> Symmem2.store_packed sz mem base offset (v, ex)
           end;
-          vs', [], logic_env, path_cond, sym_mem
+          vs', [], logic_env, pc, mem
         with
         | BugException (b, at) -> 
-          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, path_cond, sym_mem
+          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, pc, mem
         | exn -> 
-          vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem
+          vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, pc, mem
         end
 
       | MemorySize, vs ->
-        let mem = memory frame.sym_inst (0l @@ e.at) in
-        (I32 (Memory.size mem), Value (I32 (Memory.size mem))) :: vs, [], logic_env, path_cond, sym_mem
+        let mem' = memory frame.sym_inst (0l @@ e.at) in
+        (I32 (Memory.size mem'), Value (I32 (Memory.size mem'))) :: vs, [], logic_env, pc, mem
 
       | MemoryGrow, (I32 delta, _) :: vs' ->
-        let mem = memory frame.sym_inst (0l @@ e.at) in
-        let old_size = Memory.size mem in
+        let mem' = memory frame.sym_inst (0l @@ e.at) in
+        let old_size = Memory.size mem' in
         let result =
-          try Memory.grow mem delta; old_size
+          try Memory.grow mem' delta; old_size
           with Memory.SizeOverflow | Memory.SizeLimit | Memory.OutOfMemory -> -1l
-        in (I32 result, Value (I32 result)) :: vs', [], logic_env, path_cond, sym_mem
+        in (I32 result, Value (I32 result)) :: vs', [], logic_env, pc, mem
 
       | Const v, vs ->
-        (v.it, Value (v.it)) :: vs, [], logic_env, path_cond, sym_mem
+        (v.it, Value (v.it)) :: vs, [], logic_env, pc, mem
 
       | Test testop, v :: vs' ->
         (try 
           let new_conf = eval_testop v testop in
-          new_conf :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
+          new_conf :: vs', [], logic_env, pc, mem
+        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, pc, mem)
 
       | Compare relop, v2 :: v1 :: vs' ->
         (try
           let new_conf = eval_relop v1 v2 relop in
-          new_conf :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
+          new_conf :: vs', [], logic_env, pc, mem
+        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, pc, mem)
 
       | Unary unop, v :: vs' ->
         (try 
           let new_conf = eval_unop v unop in
-          new_conf :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
+          new_conf :: vs', [], logic_env, pc, mem
+        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, pc, mem)
 
       | Binary binop, v2 :: v1 :: vs' ->
         (try 
           let new_conf = eval_binop v1 v2 binop in
-          new_conf :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
+          new_conf :: vs', [], logic_env, pc, mem
+        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, pc, mem)
 
       | Convert cvtop, v :: vs' ->
         (try 
           let v' = eval_cvtop cvtop v in 
-          v' :: vs', [], logic_env, path_cond, sym_mem
-        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, path_cond, sym_mem)
+          v' :: vs', [], logic_env, pc, mem
+        with exn -> vs', [STrapping (numeric_error e.at exn) @@ e.at], logic_env, pc, mem)
 
       | Dup, v :: vs' ->
-        v :: v :: vs', [], logic_env, path_cond, sym_mem
+        v :: v :: vs', [], logic_env, pc, mem
 
       | SymAssert, (I32 0l, ex) :: vs' -> (* 0 on top of stack *)
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
-          if path_cond = [] then
             [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
-          else
-            let c = Option.map negate_relop (to_constraint (simplify ex)) in
-            let assertion = Formula.to_formula (
-              Option.map_default (fun a -> a :: path_cond) path_cond c) in
-            let start = Sys.time () in
-            let model = Z3Encoding2.check_sat_core assertion in
-            solver_time := !solver_time +. ((Sys.time ()) -. start);
-            match model with
-            | None   -> []
-            | Some m ->
-              let li32 = Logicenv.get_vars_by_type I32Type logic_env
-              and li64 = Logicenv.get_vars_by_type I64Type logic_env
-              and lf32 = Logicenv.get_vars_by_type F32Type logic_env
-              and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
-              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-              Logicenv.update logic_env binds;
-              [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
-        in
-        if es' = [] then
-          debug "\n\n###### Assertion passed ######";
-        vs', es', logic_env, path_cond, sym_mem
+        in vs', es', logic_env, pc, mem
       
       | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
-          if path_cond = [] then []
+          if pc = [] then []
           else 
             match simplify ex with
             | Value (I32 v) when not (v = 0l) -> []
@@ -476,7 +457,7 @@ let rec sym_step (c : sym_config) : sym_config =
             | ex' ->
               let c = Option.map negate_relop (to_constraint ex') in
               let assertion = Formula.to_formula (
-                Option.map_default (fun a -> a :: path_cond) path_cond c) in
+                Option.map_default (fun a -> a :: pc) pc c) in
               let start = Sys.time () in
               let model = Z3Encoding2.check_sat_core assertion in
               solver_time := !solver_time +. ((Sys.time ()) -. start);
@@ -493,25 +474,42 @@ let rec sym_step (c : sym_config) : sym_config =
         in 
         if es' = [] then 
           debug "\n\n###### Assertion passed ######";
-        vs', es', logic_env, path_cond, sym_mem
+        vs', es', logic_env, pc, mem
 
       | SymAssume, (I32 0l, ex) :: vs' ->
         debug (">>> Assumed false {line> " ^ (Source.string_of_pos e.at.left) ^
           "}. Finishing...");
-        (* Negate expression because it is false *)
-        let cond = Option.map negate_relop (to_constraint (simplify ex)) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
-        [], [Interrupt (AsmFail path_cond) @@ e.at], logic_env, path_cond, sym_mem
+        let cond = to_constraint (simplify ex) in
+        let cond' = Option.map negate_relop (to_constraint (simplify ex)) in
+        let pc' = Option.map_default (fun a -> a :: pc) pc cond in
+        let pc'' = Option.map_default (fun a -> a :: pc) pc cond' in
+        let es', pc''' = match Z3Encoding2.check_sat_core (Formula.to_formula pc') with
+          | None -> [Interrupt (AsmFail pc'') @@ e.at], pc''
+          | Some m ->
+            let li32 = Logicenv.get_vars_by_type I32Type logic_env
+            and li64 = Logicenv.get_vars_by_type I64Type logic_env
+            and lf32 = Logicenv.get_vars_by_type F32Type logic_env
+            and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
+            let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+            Logicenv.update logic_env binds;
+            [], pc' in 
+        let vs'' = if es = [] then (
+          List.iter (fun a -> 
+            let (_, v) = !a in a := (Logicenv.eval logic_env v, v)) frame.sym_locals;
+          Symmem2.update mem logic_env;
+          List.map (fun (_, v) -> (Logicenv.eval logic_env v, v)) vs'
+        ) else vs' 
+        in vs'', es', logic_env, pc''', mem
 
       | SymAssume, (I32 i, ex) :: vs' ->
         let cond = to_constraint (simplify ex) in
-        let path_cond = Option.map_default (fun a -> a :: path_cond) path_cond cond in
+        let pc' = Option.map_default (fun a -> a :: pc) pc cond in
         debug ">>> Assume passed. Continuing execution...";
-        vs', [], logic_env, path_cond, sym_mem
+        vs', [], logic_env, pc', mem
 
       | SymInt, (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        let x = Symmem2.load_string sym_mem base in
+        let x = Symmem2.load_string mem base in
         let (x, v) =
           let cnt = try Counter.find sym_counter x with Not_found -> 0 in
           let x' = if cnt = 0 then x
@@ -522,11 +520,11 @@ let rec sym_step (c : sym_config) : sym_config =
           Counter.replace sym_counter x (cnt + 1);
           x', v
         in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
-           path_cond, sym_mem
+           pc, mem
 
       | SymLong, (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        let x = Symmem2.load_string sym_mem base in
+        let x = Symmem2.load_string mem base in
         let (x, v) =
           let cnt = try Counter.find sym_counter x with Not_found -> 0 in
           let x' = if cnt = 0 then x
@@ -537,11 +535,11 @@ let rec sym_step (c : sym_config) : sym_config =
           Counter.replace sym_counter x (cnt + 1);
           x', v
         in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
-          path_cond, sym_mem
+          pc, mem
 
       | SymFloat, (I32 i, _) :: vs' ->
           let base = I64_convert.extend_i32_u i in
-          let x = Symmem2.load_string sym_mem base in
+          let x = Symmem2.load_string mem base in
           let (x, v) =
             let cnt = try Counter.find sym_counter x with Not_found -> 0 in
             let x' = if cnt = 0 then x 
@@ -552,11 +550,11 @@ let rec sym_step (c : sym_config) : sym_config =
             Counter.replace sym_counter x (cnt + 1);
             x', v
           in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
-                path_cond, sym_mem
+                pc, mem
 
       | SymDouble, (I32 i, _) :: vs' ->
           let base = I64_convert.extend_i32_u i in
-          let x = Symmem2.load_string sym_mem base in
+          let x = Symmem2.load_string mem base in
           let (x, v) =
             let cnt = try Counter.find sym_counter x with Not_found -> 0 in
             let x' = if cnt = 0 then x 
@@ -567,17 +565,17 @@ let rec sym_step (c : sym_config) : sym_config =
             Counter.replace sym_counter x (cnt + 1);
             x', v
           in (v, to_symbolic (Values.type_of v) x) :: vs', [], logic_env,
-                path_cond, sym_mem
+                pc, mem
 
       | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
           Hashtbl.add chunk_table b a;
-          (I32 b, Ptr (I32 b)) :: vs', [], logic_env, path_cond, sym_mem
+          (I32 b, Ptr (I32 b)) :: vs', [], logic_env, pc, mem
 
       | Free, (I32 i, _) :: vs' ->
         let es' = 
           if not (Hashtbl.mem chunk_table i) then [Interrupt (Bug InvalidFree) @@ e.at]
                                              else (Hashtbl.remove chunk_table i; [])
-        in vs', es', logic_env, path_cond, sym_mem
+        in vs', es', logic_env, pc, mem
 
       | SymInt32 x, vs' ->
         let v =
@@ -586,7 +584,7 @@ let rec sym_step (c : sym_config) : sym_config =
             let v' = I32 (I32.rand 1000) in
             Logicenv.add logic_env x v';
             v'
-        in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, pc, mem
 
       | SymInt64 x, vs' ->
         let v =
@@ -595,7 +593,7 @@ let rec sym_step (c : sym_config) : sym_config =
             let v' = I64 (I64.rand 1000) in
             Logicenv.add logic_env x v';
             v'
-        in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, pc, mem
 
       | SymFloat32 x, vs' ->
         let v =
@@ -604,7 +602,7 @@ let rec sym_step (c : sym_config) : sym_config =
             let v' = F32 (F32.rand 1000.0) in
             Logicenv.add logic_env x v';
             v'
-        in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, pc, mem
 
       | SymFloat64 x, vs' ->
         let v = 
@@ -613,49 +611,65 @@ let rec sym_step (c : sym_config) : sym_config =
             let v' = F64 (F64.rand 1000.0) in
             Logicenv.add logic_env x v';
             v'
-        in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, pc, mem
 
       | GetSymInt32 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
-        in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, pc, mem
 
       | GetSymInt64 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
-        in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, pc, mem
 
       | GetSymFloat32 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
-        in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, pc, mem
 
       | GetSymFloat64 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
           | Not_found -> Crash.error e.at "Symbolic variable was not in store."
-        in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, path_cond, sym_mem
+        in (v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], logic_env, pc, mem
 
-      | TraceCondition, (I32 id, _) :: (v :: vs' as vs'') ->
-        (*Printf.printf "id=%ld, ci=%ld, si=%s\n" id ci (Symvalue.to_string si);*)
-        History.add id v;
-        vs'', [], logic_env, path_cond, sym_mem
+      | TraceCondition, (I32 id, _) :: ((ci, si) :: vs' as vs'') ->
+        prefix := !prefix ^ (Int32.to_string id) ^
+          (string_of_int (if ci = Values.(default_value (type_of ci)) then 0 else 1));
+        (*
+        let id_s = (Int32.to_string id)
+        and ci_s = (string_of_int 
+          )
+        and si_s = Symvalue.to_string si in
+        let lbl  = !prefix ^ id_s ^ ci_s in prefix := lbl;
+        let hist = try History.find history lbl with Not_found -> "" in
+        let value = match hist with
+          | "" -> History.add history lbl (Symvalue.to_string si);
+            true
+          | s when s = si_s       -> false
+          | s when not (s = si_s) -> false
+          | _ -> failwith "UnrecoverableError"
+        in 
+        skip := value;
+        *)
+        vs'', [], logic_env, pc, mem
 
       | PrintStack, vs' ->
         debug ("STACK STATE: " ^ (string_of_sym_value vs'));
-        vs', [], logic_env, path_cond, sym_mem
+        vs', [], logic_env, pc, mem
 
       | PrintMemory, vs' ->
-        debug ("MEMORY STATE:\n" ^ (Symmem2.to_string sym_mem)); 
-        vs', [], logic_env, path_cond, sym_mem
+        debug ("MEMORY STATE:\n" ^ (Symmem2.to_string mem)); 
+        vs', [], logic_env, pc, mem
 
       | PrintBtree, vs' ->
         Printf.printf "B TREE STATE: \n\n";
-        Btree.print_b_tree sym_mem; 
-        vs', [], logic_env, path_cond, sym_mem
+        Btree.print_b_tree mem; 
+        vs', [], logic_env, pc, mem
 
       | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
         let eq = Values.value_of_bool (Eval_numeric.eval_relop (Values.I32 Ast.I32Op.Eq) (I32 (Int32.of_int 1)) (I32 (Int32.of_int 1))) in
@@ -670,11 +684,11 @@ let rec sym_step (c : sym_config) : sym_config =
               )
           | _, _ -> eval_relop (v1, ex1) (v2, ex2) (Values.I32 Ast.I32Op.Eq)
         in
-        res :: vs', [], logic_env, path_cond, sym_mem
+        res :: vs', [], logic_env, pc, mem
 
       | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        let (_, v) = Symmem2.load_bytes sym_mem base (Int32.to_int n) in
+        let (_, v) = Symmem2.load_bytes mem base (Int32.to_int n) in
         (* TODO: Better symbolic matcher (deal with extract of symbolics) *)
         let ans = 
           begin match v with
@@ -683,7 +697,7 @@ let rec sym_step (c : sym_config) : sym_config =
           end
         in
         (*Printf.printf "%d %d\n" (Int32.to_int i) (Int64.to_int addr);*)
-        (ans, Value ans) :: vs', [], logic_env, path_cond, sym_mem
+        (ans, Value ans) :: vs', [], logic_env, pc, mem
 
       | _ ->
         Crash.error e.at
@@ -703,45 +717,40 @@ let rec sym_step (c : sym_config) : sym_config =
       Crash.error e.at "undefined label"
 
     | SLabel (n, es0, (vs', [])), vs ->
-      Printf.printf "endLabel\n";
-      vs' @ vs, [], logic_env, path_cond, sym_mem
+      vs' @ vs, [], logic_env, pc, mem
 
     | SLabel (n, es0, (vs', {it = Interrupt i; at} :: es')), vs ->
-      vs, [Interrupt i @@ at] @ [SLabel (n, es0, (vs', es')) @@ e.at], logic_env, path_cond, sym_mem
+      vs, [Interrupt i @@ at] @ [SLabel (n, es0, (vs', es')) @@ e.at], logic_env, pc, mem
 
     | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
-      vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
+      vs, [STrapping msg @@ at], logic_env, pc, mem
 
     | SLabel (n, es0, (vs', {it = SReturning vs0; at} :: es')), vs ->
-      vs, [SReturning vs0 @@ at], logic_env, path_cond, sym_mem
+      vs, [SReturning vs0 @@ at], logic_env, pc, mem
 
     | SLabel (n, es0, (vs', {it = SBreaking (0l, vs0); at} :: es')), vs ->
-      take n vs0 e.at @ vs, List.map plain es0, logic_env, path_cond, sym_mem
+      take n vs0 e.at @ vs, List.map plain es0, logic_env, pc, mem
 
     | SLabel (n, es0, (vs', {it = SBreaking (k, vs0); at} :: es')), vs ->
-      vs, [SBreaking (Int32.sub k 1l, vs0) @@ at], logic_env, path_cond, sym_mem
+      vs, [SBreaking (Int32.sub k 1l, vs0) @@ at], logic_env, pc, mem
 
     | SLabel (n, es0, code'), vs ->
-      Printf.printf "stepLabel\n";
       let c' = sym_step {c with sym_code = code'} in
       vs, [SLabel (n, es0, c'.sym_code) @@ e.at], c'.logic_env, c'.path_cond, c'.sym_mem
 
     | SFrame (n, frame', (vs', [])), vs ->
-      Printf.printf "endFrame\n";
-      vs' @ vs, [], logic_env, path_cond, sym_mem
+      vs' @ vs, [], logic_env, pc, mem
 
     | SFrame (n, frame', (vs', {it = Interrupt i; at} :: es')), vs ->
-      Printf.printf "intFrame\n";
-      vs, [Interrupt i @@ at] @ [SFrame (n, frame', (vs', es')) @@ e.at], logic_env, path_cond, sym_mem
+      vs, [Interrupt i @@ at] @ [SFrame (n, frame', (vs', es')) @@ e.at], logic_env, pc, mem
 
     | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
-      vs, [STrapping msg @@ at], logic_env, path_cond, sym_mem
+      vs, [STrapping msg @@ at], logic_env, pc, mem
 
     | SFrame (n, frame', (vs', {it = SReturning vs0; at} :: es')), vs ->
-      take n vs0 e.at @ vs, [], logic_env, path_cond, sym_mem
+      take n vs0 e.at @ vs, [], logic_env, pc, mem
 
     | SFrame (n, frame', code'), vs ->
-      Printf.printf "stepFrame\n";
       let c' = sym_step {sym_frame = frame'; sym_code = code'; logic_env = c.logic_env; path_cond = c.path_cond; sym_mem = c.sym_mem; sym_budget = c.sym_budget - 1} in
       vs, [SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at], c'.logic_env, c'.path_cond, c'.sym_mem
 
@@ -758,22 +767,21 @@ let rec sym_step (c : sym_config) : sym_config =
         let locals'' = List.rev args @ locals' in
         let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
         let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in
-        vs', [SFrame (List.length out, frame', code') @@ e.at], logic_env, path_cond, sym_mem
+        vs', [SFrame (List.length out, frame', code') @@ e.at], logic_env, pc, mem
 
       | Func.HostFunc (t, f) -> failwith "HostFunc error"
-        (*try List.rev (f (List.rev args)) @ vs', [], logic_env, path_cond
+        (*try List.rev (f (List.rev args)) @ vs', [], logic_env, pc
         with Crash (_, msg) -> Crash.error e.at msg
          *)
       )
     )
-  in {c with sym_code = vs', es' @ List.tl es; logic_env = logic_env'; path_cond = path_cond'; sym_mem = sym_mem'}
+  in {c with sym_code = vs', es' @ List.tl es; logic_env = logic_env'; path_cond = pc'; sym_mem = mem'}
 
 
 (*  Symbolic evaluation  *)
 let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
   match c.sym_code with
   | vs, [] ->
-    Printf.printf "endEval\n";
     c
 
   | vs, {it = STrapping msg; at} :: _ ->
@@ -781,28 +789,20 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
 
   | vs, {it = Interrupt i; at} :: es ->
       let exn = match i with
-        | IntLimit  -> InstrLimit c
+        | IntLimit    -> InstrLimit c
         | AsmFail pc  -> AssumeFail ({c with sym_code = vs, es}, pc)
         | AssFail wit -> AssertFail (at, wit)
         | Bug b       -> BugException (b, at)
       in raise exn
       
   | vs, es ->
-    Printf.printf "stepEval\n";
     sym_eval (sym_step c)
 
 (* Functions & Constants *)
-let eval_sym_expr (e : sym_expr) (env : Logicenv.t) : value =
-  match e with
-  | Symbolic (ty, var) -> Logicenv.find env var
-  | _ -> failwith "NotImplementedError"
-
 let update_locals (frame : sym_frame) (env : Logicenv.t) =
-  Printf.printf "Here!\n";
   List.iter (fun a -> 
     let (_, v) = !a in
-    a := (eval_sym_expr v env, v);
-    Printf.printf "local=%s\n" (Symvalue.to_string v)
+    a := (Logicenv.eval env v, v)
   ) frame.sym_locals
 
 let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
@@ -819,6 +819,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   (* Assume constraints are stored here *)
   let finish_constraints = Constraints.create in
   let initial_sym_code = !c.sym_code in
+  let history = ref [] in
   let resume = ref false in
   let coverage = ref [] in
   (* Concolic execution *)
@@ -827,14 +828,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
     let {logic_env; path_cond = pc; sym_frame; sym_code; _} = try sym_eval !c with
       | InstrLimit conf ->
-          let {logic_env; _} = conf in
-          (* Always add current logical environment as a test-suite 
-           * FIXME: logical env might not be complete.
-           *)
-          coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
-          raise Unsatisfiable
+          conf
       | AssumeFail (conf, cons) -> 
-          resume := true;
           Constraints.add finish_constraints !iterations cons;
           conf
       | AssertFail (at, wit) ->
@@ -847,8 +842,10 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       raise Unsatisfiable;
 
     (* only add models that haven't been covered *)
-    if History.commit () then
+    if not (List.mem !prefix !history) then (
       coverage := Logicenv.(to_json (to_list logic_env)) :: !coverage;
+      history := !prefix :: !history
+    );
 
    (* DEBUG: *)
     let delim = String.make 6 '$' in
@@ -889,12 +886,14 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       let frame = match e.it with SFrame (_, frame', _) -> frame' | _ -> sym_frame in
       Logicenv.clear logic_env;
       Logicenv.init logic_env binds;
-      update_locals frame logic_env;
-      let pc'' = negate_relop (List.hd pc) :: List.tl pc in
-      c := {!c with sym_code = sym_code; path_cond = pc''};
+      List.iter (fun a -> let (_, v) = !a in a := (Logicenv.eval logic_env v, v)) frame.sym_locals;
+      let vs, es = sym_code in
+      let vs' = List.map (fun (_, v) -> (Logicenv.eval logic_env v, v)) vs in
+      Symmem2.update !c.sym_mem logic_env;
+      c := {!c with sym_code = vs', es; path_cond = pc};
       resume := false;
     ) else (
-      History.reset ();
+      prefix := "";
       Counter.reset sym_counter;
       Hashtbl.reset chunk_table;
       Logicenv.reset logic_env;

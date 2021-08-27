@@ -19,6 +19,7 @@ val size : memory -> int
 val clear : memory -> unit
 val memcpy : memory -> memory
 val init : memory -> (address * store) list -> unit
+val update : memory -> Logicenv.t -> unit
 
 val to_list : memory -> (address * store) list
 val to_string : memory -> string

@@ -1,31 +1,21 @@
-open Symvalue
+type label = string
+type condition = string
 
-type id = int32
-type path = (id * sym_value) list
-
-type history = string list
+type history = (label, condition) Hashtbl.t
 type t = history
 
-let history : t ref    = ref []
-let current : path ref = ref []
+let create () : t =
+  let env : t = Hashtbl.create 512 in
+  env
 
-let add (i : id) (v : sym_value) : unit =
-  current := (i, v) :: !current
+let add (hist : t) (lbl : label) (c : condition) : unit =
+  Hashtbl.add hist lbl c
 
-let reset () : unit =
-  current := []
+let reset (hist : t) : unit =
+  Hashtbl.clear hist
 
-let string_of_path (p : path ref) : string =
-  List.fold_left (
-    fun a (id, (ci, si)) ->
-      let b = if ci = Values.(default_value (type_of ci)) then 0 else 1 in
-      a ^ (Int32.to_string id) ^ (string_of_int b)
-  ) "" !p
+let find (hist : t) (lbl : label) : condition =
+  Hashtbl.find hist lbl
 
-let commit () : bool =
-  let current_s = (string_of_path current) in
-  if List.mem current_s !history then false
-  else (
-    history := current_s :: !history;
-    true
-  )
+let mem (hist : t) (lbl : label) : bool =
+  Hashtbl.mem hist lbl

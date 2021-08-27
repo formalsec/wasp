@@ -1,44 +1,48 @@
 #include <mockups.h>
 
-typedef unsigned long size_t;
-
-extern unsigned char __heap_base;
-unsigned int bump_pointer = &__heap_base;
-
-void *malloc(size_t size) {
-  unsigned int r = bump_pointer;
-  for (int i = 0; i < size; ++i)
-    *((unsigned char *)bump_pointer + i) = 'i';
-  bump_pointer += size;
-  return (void*)alloc(r, size);
+int __logand(int a, int b) {
+  __asm__ __volatile__(
+    "local.get 0;"
+    "i32.const 0;"
+    "i32.ne;"
+    "local.get 1;"
+    "i32.const 0;"
+    "i32.ne;"
+    "i32.and;"
+    "return;"
+  );
 }
 
-void *calloc (size_t nmemb, size_t size) {
-  unsigned int r = bump_pointer;
-  for (int i = 0; i < nmemb * size; ++i)
-    *((unsigned int*)(bump_pointer + i)) = 0;
-  bump_pointer += (nmemb * size);
-  return (void *)alloc(r, nmemb * size);
+int __logor(int a, int b) {
+  __asm__ __volatile__(
+    "local.get 0;"
+    "i32.const 0;"
+    "i32.ne;"
+    "local.get 1;"
+    "i32.const 0;"
+    "i32.ne;"
+    "i32.or;"
+    "return;"
+  );
 }
 
-void free(void *ptr) {
-  dealloc(ptr);
+int IFG(int cond, int id) {
+  return cond;
 }
 
-void init_vector(int size) {
-  int *arr = (int *)malloc(sizeof(int)*size);
-
-  for (int i = 0; i < size; ++i) arr[i] = 0;
-
-  free(arr);
+void test(int a, int b) {
+  if (IFG(__logand(a, b), 1)) {
+    assert(a);
+  } else {
+    if (IFG(!a, 2)) {}
+    if (IFG(!b, 3)) {}
+  }
+  assert(__logor(__logor(a, __logand(!a,  b)), !b));
 }
 
 int main() {
-  
-  int concrete = 10;
-  int symbolic = sym_int("vector_size");
-  assume (symbolic != 0);
-  init_vector(concrete);
-  init_vector(symbolic);
+  int a = sym_int("a");
+  int b = sym_int("b");
+  test(a, b);
   return 0;
 }

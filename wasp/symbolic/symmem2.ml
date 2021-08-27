@@ -46,6 +46,9 @@ let clear (mem : memory) : unit =
 let memcpy (mem : memory) : memory =
   Hashtbl.copy mem
 
+let iter (f : address -> store -> unit) (mem : memory) : unit =
+  Hashtbl.iter f mem
+
 let init (mem : memory) (l : (address * store) list) : unit =
   List.iter (fun (a, s) -> Hashtbl.replace mem a s) l
 
@@ -208,3 +211,14 @@ let store_packed (sz : Memory.pack_size) (mem : memory) (a : address)
     | I64 x -> x
     | _     -> raise Memory.Type
   in storen mem a o n (x, sv)
+
+let update (mem : memory) (env : Logicenv.t) : unit =
+  iter (fun a s ->
+    let (_, se) = s in
+    let i = match Logicenv.eval env se with
+      | I32 x -> Int32.to_int x
+      | I64 x -> Int64.to_int x
+      | F32 x -> Int32.to_int (F32.to_bits x)
+      | F64 x -> Int64.to_int (F64.to_bits x)
+    in store_byte mem a (i, se)
+  ) mem
