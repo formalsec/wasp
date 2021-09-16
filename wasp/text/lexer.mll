@@ -358,10 +358,12 @@ rule token = parse
   | "get_sym_float32" { GET_SYM_FLOAT32 }
   | "get_sym_float64" { GET_SYM_FLOAT64 }
 
-  | "sym_int"    { SYM_INT }
-  | "sym_long"   { SYM_LONG }
-  | "sym_float"  { SYM_FLOAT }
-  | "sym_double" { SYM_DOUBLE }
+  | (nxx as t)".symbolic" { SYMBOLIC (value_type t) }
+
+  | (ixx)".__logand" { BOOLOP i32_logand }
+  | (ixx)".__logor" { BOOLOP i32_logor }
+  | "__ternary_op" { TERNARY_OP }
+  | "__trace_condition" { TRACE_CONDITION }
 
   | "alloc" { ALLOC }
   | "free" { FREE }
@@ -375,7 +377,6 @@ rule token = parse
   | "sym_assert" { SYM_ASSERT }
   | "sym_assume" { SYM_ASSUME }
 
-  | "__trace_condition" { TRACE_CONDITION }
   | "print_stack" { PRINT_STACK }
   | "print_memory" { PRINT_MEMORY }
   | "print_btree" { PRINT_BTREE }

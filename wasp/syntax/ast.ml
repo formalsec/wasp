@@ -100,12 +100,12 @@ and instr' =
   (*  SYMBOLIC EXECUTION  *)
   | SymAssert                         (* Symbolic assertions *)
   | SymAssume                         (* Symbolic assume *)
-  | SymInt
-  | SymLong
-  | SymFloat
-  | SymDouble
+  | Symbolic of value_type
+  | TernaryOp
+  | Boolop of binop
   | Alloc
   | Free
+  | TraceCondition
   (* LIBC SUMM APIs *)
   | IsSymbolic
   | SymInt32 of string                  (* Symbolic integer 32 variable *)
@@ -118,7 +118,6 @@ and instr' =
   | GetSymInt64 of string
   | GetSymFloat32 of string
   | GetSymFloat64 of string
-  | TraceCondition
   | PrintStack
   | PrintMemory
   | PrintBtree

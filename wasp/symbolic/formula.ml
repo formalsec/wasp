@@ -26,20 +26,27 @@ let conjuct (conds : formula list) : formula =
     | h :: t -> loop (And (acc, h)) t
   in loop (List.hd conds) (List.tl conds)
 
-let rec to_string (f : formula) : string =
+let rec to_string_aux (p : Symvalue.sym_expr -> string) 
+    (f : formula) : string =
   match f with
   | True  -> "True"
   | False -> "False"
-  | Not c -> "(¬ " ^ (to_string c) ^ ")"
+  | Not c -> "(Not " ^ (to_string_aux p c ) ^ ")"
   | And (c1, c2) -> 
-      let c1_str = to_string c1
-      and c2_str = to_string c2 in
+      let c1_str = to_string_aux p c1 
+      and c2_str = to_string_aux p c2 in
       "(" ^ c1_str ^ " /\\ " ^ c2_str ^")"
   | Or (c1, c2) ->
-      let c1_str = to_string c1
-      and c2_str = to_string c2 in
+      let c1_str = to_string_aux p c1
+      and c2_str = to_string_aux p c2 in
       "(" ^ c1_str ^ " \\/ " ^ c2_str ^")"
-  | Relop e -> Symvalue.pp_to_string e
+  | Relop e -> p e
+  
+let to_string (f : formula) : string =
+  to_string_aux Symvalue.to_string f 
+
+let pp_to_string (f : formula) : string =
+  to_string_aux Symvalue.pp_to_string f
 
 let rec length (e : formula) : int =
   match e with

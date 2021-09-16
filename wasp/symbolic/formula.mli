@@ -16,3 +16,4 @@ val length : formula -> int
 
 val to_formula : sym_expr list -> formula
 val to_string : formula -> string
+val pp_to_string : formula -> string

@@ -176,12 +176,11 @@ let inline_type_explicit (c : context) x ft at =
 %token GET_SYM_FLOAT32
 %token GET_SYM_FLOAT64
 
-%token SYM_INT SYM_LONG SYM_FLOAT SYM_DOUBLE
+%token SYM_ASSERT SYM_ASSUME
 %token ALLOC FREE
-%token IS_SYMBOLIC
+%token IS_SYMBOLIC TERNARY_OP BOOLOP
 
 %token SYM_INT32 SYM_INT64 SYM_FLOAT32 SYM_FLOAT64
-%token SYM_ASSERT SYM_ASSUME
 
 %token TRACE_CONDITION PRINT_STACK PRINT_MEMORY PRINT_BTREE COMPARE_EXPR
 
@@ -192,12 +191,14 @@ let inline_type_explicit (c : context) x ft at =
 %token<string> STRING
 %token<string> VAR
 %token<Types.value_type> VALUE_TYPE
+%token<Types.value_type> SYMBOLIC
 %token<string Source.phrase -> Ast.instr' * Values.value> CONST
 %token<Ast.instr'> UNARY
 %token<Ast.instr'> BINARY
 %token<Ast.instr'> TEST
 %token<Ast.instr'> COMPARE
 %token<Ast.instr'> CONVERT
+%token<Ast.instr'> BOOLOP
 %token<int option -> Memory.offset -> Ast.instr'> LOAD
 %token<int option -> Memory.offset -> Ast.instr'> STORE
 %token<string> OFFSET_EQ_NAT
@@ -360,10 +361,11 @@ plain_instr :
 
   | SYM_ASSERT { fun c -> sym_assert }
   | SYM_ASSUME { fun c -> sym_assume }
-  | SYM_INT    { fun c -> sym_int }
-  | SYM_LONG   { fun c -> sym_long }
-  | SYM_FLOAT  { fun c -> sym_float }
-  | SYM_DOUBLE { fun c -> sym_double }
+  | SYMBOLIC { fun c -> symbolic $1 }
+
+  | BOOLOP { fun c -> $1 }
+  | TERNARY_OP { fun c -> ternary_op }
+  | TRACE_CONDITION { fun c -> trace_condition }
 
   | ALLOC { fun c -> alloc }
   | FREE { fun c -> free }
@@ -372,7 +374,6 @@ plain_instr :
   | SYM_INT64 STRING { fun c -> sym_int64 $2 }
   | SYM_FLOAT32 STRING { fun c -> sym_float32 $2 }
   | SYM_FLOAT64 STRING { fun c -> sym_float64 $2 }
-  | TRACE_CONDITION { fun c -> trace_condition }
   | PRINT_STACK { fun c -> print_stack }
   | PRINT_MEMORY { fun c -> print_memory }
   | PRINT_BTREE { fun c -> print_btree }

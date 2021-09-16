@@ -40,7 +40,10 @@ let () =
   try
     configure ();
     Arg.parse argspec
-      (fun file -> Ranges.save_useful_lines file; add_arg ("(input " ^ quote file ^ ")")) usage;
+      (fun file -> 
+        Flags.name := file;
+        Ranges.save_useful_lines file; 
+        add_arg ("(input " ^ quote file ^ ")")) usage;
     List.iter (fun arg -> if not (Symrun.run_string arg) then exit 1) !args; (*  Changed to run symbolically  *)
     if !args = [] then Flags.interactive := true;
     if !Flags.interactive then begin

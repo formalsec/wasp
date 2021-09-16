@@ -296,12 +296,12 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : sym_expr) : Expr.expr =
       let e' = encode_sym_expr e in
       Zi64.encode_unop op e'
   | I64Binop (op, e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr ~bool_to_bv:true e1
+      and e2' = encode_sym_expr ~bool_to_bv:true e2 in
       Zi64.encode_binop op e1' e2'
   | I64Relop (op, e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr ~bool_to_bv:true e1
+      and e2' = encode_sym_expr ~bool_to_bv:true e2 in
       Zi64.encode_relop ~to_bv:bool_to_bv op e1' e2'
   | I64Cvtop (op, e) ->
       let e' = encode_sym_expr e in

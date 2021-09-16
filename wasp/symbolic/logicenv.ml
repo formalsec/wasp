@@ -12,10 +12,12 @@ type bind = name * value
 type logicenv = (name, value) Hashtbl.t
 type t = logicenv
 
-let order : (name list) ref = ref []
+let ids = Counter.create ()
+let names : (name list) ref = ref []
 
 let reset (env : t) : unit =
-  order := [];
+  names := [];
+  Counter.clear ids;
   Hashtbl.clear env
 
 let clear (env : t) : unit =
@@ -30,14 +32,28 @@ let create (binds : bind list) : logicenv =
   env
 
 let add (env : t) (k : name) (v : value) : unit =
-  order := k :: !order;
+  names := k :: !names;
   Hashtbl.replace env k v
 
 let find (env : t) (k : name) : value = 
   Hashtbl.find env k
 
-let exists (env : t) (x : name) : bool =
-  Hashtbl.mem env x
+let exists (x : name) : bool =
+  List.mem x !names
+
+let get (env : t) (k : name) (ty : value_type) : value =
+  let v = try find env k with Not_found ->
+    match ty with
+    | I32Type -> I32 (I32.rand 127)
+    | I64Type -> I64 (I64.rand 127)
+    | F32Type -> F32 (F32.rand 127.0)
+    | F64Type -> F64 (F64.rand 127.0) in
+  add env k v;
+  v
+
+let next (env : t) (k : name) : name =
+  let id = Counter.get ids k in
+  if id = 0 then k else (k ^ "_" ^ (string_of_int id))
 
 let is_empty (env : t) : bool =
   0 = (Hashtbl.length env)
@@ -46,7 +62,7 @@ let update (env : t) (binds : bind list) : unit =
   List.iter (fun (x, v) -> Hashtbl.replace env x v) binds
 
 let to_list (env : t) : (bind list) =
-  List.map (fun x -> (x, find env x)) (List.rev !order)
+  List.map (fun x -> (x, find env x)) (List.rev !names)
 
 let to_json (env : bind list) : string =
   let jsonify_bind (b : bind) : string =

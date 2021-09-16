@@ -37,7 +37,6 @@ let get_sym_int32 x = GetSymInt32 x
 let get_sym_int64 x = GetSymInt64 x
 let get_sym_float32 x = GetSymFloat32 x
 let get_sym_float64 x = GetSymFloat64 x
-let trace_condition = TraceCondition
 let print_stack = PrintStack
 let print_memory = PrintMemory
 let print_btree = PrintBtree
@@ -46,10 +45,12 @@ let compare_expr = CompareExpr
 (*  SYMBOLIC EXECUTION  *)
 let sym_assert = SymAssert
 let sym_assume = SymAssume
-let sym_int    = SymInt
-let sym_long   = SymLong
-let sym_float  = SymFloat
-let sym_double = SymDouble
+let symbolic t = Symbolic t
+
+let i32_logand = Boolop (I32 I32Op.And)
+let i32_logor = Boolop (I32 I32Op.Or)
+let ternary_op = TernaryOp
+let trace_condition = TraceCondition
 
 let alloc = Alloc
 let free  = Free

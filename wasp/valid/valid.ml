@@ -286,13 +286,9 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
     let t1, t2 = type_cvtop e.at cvtop in
     [t1] --> [t2]
 
-  | SymInt -> [I32Type] --> [I32Type]
+  | Symbolic t -> [I32Type] --> [t]
 
-  | SymLong -> [I32Type] --> [I64Type]
-
-  | SymFloat -> [I32Type] --> [F32Type]
-
-  | SymDouble -> [I32Type] --> [F64Type]
+  | Boolop boolop -> [I32Type; I32Type] --> [I32Type]
 
   | Alloc -> [I32Type; I32Type] --> [I32Type]
 
@@ -321,6 +317,8 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
   | GetSymFloat64 _ -> [] --> [F64Type]
 
   | TraceCondition -> [I32Type; I32Type] --> [I32Type]
+  
+  | TernaryOp -> [I32Type; I32Type; I32Type] --> [I32Type]
 
   | PrintStack -> [] --> []
 

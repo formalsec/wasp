@@ -17,10 +17,15 @@ let reset (cnt : counter) : unit =
   ) (Hashtbl.to_seq cnt)
 
 let add (cnt : counter) (key : name) (data : count) : unit =
-  Hashtbl.add cnt key data
+  Hashtbl.replace cnt key data
 
 let find (cnt : counter) (x : name) : count =
   Hashtbl.find cnt x
+
+let get (cnt : counter) (x : name) : count =
+  let c = try find cnt x with Not_found -> 0 in
+  add cnt x (c + 1);
+  c
 
 let exists (cnt : counter) (x : name) : bool =
   Hashtbl.mem cnt x

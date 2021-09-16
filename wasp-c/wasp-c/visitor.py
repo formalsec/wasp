@@ -207,7 +207,11 @@ class MyVisitor(c_ast.NodeVisitor):
         )
 
     def visit_Label(self, node):
-        return node
+        return c_ast.Label(
+            node.name,
+            self.visit(node.stmt),
+            node.coord,
+        )
 
     def visit_NamedInitializer(self, node):
         return c_ast.NamedInitializer(
