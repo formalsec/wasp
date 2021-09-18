@@ -614,7 +614,6 @@ let add_constraint
     let c = to_constraint (simplify e) in
     if neg then Option.map negate_relop c else c
   in
-  (*
   let asgn = match cond with
     | Some (I32Relop (I32Ne, 
                       I32Relop (I32Eq, Symbolic (t, x), Value v),
@@ -624,5 +623,4 @@ let add_constraint
   let opt_rewrite e = Option.map_default (fun a -> rewrite e a) e asgn in
   let pc = List.map simplify (List.map (fun e -> opt_rewrite e) pc) in
   let pc = List.filter (fun a -> is_relop a) pc in
-  *)
   Option.map_default (fun a -> a :: pc) pc cond
