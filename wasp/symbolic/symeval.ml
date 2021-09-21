@@ -831,7 +831,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       | AssertFail (conf, at, wit) ->
           debug ("\n" ^ (string_of_region at) ^ ": Assertion Failure\n" ^ wit);
           if true then raise (AssertFail (conf, at, wit))
-                   else conf
+                  else conf
       | Trap (at, msg) -> Trap.error at msg
       | e -> raise e
     in
