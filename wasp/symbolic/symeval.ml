@@ -59,7 +59,7 @@ type interruption =
   | IntLimit
   | AsmFail of path_conditions
   | AssFail of string
-  | Bug of bug
+  | Bug of bug * string
 
 (* Administrative Expressions & Configurations *)
 type 'a stack = 'a list
@@ -114,11 +114,10 @@ let sym_config inst vs es sym_m = {
 exception InstrLimit of sym_config
 exception AssumeFail of sym_config * path_conditions
 exception AssertFail of sym_config * region * string
-exception BugException of bug * region
+exception BugException of bug * region * string
 exception Unsatisfiable
 
 let assumes     = ref []
-let prefix      = ref []
 
 let instr_cnt   = ref 0
 
@@ -350,12 +349,12 @@ let rec sym_step (c : sym_config) : sym_config =
           if Option.is_some ptr then begin
             let low = I32Value.of_value (Option.get ptr) in
             let chunk_size = try Hashtbl.find chunk_table low with 
-                             | Not_found -> raise (BugException (UAF, e.at)) in
+                             | Not_found -> raise (BugException (UAF, e.at, "")) in
             let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
             and ptr_val = Int64.(add base (of_int32 offset)) in
             (* ptr_val \notin [low, high[ => overflow *)
             if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
-              raise (BugException (Overflow, e.at))
+              raise (BugException (Overflow, e.at, ""))
           end;
           let (v, e) =
             match sz with
@@ -363,8 +362,8 @@ let rec sym_step (c : sym_config) : sym_config =
             | Some (sz, ext) -> Symmem2.load_packed sz ext mem base offset ty
           in (v, e) :: vs', [], logic_env, pc, mem
         with 
-        | BugException (b, at) -> 
-          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, pc, mem
+        | BugException (b, at, _) -> 
+          vs', [(Interrupt (Bug (b, Logicenv.(to_json (to_list logic_env))))) @@ e.at], logic_env, pc, mem
         | exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, pc, mem
         end
@@ -376,11 +375,11 @@ let rec sym_step (c : sym_config) : sym_config =
           if Option.is_some ptr then begin
             let low = I32Value.of_value (Option.get ptr) in
             let chunk_size = try Hashtbl.find chunk_table low with 
-                             | Not_found -> raise (BugException (UAF, e.at)) in
+                             | Not_found -> raise (BugException (UAF, e.at, "")) in
             let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
             and ptr_val = Int64.(add base (of_int32 offset)) in
             if (Int64.of_int32 low) > ptr_val || ptr_val >= high then
-              raise (BugException (Overflow, e.at))
+              raise (BugException (Overflow, e.at, ""))
           end;
           begin match sz with
           | None    -> Symmem2.store_value mem base offset (v, ex)
@@ -388,8 +387,8 @@ let rec sym_step (c : sym_config) : sym_config =
           end;
           vs', [], logic_env, pc, mem
         with
-        | BugException (b, at) -> 
-          vs', [(Interrupt (Bug b)) @@ e.at], logic_env, pc, mem
+        | BugException (b, at, _) -> 
+          vs', [(Interrupt (Bug (b, Logicenv.(to_json (to_list logic_env))))) @@ e.at], logic_env, pc, mem
         | exn -> 
           vs', [STrapping (memory_error e.at exn) @@ e.at], logic_env, pc, mem
         end
@@ -541,7 +540,7 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | Free, (I32 i, _) :: vs' ->
         let es' = 
-          if not (Hashtbl.mem chunk_table i) then [Interrupt (Bug InvalidFree) @@ e.at]
+          if not (Hashtbl.mem chunk_table i) then [Interrupt (Bug (InvalidFree,Logicenv.(to_json (to_list logic_env)))) @@ e.at]
                                              else (Hashtbl.remove chunk_table i; [])
         in vs', es', logic_env, pc, mem
 
@@ -628,7 +627,7 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | TraceCondition, (I32 id, _) :: (ci, si) :: vs' ->
         (*
-        let cond_str = (Int32.to_string id) ^
+        let cond_str = 
           (string_of_int (if ci = Values.(default_value (type_of ci)) then 0 else 1)) in
         prefix := [cond_str] @ !prefix;
         let id_s = (Int32.to_string id)
@@ -781,7 +780,7 @@ let rec sym_eval (c : sym_config) : sym_config = (* c_sym_value stack *)
         | IntLimit    -> InstrLimit c
         | AsmFail pc  -> AssumeFail ({c with sym_code = vs, es}, pc)
         | AssFail wit -> AssertFail (c, at, wit)
-        | Bug b       -> BugException (b, at)
+        | Bug (b, wit)-> BugException (b, at, wit)
       in raise exn
       
   | vs, es ->
@@ -801,8 +800,8 @@ let write_test_case out_dir fmt test_data : unit =
   Io.save_file (Printf.sprintf fmt out_dir (i ())) test_data
 
 let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
-  Sys.(set_signal sigalrm (Signal_handle (fun i -> raise Unsatisfiable)));
-  ignore (Unix.alarm 897);
+  Sys.(set_signal sigalrm (Signal_handle (fun i -> instr_cnt := !Flags.instr_max)));
+  ignore (Unix.alarm 895);
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
     Crash.error at ("sym_invoke: " ^ s) in
@@ -817,20 +816,21 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   (* Assume constraints are stored here *)
   let finish_constraints = Constraints.create in
   let initial_sym_code = !c.sym_code in
-  let history = ref [] in
   (* Concolic execution *)
   let rec loop global_pc =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
     let {logic_env; path_cond = pc; sym_frame; sym_code; _} = try sym_eval !c with
       | InstrLimit conf ->
+          let {logic_env; _} = conf in
+          write_test_case directory "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
           raise Unsatisfiable
       | AssumeFail (conf, cons) -> 
           Constraints.add finish_constraints !iterations cons;
           conf
       | AssertFail (conf, at, wit) ->
           debug ("\n" ^ (string_of_region at) ^ ": Assertion Failure\n" ^ wit);
-          if false then raise (AssertFail (conf, at, wit))
+          if true then raise (AssertFail (conf, at, wit))
                    else conf
       | Trap (at, msg) -> Trap.error at msg
       | e -> raise e
@@ -838,12 +838,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     if (pc = []) && (!assumes = []) then 
       raise Unsatisfiable;
 
-    (* only add models that haven't been covered *)
-    let prefix' = String.concat "" !prefix in
-    if (not (List.mem prefix' !history)) || (prefix'  = "") then (
-      write_test_case directory "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
-      if not (prefix'  = "") then history := [prefix'] @ !history
-    );
+    (* write current model as a test *)
+    write_test_case directory "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
 
    (* DEBUG: *)
     let delim = String.make 6 '$' in
@@ -885,7 +881,6 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       raise Unsatisfiable;
 
     (* Prepare next iteration *)
-    prefix := [];
     assumes := [];
     Hashtbl.reset chunk_table;
     Logicenv.reset logic_env;
@@ -930,14 +925,16 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
         in 
         write_test_case directory "%s/witness_%05d.json" wit;
         false, reason, wit
-    | BugException (b, r) ->
+    | BugException (b, r, wit) ->
         incomplete := true;
         let reason = "{" ^
           "\"type\" : \""    ^ (string_of_bug b) ^ "\", " ^
           "\"line\" : \"" ^ (Source.string_of_pos r.left ^ 
               (if r.right = r.left then "" else "-" ^ string_of_pos r.right)) ^ "\"" ^
         "}" 
-        in false, reason, "[]"
+        in
+        write_test_case directory "%s/witness_%05d.json" wit;
+        false, reason, wit
     | e -> raise e
   in
   let loop_time = (Sys.time ()) -. loop_start in

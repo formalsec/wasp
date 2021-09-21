@@ -65,7 +65,8 @@ let to_string (mem : memory) : string =
   ) lst ""
 
 let load_byte (mem : memory) (a : address) : store =
-  try Hashtbl.find mem a with Not_found -> (0, Extract (Value (I64 0L), 8, 0))
+  try Hashtbl.find mem a with Not_found -> 
+    (0, Extract (Value (I64 0L), 8, 0))
     (* raise (InvalidAddress a) *)
 
 let store_byte (mem : memory) (a : address) (b : store) : unit =
