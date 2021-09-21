@@ -26,6 +26,15 @@ int __logor(int a, int b) {
   );
 }
 
+unsigned int swap(unsigned int x) {
+  union { unsigned int i; char c[4]; } src, dst;
+
+  src.i = x;
+  dst.c[3] = src.c[0], dst.c[2] = src.c[1];
+  dst.c[1] = src.c[2], dst.c[0] = src.c[3];
+  return dst.i;
+}
+
 int IFG(int cond, int id) {
   return cond;
 }
@@ -38,6 +47,14 @@ void test(int a, int b) {
     if (IFG(!b, 3)) {}
   }
   assert(__logor(__logor(a, __logand(!a,  b)), !b));
+}
+
+void test1(int a, int b) {
+  if (a && b) {
+    test(a, b);
+  } else {
+    IFG(!a || !b, 4);
+  }
 }
 
 int main() {

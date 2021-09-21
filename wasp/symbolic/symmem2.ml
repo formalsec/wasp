@@ -123,7 +123,13 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
       let (cv, se) = x in
       let b = Int64.to_int cv land 0xff in
       let se' = match se with 
-        | Symvalue.Value _ -> Symvalue.Value (I64 (Int64.of_int b))
+        | Symvalue.Value v -> 
+          let v' = match v with
+          | I32 x -> I64 (Int64.of_int32 x)
+          | I64 x -> I64 x
+          | F32 x -> I64 (Int64.of_int32 (F32.to_bits x))
+          | F64 x -> I64 (F64.to_bits x)
+          in Symvalue.Value v'
         | _ -> se 
       in store_byte mem a (b, Extract (se', i+1, i));
       loop (Int64.add a 1L) (i + 1) n ((Int64.shift_right cv 8), se)
