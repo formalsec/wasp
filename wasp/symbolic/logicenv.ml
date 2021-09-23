@@ -224,6 +224,7 @@ let rec eval (env : t) (e : sym_expr) : value =
   | F32Cvtop (op, e') ->
     let v = eval env e'
     and op' = match op with
+      | F32DemoteF64 -> F32 Ast.F32Op.DemoteF64
       | F32ConvertSI32 -> F32 Ast.F32Op.ConvertSI32
       | F32ConvertUI32 -> F32 Ast.F32Op.ConvertUI32
       | F32ConvertSI64 -> F32 Ast.F32Op.ConvertSI64
@@ -259,6 +260,7 @@ let rec eval (env : t) (e : sym_expr) : value =
   | F64Cvtop (op, e') ->
     let v = eval env e'
     and op' = match op with
+      | F64PromoteF32 -> F64 Ast.F64Op.PromoteF32 
       | F64ConvertSI32 -> F64 Ast.F64Op.ConvertSI32
       | F64ConvertUI32 -> F64 Ast.F64Op.ConvertUI32
       | F64ConvertSI64 -> F64 Ast.F64Op.ConvertSI64

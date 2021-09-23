@@ -1,8 +1,8 @@
 type binop = F32Add | F32Sub | F32Mul | F32Div (*  Falta: | Min | Max | CopySign *)
 type unop  = F32Neg | F32Abs (*  Falta: | Ceil | Floor | Trunc | Nearest | Sqrt *)
 type relop = F32Eq | F32Ne | F32Lt |  F32Le | F32Gt | F32Ge
-type cvtop = F32ConvertSI32 | F32ConvertUI32 | F32ConvertSI64 |
-             F32ConvertUI64 | F32ReinterpretInt
+type cvtop = F32DemoteF64 | F32ConvertSI32 | F32ConvertUI32 | 
+             F32ConvertSI64 | F32ConvertUI64 | F32ReinterpretInt 
 
 let neg_relop (op : relop) : relop =
   begin match op with
@@ -61,6 +61,7 @@ let pp_string_of_relop (op : relop) : string =
 
 let string_of_cvtop (op : cvtop) : string =
   match op with
+  | F32DemoteF64 -> "F32DemoteF64"
   | F32ConvertSI32 -> "F32ConvertSI32"
   | F32ConvertUI32 -> "F32ConvertUI32"
   | F32ConvertSI64 -> "F32ConvertSI64"

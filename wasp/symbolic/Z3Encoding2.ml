@@ -200,6 +200,8 @@ struct
 
   let encode_cvtop (op : cvtop) (e : Expr.expr) : Expr.expr =
     let op' = match op with
+      | F32DemoteF64 ->
+          (fun bv -> FloatingPoint.mk_to_fp_float    ctx rne bv fp32_sort)
       | F32ConvertSI32 -> 
           (fun bv -> FloatingPoint.mk_to_fp_signed   ctx rne bv fp32_sort)
       | F32ConvertUI32 ->
@@ -253,6 +255,8 @@ struct
 
   let encode_cvtop (op : cvtop) (e : Expr.expr) : Expr.expr =
     let op' = match op with
+      | F64PromoteF32 ->
+          (fun bv -> FloatingPoint.mk_to_fp_float    ctx rne bv fp64_sort)
       | F64ConvertSI32 -> 
           (fun bv -> FloatingPoint.mk_to_fp_signed   ctx rne bv fp64_sort)
       | F64ConvertUI32 ->

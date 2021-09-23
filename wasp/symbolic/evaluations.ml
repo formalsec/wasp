@@ -237,18 +237,7 @@ let eval_cvtop (op : Ast.cvtop) (e : sym_value) : sym_value =
   let f32_cvtop op e =
     let (c, s) = e in
     match op with
-    | F32Op.DemoteF64 ->
-        (* FIXME: use Z3 ops? *)
-        let nan64bits = I64Cvtop (I64ReinterpretFloat, s) in
-        let sign_field = I64Binop (I64Shl, 
-                                   I64Binop (I64ShrU, nan64bits, Value (Values.I64 63L)), 
-                                   Value (Values.I64 31L)) in
-        let significant_field = I64Binop (I64ShrU,
-                                          I64Binop (I64Shl, nan64bits, Value (Values.I64 12L)),
-                                          Value (Values.I64 41L)) in
-        let fields = I64Binop (I64Or, sign_field, significant_field) in
-        let nan32bits = I32Binop (I32Or, Value (Values.I32 0x7fc0_0000l), Extract (fields, 4, 0)) in
-        F32Cvtop (F32ReinterpretInt, nan32bits)
+    | F32Op.DemoteF64   -> F32Cvtop (F32DemoteF64, s)
     | F32Op.ConvertSI32 -> F32Cvtop (F32ConvertSI32, s)
     | F32Op.ConvertUI32 -> F32Cvtop (F32ConvertUI32, s)
     | F32Op.ConvertSI64 -> F32Cvtop (F32ConvertSI64, s)
@@ -259,18 +248,7 @@ let eval_cvtop (op : Ast.cvtop) (e : sym_value) : sym_value =
   let f64_cvtop op e =
     let (c, s) = e in
     match op with
-    | F64Op.PromoteF32  -> 
-        (* FIXME: use Z3 ops? *)
-        let nan32bits = I64Cvtop (I64ExtendUI32, (I32Cvtop (I32ReinterpretFloat, s))) in
-        let sign_field = I64Binop (I64Shl,
-                                   I64Binop (I64ShrU, nan32bits, Value (Values.I64 31L)),
-                                   Value (Values.I64 63L)) in
-        let significant_field = I64Binop (I64ShrU,
-                                          I64Binop (I64Shl, nan32bits, Value (Values.I64 41L)),
-                                          Value (Values.I64 12L)) in
-        let fields = I64Binop (I64Or, sign_field, significant_field) in
-        let nan64bits = I64Binop (I64Or, Value (Values.I64 0x7ff8_0000_0000_0000L), fields) in
-        F64Cvtop (F64ReinterpretInt, nan64bits)
+    | F64Op.PromoteF32  -> F64Cvtop (F64PromoteF32, s)
     | F64Op.ConvertSI32 -> F64Cvtop (F64ConvertSI32, s)
     | F64Op.ConvertUI32 -> F64Cvtop (F64ConvertUI32, s)
     | F64Op.ConvertSI64 -> F64Cvtop (F64ConvertSI64, s)
