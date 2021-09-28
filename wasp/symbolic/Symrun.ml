@@ -22,7 +22,6 @@ exception IO = IO.Error
 
 let trace name = if !Flags.trace then print_endline ("-- " ^ name)
 
-
 (* File types *)
 
 let binary_ext = "wasm"
