@@ -40,7 +40,7 @@
         (i32.const 16)
         (i32.store offset=4)
         (i32.const 1024)
-        (sym_int)
+        (i32.symbolic)
         (i32.store offset=8)
         (call $test_two_concrete_one_symbolic_memory_restart))
   (memory $0 1)

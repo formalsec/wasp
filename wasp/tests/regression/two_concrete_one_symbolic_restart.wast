@@ -20,7 +20,7 @@
             (if
               (then
                 (i32.const 1024)
-                (sym_int)
+                (i32.symbolic)
                 (call $is_power_of_two)
                 (if
                   (then

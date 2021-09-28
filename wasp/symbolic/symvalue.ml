@@ -58,47 +58,6 @@ let to_symbolic (t : value_type) (x : string) : sym_expr =
   in Symbolic (symb, x)
 
 
-let rec type_of (e : sym_expr) : value_type  =
-  let rec concat_length (e : sym_expr) : int =
-    begin match e with
-    | Concat (e1, e2) -> (concat_length e1) + (concat_length e2)
-    | Extract (_, h, l) -> h - l
-    | e' -> (Types.size (type_of e'))
-    end
-  in
-  begin match e with
-  | Value v    -> Values.type_of v
-  | Ptr _      -> I32Type
-  | I32Unop  _ -> I32Type
-  | I32Binop _ -> I32Type
-  | I32Relop _ -> I32Type
-  | I32Cvtop _ -> I32Type
-  | I64Unop  _ -> I64Type
-  | I64Binop _ -> I64Type
-  | I64Relop _ -> I64Type
-  | I64Cvtop _ -> I64Type
-  | F32Unop  _ -> F32Type
-  | F32Binop _ -> F32Type
-  | F32Relop _ -> F32Type
-  | F32Cvtop _ -> F32Type
-  | F64Unop  _ -> F64Type
-  | F64Binop _ -> F64Type
-  | F64Relop _ -> F64Type
-  | F64Cvtop _ -> F64Type
-  | Symbolic (e, _)    -> type_of_symbolic e
-  | Extract  (e, _, _) -> type_of e
-  | Concat (e1, e2) ->
-    let len = concat_length e in
-    let len = if len < 4 then (Types.size (type_of e1)) + (Types.size (type_of e2))
-                         else len 
-    in
-    begin match len with
-    | 4 -> I32Type
-    | 8 -> I64Type
-    | _ -> failwith "unsupported type length"
-    end
-  end
-
 let negate_relop (e : sym_expr) : sym_expr =
   match e with 
   (* Relop *)
@@ -389,6 +348,74 @@ let string_of_sym_value (el : sym_value list) : string =
       acc ^ (Values.string_of_value v) ^ ", " ^ (pp_to_string s) ^ "\n"
   ) "" el
 
+let rec type_of (e : sym_expr) : value_type  =
+  let rec concat_length (e' : sym_expr) : int =
+    begin match e' with
+    | Value v    -> Types.size (Values.type_of v)
+    | Ptr _      -> 4
+    | I32Unop  _ -> 4
+    | I32Binop _ -> 4
+    | I32Relop _ -> 4
+    | I32Cvtop _ -> 4
+    | I64Unop  _ -> 8
+    | I64Binop _ -> 8
+    | I64Relop _ -> 8
+    | I64Cvtop _ -> 8
+    | F32Unop  _ -> 4
+    | F32Binop _ -> 4
+    | F32Relop _ -> 4
+    | F32Cvtop _ -> 4
+    | F64Unop  _ -> 8
+    | F64Binop _ -> 8
+    | F64Relop _ -> 8
+    | F64Cvtop _ -> 8
+    | Symbolic (e'', _) -> 
+        (match e'' with
+        | SymInt8 -> 1
+        | SymInt16 -> 2
+        | SymInt32 -> 4
+        | SymInt64 -> 8
+        | SymFloat32 -> 4
+        | SymFloat64 -> 8)
+    | Concat (e1, e2) -> (concat_length e1) + (concat_length e2)
+    | Extract (_, h, l) -> h - l
+    end
+  in
+  begin match e with
+  | Value v    -> Values.type_of v
+  | Ptr _      -> I32Type
+  | I32Unop  _ -> I32Type
+  | I32Binop _ -> I32Type
+  | I32Relop _ -> I32Type
+  | I32Cvtop _ -> I32Type
+  | I64Unop  _ -> I64Type
+  | I64Binop _ -> I64Type
+  | I64Relop _ -> I64Type
+  | I64Cvtop _ -> I64Type
+  | F32Unop  _ -> F32Type
+  | F32Binop _ -> F32Type
+  | F32Relop _ -> F32Type
+  | F32Cvtop _ -> F32Type
+  | F64Unop  _ -> F64Type
+  | F64Binop _ -> F64Type
+  | F64Relop _ -> F64Type
+  | F64Cvtop _ -> F64Type
+  | Symbolic (e, _)    -> type_of_symbolic e
+  | Extract  (e, _, _) -> type_of e
+  | Concat (e1, e2) ->
+    let len = concat_length (Concat (e1, e2)) in
+    let len = if len < 4 then (Types.size (type_of e1)) + (Types.size (type_of e2))
+                         else len 
+    in
+    begin match len with
+    | 4 -> I32Type
+    | 8 -> I64Type
+    | _ -> failwith "unsupported type length"
+    end
+  end
+
+
+
 let rec get_ptr (e : sym_expr) : value option =
   (* FIXME: this function can be "simplified" *)
   begin match e with
@@ -494,6 +521,8 @@ let rec simplify (e : sym_expr) : sym_expr =
       | I32Eq ->
           begin match e1', e2' with
           | Ptr v1, Ptr v2
+          | Ptr v1, Value v2
+          | Value v1, Ptr v2
           | Value v1, Value v2 ->
               let ret = Eval_numeric.eval_relop (I32 Ast.I32Op.Eq) v1 v2 in
               Value (Values.value_of_bool ret)
@@ -502,6 +531,8 @@ let rec simplify (e : sym_expr) : sym_expr =
       | I32Ne ->
           begin match e1', e2' with
           | Ptr v1, Ptr v2
+          | Ptr v1, Value v2
+          | Value v1, Ptr v2
           | Value v1, Value v2 ->
               let ret = Eval_numeric.eval_relop (I32 Ast.I32Op.Ne) v1 v2 in
               Value (Values.value_of_bool ret)
@@ -536,6 +567,7 @@ let rec simplify (e : sym_expr) : sym_expr =
   | Extract (e, h, l) ->
       let e' = simplify e in
       begin match e' with
+      | Concat (Extract (_, _, _), Concat (_, _)) -> Extract (e', h, l)
       | Concat (e1, e2) -> 
           let size_e1 = Types.size (type_of e1)
           and size_e2 = Types.size (type_of e2) in

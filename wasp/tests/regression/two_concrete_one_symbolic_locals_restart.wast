@@ -31,7 +31,7 @@
         (i32.const 8)
         (i32.const 16)
         (i32.const 1024)
-        (sym_int)
+        (i32.symbolic)
         (call $test_two_concrete_one_symbolic_locals_restart))
   (memory $0 1)
   (global $0 (mut i32) (i32.const 66592))
