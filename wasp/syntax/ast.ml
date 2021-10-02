@@ -100,7 +100,7 @@ and instr' =
   (*  SYMBOLIC EXECUTION  *)
   | SymAssert                         (* Symbolic assertions *)
   | SymAssume                         (* Symbolic assume *)
-  | Symbolic of value_type
+  | Symbolic of value_type * bool
   | TernaryOp
   | Boolop of binop
   | Alloc

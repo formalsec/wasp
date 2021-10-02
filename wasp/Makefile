@@ -54,6 +54,7 @@ _tags:
 		echo >>$@ "true: thread"
 		echo >>$@ "true: bin_annot"
 		echo >>$@ "true: debug"
+		echo >>$@ "true: optimize(3)"
 		echo >>$@ "<{$(subst $(space),$(comma),$(DIRS))}/*.cmx>: for-pack($(PACK))"
 
 $(UNOPT):	main.byte

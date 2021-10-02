@@ -41,10 +41,10 @@ let find (env : t) (k : name) : value =
 let exists (x : name) : bool =
   List.mem x !names
 
-let get (env : t) (k : name) (ty : value_type) : value =
+let get (env : t) (k : name) (ty : value_type) (b : bool) : value =
   let v = try find env k with Not_found ->
     match ty with
-    | I32Type -> I32 (I32.rand 127)
+    | I32Type -> I32 (I32.rand (if b then 2 else 127))
     | I64Type -> I64 (I64.rand 127)
     | F32Type -> F32 (F32.rand 127.0)
     | F64Type -> F64 (F64.rand 127.0) in

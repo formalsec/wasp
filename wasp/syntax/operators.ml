@@ -45,7 +45,9 @@ let compare_expr = CompareExpr
 (*  SYMBOLIC EXECUTION  *)
 let sym_assert = SymAssert
 let sym_assume = SymAssume
-let symbolic t = Symbolic t
+let symbolic p = 
+  let t, b = p in 
+  Symbolic (t, b)
 
 let i32_logand = Boolop (I32 I32Op.And)
 let i32_logor = Boolop (I32 I32Op.Or)
