@@ -358,7 +358,8 @@ rule token = parse
   | "get_sym_float32" { GET_SYM_FLOAT32 }
   | "get_sym_float64" { GET_SYM_FLOAT64 }
 
-  | (nxx as t)".symbolic" { SYMBOLIC (value_type t) }
+  | (nxx as t)".symbolic" { SYMBOLIC (value_type t, false) }
+  | "b32.symbolic" { SYMBOLIC (Types.I32Type, true) }
 
   | (ixx)".__logand" { BOOLOP i32_logand }
   | (ixx)".__logor" { BOOLOP i32_logor }

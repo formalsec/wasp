@@ -108,7 +108,7 @@ let sym_config inst vs es sym_m = {
   logic_env  = Logicenv.create []; 
   path_cond  = [];
   sym_mem    = sym_m;
-  sym_budget = 1000 (* models default recursion limit in a system *)
+  sym_budget = 100000 (* models default recursion limit in a system *)
 }
 
 exception InstrLimit of sym_config
@@ -311,13 +311,11 @@ let rec sym_step (c : sym_config) : sym_config =
         vs', [], logic_env, pc, mem
 
       | Select, (I32 0l, ex) :: v2 :: v1 :: vs' ->
-        let cond = Option.map negate_relop (to_constraint (simplify ex)) in
-        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        let pc = add_constraint ex pc true in
         v2 :: vs', [], logic_env, pc, mem
 
       | Select, (I32 i, ex) :: v2 :: v1 :: vs' ->
-        let cond = to_constraint (simplify ex) in
-        let pc = Option.map_default (fun a -> a :: pc) pc cond in
+        let pc = add_constraint ex pc false in
         v1 :: vs', [], logic_env, pc , mem
 
       | LocalGet x, vs ->
@@ -513,20 +511,22 @@ let rec sym_step (c : sym_config) : sym_config =
         debug ">>> Assume passed. Continuing execution...";
         vs', [], logic_env, pc, mem
 
-      | Symbolic ty, (I32 i, _) :: vs' ->
+      | Symbolic (ty, b), (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in
         let x = Logicenv.next logic_env (Symmem2.load_string mem base) in
-        let v = Logicenv.get logic_env x ty in 
+        let v = Logicenv.get logic_env x ty b in 
+        if b then (
+          let bfalse = I32Relop (I32Eq, to_symbolic ty x, Value (I32 0l)) in
+          let btrue  = I32Relop (I32Eq, to_symbolic ty x, Value (I32 1l)) in
+          let cond = I32Relop (I32Eq, I32Binop (I32Or, bfalse, btrue), Value (I32 1l)) in
+          assumes := cond :: !assumes;
+        );
         (v, to_symbolic ty x) :: vs', [], logic_env, pc, mem
 
       | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' ->
-        let sv2 = simplify sv2
-        and sv1 = simplify sv1 in
-        let sv2' = if not (is_relop sv2) then
-          simplify (I32Relop (Si32.I32Ne, sv2, Value (I32 0l))) else sv2 in
+        let sv2' = mk_relop sv2 (Values.type_of v2) in
         let v2' = Values.(value_of_bool (not (v2 = default_value (type_of v2)))) in
-        let sv1' = if not (is_relop sv1) then 
-          simplify (I32Relop (Si32.I32Ne, sv1, Value (I32 0l))) else sv1 in
+        let sv1' = mk_relop sv1 (Values.type_of v1) in
         let v1' = Values.(value_of_bool (not (v1 = default_value (type_of v1)))) in
         (try 
           let v3, sv3 = eval_binop (v1', sv1') (v2', sv2') boolop in
@@ -817,7 +817,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let finish_constraints = Constraints.create in
   let initial_sym_code = !c.sym_code in
   (* Concolic execution *)
-  let rec loop global_pc =
+  let rec loop global_pc old_len =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
     let {logic_env; path_cond = pc; sym_frame; sym_code; _} = try sym_eval !c with
@@ -888,8 +888,9 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     Symmem2.clear !c.sym_mem;
     Symmem2.init !c.sym_mem initial_memory;
     Instance.set_globals !inst initial_globals;
-    c := {!c with sym_budget = 3000; sym_code = initial_sym_code; path_cond = []};
+    c := {!c with sym_budget = 100000; sym_code = initial_sym_code; path_cond = []};
 
+    let formula_len = Formula.length formula in
     let z3_model_str = Z3.Model.to_string model in
     debug ("SATISFIABLE\nMODEL: \n" ^ z3_model_str ^ "\n\n\n" ^
            delim ^ " NEW LOGICAL ENV STATE " ^ delim ^ "\n" ^
@@ -897,7 +898,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     debug ("\n" ^ (String.make 23 '-') ^ " ITERATION " ^ 
            (string_of_int !iterations) ^ " STATISTICS: " ^ (String.make 23 '-'));
     debug ("PATH CONDITION SIZE: " ^ (string_of_int (Formula.length pc')));
-    debug ("GLOBAL PATH CONDITION SIZE: " ^ (string_of_int (Formula.length formula)));
+    debug ("GLOBAL PATH CONDITION SIZE: " ^ (string_of_int formula_len));
     debug ("TIME TO SOLVE GLOBAL PC: " ^ (string_of_float curr_time) ^ "\n" ^
            (String.make 73 '-') ^ "\n\n");
     debug ((String.make 92 '~') ^ "\n");
@@ -905,13 +906,16 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     lines      := [];
     iterations := !iterations + 1;
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
-    loop global_pc' (*Formula.(And (global_pc, negate env_constraint))*)
+    if formula_len = old_len then (
+      Logicenv.reset logic_env;
+      loop (Globalpc.add "True" Formula.True Globalpc.empty) 1
+    ) else loop global_pc' formula_len
   in 
 
   debug ((String.make 92 '~') ^ "\n");
   let global_pc = Globalpc.add "True" Formula.True Globalpc.empty in
   let loop_start = Sys.time () in
-  let spec, reason, wit = try loop global_pc with
+  let spec, reason, wit = try loop global_pc 1 with
     | Unsatisfiable -> 
         debug "Model is no longer satisfiable. All paths have been verified.\n";
         true, "{}", "[]"

@@ -369,6 +369,15 @@ let check_sat_core (asrt : Formula.t) : Model.model option =
   let solver = Solver.mk_solver ctx None in
   List.iter (fun a -> Solver.add solver [a]) (Goal.get_formulas goal);
   (*
+  let vars = Formula.get_vars asrt in
+  List.iter (fun (x, t) -> 
+    if (x = "n") || (x = "N") then (
+      let symb = to_symbolic (type_of_symbolic t) x in
+      ignore (Optimize.minimize solver (encode_sym_expr symb))
+    )
+  ) vars;
+  *)
+  (*
   let ar = Tactic.(apply (par_or ctx [(and_then ctx
       (mk_tactic ctx "solve-eqs") (mk_tactic ctx "simplify")
   [(mk_tactic ctx "qffpbv")]); (mk_tactic ctx "smt")]) goal None) in

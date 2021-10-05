@@ -57,3 +57,11 @@ let rec length (e : formula) : int =
 
 let to_formula (pc : sym_expr list) : formula =
   conjuct (List.map (fun e -> Relop e) pc)
+
+let rec get_vars (e : formula) : (string * symbolic) list =
+  match e with
+  | True | False -> []
+  | Not c        -> get_vars c
+  | And (c1, c2) -> (get_vars c1) @ (get_vars c2)
+  | Or (c1, c2)  -> (get_vars c1) @ (get_vars c2)
+  | Relop e      -> Symvalue.get_symbols e

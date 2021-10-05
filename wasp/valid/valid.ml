@@ -286,7 +286,7 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
     let t1, t2 = type_cvtop e.at cvtop in
     [t1] --> [t2]
 
-  | Symbolic t -> [I32Type] --> [t]
+  | Symbolic (t, b) -> [I32Type] --> [t]
 
   | Boolop boolop -> [I32Type; I32Type] --> [I32Type]
 

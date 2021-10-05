@@ -191,7 +191,7 @@ let inline_type_explicit (c : context) x ft at =
 %token<string> STRING
 %token<string> VAR
 %token<Types.value_type> VALUE_TYPE
-%token<Types.value_type> SYMBOLIC
+%token<Types.value_type * bool> SYMBOLIC
 %token<string Source.phrase -> Ast.instr' * Values.value> CONST
 %token<Ast.instr'> UNARY
 %token<Ast.instr'> BINARY
