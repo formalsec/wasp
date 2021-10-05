@@ -18,10 +18,11 @@ JSLIB =		wast.js
 WINMAKE =	winmake.bat
 
 DIRS =		util syntax binary text valid runtime exec script host main symbolic
-LIBS =		
+LIBS =
 FLAGS = 	-cflags '-w +a-3-4-27-42-44-45 -warn-error +a' -use-ocamlfind
 OCB =		ocamlbuild $(FLAGS) $(DIRS:%=-I %) $(LIBS:%=-libs %)
 JS =		# set to JS shell command to run JS tests
+DEPENDS = extlib batteries z3=4.8.1
 
 
 # Main targets
@@ -148,6 +149,10 @@ clean:
 
 
 # Opam support
+.PHONY: 	depends
+
+depends:
+		opam install -y $(DEPENDS)
 
 .PHONY:		check install uninstall
 
