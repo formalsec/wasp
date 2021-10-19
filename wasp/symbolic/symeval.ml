@@ -515,12 +515,6 @@ let rec sym_step (c : sym_config) : sym_config =
         let base = I64_convert.extend_i32_u i in
         let x = Logicenv.next logic_env (Symmem2.load_string mem base) in
         let v = Logicenv.get logic_env x ty b in 
-        if b then (
-          let bfalse = I32Relop (I32Eq, to_symbolic ty x, Value (I32 0l)) in
-          let btrue  = I32Relop (I32Eq, to_symbolic ty x, Value (I32 1l)) in
-          let cond = I32Relop (I32Eq, I32Binop (I32Or, bfalse, btrue), Value (I32 1l)) in
-          assumes := cond :: !assumes;
-        );
         (v, to_symbolic ty x) :: vs', [], logic_env, pc, mem
 
       | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' ->
@@ -817,7 +811,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let finish_constraints = Constraints.create in
   let initial_sym_code = !c.sym_code in
   (* Concolic execution *)
-  let rec loop global_pc old_len =
+  let rec loop global_pc =
     debug ((String.make 35 '~') ^ " ITERATION NUMBER " ^
         (string_of_int !iterations) ^ " " ^ (String.make 35 '~') ^ "\n");
     let {logic_env; path_cond = pc; sym_frame; sym_code; _} = try sym_eval !c with
@@ -830,7 +824,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
           conf
       | AssertFail (conf, at, wit) ->
           debug ("\n" ^ (string_of_region at) ^ ": Assertion Failure\n" ^ wit);
-          if true then raise (AssertFail (conf, at, wit))
+          if false then raise (AssertFail (conf, at, wit))
                   else conf
       | Trap (at, msg) -> Trap.error at msg
       | e -> raise e
@@ -906,16 +900,13 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     lines      := [];
     iterations := !iterations + 1;
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
-    if formula_len = old_len then (
-      Logicenv.reset logic_env;
-      loop (Globalpc.add "True" Formula.True Globalpc.empty) 1
-    ) else loop global_pc' formula_len
+    loop global_pc'
   in 
 
   debug ((String.make 92 '~') ^ "\n");
   let global_pc = Globalpc.add "True" Formula.True Globalpc.empty in
   let loop_start = Sys.time () in
-  let spec, reason, wit = try loop global_pc 1 with
+  let spec, reason, wit = try loop global_pc with
     | Unsatisfiable -> 
         debug "Model is no longer satisfiable. All paths have been verified.\n";
         true, "{}", "[]"

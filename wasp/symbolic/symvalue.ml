@@ -521,6 +521,7 @@ let rec simplify (e : sym_expr) : sym_expr =
           I32Relop (op', r1, r2)
         | I64Relop (op', r1, r2), Value (I32 1l) ->
           I64Relop (op', r1, r2)
+        | I32Binop (I32And, e3, Value v1), Value v2 when v1 = v2 -> e1'
         | _, _ -> I32Binop (I32And , e1', e2'))
       | I32Xor  -> I32Binop (I32Xor , e1', e2')
       | I32Or   -> I32Binop (I32Or  , e1', e2')
@@ -598,6 +599,8 @@ let rec simplify (e : sym_expr) : sym_expr =
       let e1' = simplify e1
       and e2' = simplify e2 in
       begin match e1', e2' with
+      | Extract (Value (I64 0L), 4, 1), Extract (I32Binop (I32And, e3, Value (I32 v)), 1, 0) when 
+        ((v >= 0l) && (v <= 255l)) -> I32Binop (I32And, e3, Value (I32 1l))
       | Extract (Value (I64 v1), h1, l1), Extract (Value (I64 v2), h2, l2) ->
           let v = Int64.(logor (shift_left v1 (h2 * 8)) v2) in
           Extract (Value (I64 v), (h2 - l2) + 1, 0)
