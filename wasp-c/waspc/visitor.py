@@ -1,10 +1,10 @@
-from pycparser import (
-    c_parser,
-    c_ast,
-    c_generator 
-)
+import sys
+
+from pycparser import c_ast, parse_file
+from pycparser.c_generator import CGenerator
 
 cnt = 0
+sys.setrecursionlimit(10000)
 
 class MethodNotImplemented(Exception):
     """Exception raised when visit method not available"""
@@ -14,13 +14,26 @@ class MethodNotImplemented(Exception):
         self.message = f'visit_{name}: method not implemented'
         super().__init__(self.message)
 
-class MyVisitor(c_ast.NodeVisitor):
+def process(inFile, args=None):
+    cc = 'gcc'
+    flags = ['-E', r'-Ilib']
+    if args is not None:
+        flags += args
+    # force the preprocess of the C file to remove includes
+    ast = parse_file(inFile,
+                     use_cpp=True,
+                     cpp_path=cc, 
+                     cpp_args=flags)
+    n_ast = PreProcessor().visit(ast)
+    return CGenerator().visit(n_ast)
+
+class PreProcessor(c_ast.NodeVisitor):
 
     def _safe_visit(self, node):
         return self.visit(node) if node is not None else node
 
     def _safe_map(self, f, lst):
-        return map(f, lst) if lst is not None else lst
+        return list(map(f, lst)) if lst is not None else lst
 
     def _get_binop_func(self, op):
         if op == '&&':
@@ -39,8 +52,8 @@ class MyVisitor(c_ast.NodeVisitor):
     def visit_Assignment(self, node):
         return c_ast.Assignment(
             node.op,
-            self.visit(node.lvalue),
-            self.visit(node.rvalue),
+            self._safe_visit(node.lvalue),
+            self._safe_visit(node.rvalue),
             node.coord
         )
 
@@ -49,15 +62,15 @@ class MyVisitor(c_ast.NodeVisitor):
             return c_ast.FuncCall(
                 c_ast.ID(self._get_binop_func(node.op)),
                 c_ast.ExprList([
-                    self.visit(node.left),
-                    self.visit(node.right)
+                    self._safe_visit(node.left),
+                    self._safe_visit(node.right)
                 ]),
                 node.coord
             )
         return c_ast.BinaryOp(
             node.op,
-            self.visit(node.left),
-            self.visit(node.right),
+            self._safe_visit(node.left),
+            self._safe_visit(node.right),
             node.coord
         )
 
@@ -66,28 +79,28 @@ class MyVisitor(c_ast.NodeVisitor):
 
     def visit_Case(self, node):
         return c_ast.Case(
-            self.visit(node.expr),
-            map(self.visit, node.stmts),
+            self._safe_visit(node.expr),
+            list(map(self._safe_visit, node.stmts)),
             node.coord
         )
 
     def visit_Cast(self, node):
         return c_ast.Cast(
             node.to_type,
-            self.visit(node.expr),
+            self._safe_visit(node.expr),
             node.coord
         )
 
     def visit_Compound(self, node):
         return c_ast.Compound(
-            self._safe_map(self.visit, node.block_items),
+            self._safe_map(self._safe_visit, node.block_items),
             node.coord
         )
 
     def visit_CompoundLiteral(self, node):
         return c_ast.CompoundLiteral(
             node.type,
-            self.visit(node.init),
+            self._safe_visit(node.init),
         )
 
     def visit_Constant(self, node):
@@ -101,20 +114,31 @@ class MyVisitor(c_ast.NodeVisitor):
 
     def visit_DeclList(self, node):
         return c_ast.DeclList(
-            map(self.visit, node.decls),
+            list(map(self._safe_visit, node.decls)),
             node.coord
         )
 
     def visit_Default(self, node):
         return c_ast.Default(
-            map(self.visit, node.stmts),
+            list(map(self._safe_visit, node.stmts)),
             node.coord
         )
 
     def visit_DoWhile(self, node):
+        global cnt
+        cnt = cnt + 1
+        n_cond = c_ast.FuncCall(
+            c_ast.ID('IFG'),
+            c_ast.ExprList([
+                self._safe_visit(node.cond), 
+                c_ast.Constant('int', str(cnt))
+            ]),
+            node.coord
+        )
         return c_ast.DoWhile(
-            self.visit(node.cond),
-            self.visit(node.stmt),
+            #n_cond,
+            self._safe_visit(node.cond),
+            self._safe_visit(node.stmt),
             node.coord
         )
 
@@ -135,23 +159,33 @@ class MyVisitor(c_ast.NodeVisitor):
 
     def visit_ExprList(self, node):
         return c_ast.ExprList(
-            map(self.visit, node.exprs),
+            list(map(self._safe_visit, node.exprs)),
             node.coord
         )
 
     def visit_FileAST(self, node):
-        print(node.show())
         return c_ast.FileAST(
-            map(self.visit, node.ext), 
+            list(map(self._safe_visit, node.ext)), 
             node.coord
         )
 
     def visit_For(self, node):
+        global cnt
+        cnt = cnt + 1
+        n_cond = c_ast.FuncCall(
+            c_ast.ID('IFG'),
+            c_ast.ExprList([
+                self._safe_visit(node.cond), 
+                c_ast.Constant('int', str(cnt))
+            ]),
+            node.coord
+        )
         return c_ast.For(
-            self.visit(node.init),
-            self.visit(node.cond),
-            self.visit(node.next),
-            self.visit(node.stmt),
+            self._safe_visit(node.init),
+            #n_cond,
+            self._safe_visit(node.cond),
+            self._safe_visit(node.next),
+            self._safe_visit(node.stmt),
             node.coord
         )
 
@@ -169,7 +203,7 @@ class MyVisitor(c_ast.NodeVisitor):
         return c_ast.FuncDef(
             node.decl,
             node.param_decls,
-            self.visit(node.body),
+            self._safe_visit(node.body),
             node.coord
         )
 
@@ -188,21 +222,22 @@ class MyVisitor(c_ast.NodeVisitor):
         n_cond = c_ast.FuncCall(
             c_ast.ID('IFG'),
             c_ast.ExprList([
-                self.visit(node.cond), 
+                self._safe_visit(node.cond), 
                 c_ast.Constant('int', str(cnt))
             ]),
             node.coord
         )
         return c_ast.If(
-            n_cond,
-            self.visit(node.iftrue),
+            #n_cond,
+            self._safe_visit(node.cond),
+            self._safe_visit(node.iftrue),
             self._safe_visit(node.iffalse),
             node.coord
         )
 
     def visit_InitList(self, node):
         return c_ast.InitList(
-            map(self.visit, node.exprs),
+            list(map(self._safe_visit, node.exprs)),
             node.coord
         )
 
@@ -215,14 +250,14 @@ class MyVisitor(c_ast.NodeVisitor):
 
     def visit_NamedInitializer(self, node):
         return c_ast.NamedInitializer(
-            map(self.visit, node.name),
-            self.visit(node.expr),
+            list(map(self._safe_visit, node.name)),
+            self._safe_visit(node.expr),
             node.coord
         )
 
     def visit_ParamList(self, node):
         return c_ast.ParamList(
-            map(self.visit, node.params),
+            list(map(self._safe_visit, node.params)),
             node.coord
         )
 
@@ -242,9 +277,20 @@ class MyVisitor(c_ast.NodeVisitor):
         return node
 
     def visit_Switch(self, node):
+        global cnt
+        cnt = cnt + 1
+        n_cond = c_ast.FuncCall(
+            c_ast.ID('IFG'),
+            c_ast.ExprList([
+                self._safe_visit(node.cond), 
+                c_ast.Constant('int', str(cnt))
+            ]),
+            node.coord
+        )
         return c_ast.Switch(
-            self.visit(node.cond),
-            self.visit(node.stmt),
+            #n_cond,
+            self._safe_visit(node.cond),
+            self._safe_visit(node.stmt),
             node.coord
         )
 
@@ -252,13 +298,19 @@ class MyVisitor(c_ast.NodeVisitor):
         return c_ast.FuncCall(
             c_ast.ID('__ternary'),
             c_ast.ExprList([
-                self.visit(node.cond),
-                self.visit(node.iftrue),
-                self.visit(node.iffalse)
+                self._safe_visit(node.cond),
+                self._safe_visit(node.iftrue),
+                self._safe_visit(node.iffalse)
             ]),
             node.coord
         )
-
+#        return c_ast.TernaryOp(
+#            self._safe_visit(node.cond),
+#            self._safe_visit(node.iftrue),
+#            self._safe_visit(node.iffalse),
+#            node.coord
+#        )
+#
     def visit_TypeDecl(self, node):
         return node
 
@@ -271,7 +323,7 @@ class MyVisitor(c_ast.NodeVisitor):
     def visit_UnaryOp(self, node):
         return c_ast.UnaryOp(
             node.op,
-            self.visit(node.expr),
+            self._safe_visit(node.expr),
             node.coord
         )
         
@@ -279,9 +331,20 @@ class MyVisitor(c_ast.NodeVisitor):
         return node
 
     def visit_While(self, node):
+        global cnt
+        cnt = cnt + 1
+        n_cond = c_ast.FuncCall(
+            c_ast.ID('IFG'),
+            c_ast.ExprList([
+                self._safe_visit(node.cond), 
+                c_ast.Constant('int', str(cnt))
+            ]),
+            node.coord
+        )
         return c_ast.While(
-            self.visit(node.cond),
-            self.visit(node.stmt),
+            #n_cond,
+            self._safe_visit(node.cond),
+            self._safe_visit(node.stmt),
             node.coord
         )
 
@@ -289,4 +352,5 @@ class MyVisitor(c_ast.NodeVisitor):
         return node
 
     def generic_visit(self, node):
-        raise MethodNotImplemented(node.__class__.__name__)
+        #raise MethodNotImplemented(node.__class__.__name__)
+        return node
