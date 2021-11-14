@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+
+import os 
+import sys
+import pathlib
+
+script = pathlib.Path(__file__).resolve()
+project_dir = script.parent.parent.absolute()
+module_dir = project_dir
+bin_dir = project_dir / "bin"
+
+sys.path.insert(0, str(module_dir))
+
+import wasp
+
+sys.exit(wasp.main())
