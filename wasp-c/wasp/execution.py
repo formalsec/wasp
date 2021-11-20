@@ -32,7 +32,6 @@ class WASP:
             '(invoke \"__original_main\")',
             '-m',
             str(self.instr_limit),
-            '-t'
         ] + output_cmd
 
     def run(self, test_file: str, output_dir: str = "", instr_limit=None, \
