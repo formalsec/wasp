@@ -1,14 +1,12 @@
-#include "assert.h"
 #include <limits.h>
 #include <errno.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include "wasp.h"
 
 #define ABS_LONG_MIN 2147483648UL
 
-extern char __VERIFIER_nondet_uchar(char *);
-
-void abort(void) { assume(0); }
+void abort(void) { __WASP_assume(0); }
 
 extern unsigned char __heap_base;
 unsigned int bump_pointer = &__heap_base;
@@ -18,7 +16,7 @@ void *malloc(size_t size) {
   for (int i = 0; i < size; ++i)
     *((unsigned char *)bump_pointer + i) = 'i';
   bump_pointer += size;
-  return (void*)alloc(r, size);
+  return (void*)__WASP_alloc(r, size);
 }
 
 void *alloca(size_t size) {
@@ -30,16 +28,16 @@ void *calloc (size_t nmemb, size_t size) {
   for (int i = 0; i < nmemb * size; ++i)
     *((unsigned int*)(bump_pointer + i)) = 0;
   bump_pointer += (nmemb * size);
-  return (void *)alloc(r, nmemb * size);
+  return (void *)__WASP_alloc(r, nmemb * size);
 }
 
 void *realloc(void *ptr, size_t size) {
-  dealloc(ptr);
-  return (void *)alloc(ptr, size);
+  __WASP_dealloc(ptr);
+  return (void *)__WASP_alloc(ptr, size);
 }
 
 void free(void *ptr) {
-  dealloc(ptr);
+  __WASP_dealloc(ptr);
 }
 
 char *getenv(const char *name) { return (char *)0; }

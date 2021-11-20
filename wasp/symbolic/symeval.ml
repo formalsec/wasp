@@ -802,8 +802,8 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at] 
     !inst.sym_memory) in
   (* Prepare output *)
-  let directory = ("output/" ^ (Filename.basename !Flags.name)) in
-  Io.safe_mkdir directory;
+  let test_suite = Filename.concat !Flags.output "test_suite" in
+  Io.safe_mkdir test_suite;
   (* Initial memory config *)
   let initial_memory = Symmem2.to_list !inst.sym_memory in
   let initial_globals = Global.contents !inst.globals in
@@ -817,7 +817,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     let {logic_env; path_cond = pc; sym_frame; sym_code; _} = try sym_eval !c with
       | InstrLimit conf ->
           let {logic_env; _} = conf in
-          write_test_case directory "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
+          write_test_case test_suite "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
           raise Unsatisfiable
       | AssumeFail (conf, cons) -> 
           Constraints.add finish_constraints !iterations cons;
@@ -833,7 +833,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
       raise Unsatisfiable;
 
     (* write current model as a test *)
-    write_test_case directory "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
+    write_test_case test_suite "%s/test_%05d.json" Logicenv.(to_json (to_list logic_env));
 
    (* DEBUG: *)
     let delim = String.make 6 '$' in
@@ -918,7 +918,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
               (if r.right = r.left then "" else "-" ^ string_of_pos r.right)) ^ "\"" ^
         "}" 
         in 
-        write_test_case directory "%s/witness_%05d.json" wit;
+        write_test_case test_suite "%s/witness_%05d.json" wit;
         false, reason, wit
     | BugException (b, r, wit) ->
         incomplete := true;
@@ -928,7 +928,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
               (if r.right = r.left then "" else "-" ^ string_of_pos r.right)) ^ "\"" ^
         "}" 
         in
-        write_test_case directory "%s/witness_%05d.json" wit;
+        write_test_case test_suite "%s/witness_%05d.json" wit;
         false, reason, wit
     | e -> raise e
   in
@@ -948,7 +948,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)       ^ ", " ^
     "\"incomplete\" : "            ^ (string_of_bool !incomplete)       ^
   "}" 
-  in Io.save_file (directory ^ "/report.json") fmt_str;
+  in Io.save_file (Filename.concat !Flags.output "report.json") fmt_str;
 
   let (vs, _) = !c.sym_code in
   try List.rev vs with Stack_overflow ->

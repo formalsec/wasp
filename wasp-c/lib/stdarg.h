@@ -4,15 +4,12 @@
 #include <endian.h>
 
 
-#if (__GNUC__ > 2) || ((__GNUC__ == 2) && (__GNUC_MINOR__ >= 96))
 
-typedef __builtin_va_list va_list;
-#define va_start(v,l)	__builtin_va_start((v),(l))
-#define va_end		__builtin_va_end
-#define va_arg		__builtin_va_arg
-#define __va_copy(d,s)	__builtin_va_copy((d),(s))
-
-#endif
+typedef char *va_list;
+#define va_start(ap,parmn) (void)((ap) = (char*)(&(parmn) + 1))
+#define va_end(ap) (void)((ap) = 0)
+#define va_arg(ap, type) \
+    (((type*)((ap) = ((ap) + sizeof(type))))[-1])
 
 #ifndef va_end
 #include <stdarg-cruft.h>

@@ -15,9 +15,12 @@ class MethodNotImplemented(Exception):
         super().__init__(self.message)
 
 def process(inFile, args=None):
+    """
+    The client of the function is responsible for includes
+    """
     cc = 'gcc'
-    flags = ['-E', r'-Ilib']
-    if args is not None:
+    flags = ['-E']
+    if not args is None:
         flags += args
     # force the preprocess of the C file to remove includes
     ast = parse_file(inFile,
@@ -28,6 +31,9 @@ def process(inFile, args=None):
     return CGenerator().visit(n_ast)
 
 class PreProcessor(c_ast.NodeVisitor):
+
+    def __init__(self):
+        self.rm_logops = False
 
     def _safe_visit(self, node):
         return self.visit(node) if node is not None else node
@@ -58,7 +64,7 @@ class PreProcessor(c_ast.NodeVisitor):
         )
 
     def visit_BinaryOp(self, node):
-        if node.op in ['&&', '||']:
+        if (node.op in ['&&', '||']) and self.rm_logops:
             return c_ast.FuncCall(
                 c_ast.ID(self._get_binop_func(node.op)),
                 c_ast.ExprList([

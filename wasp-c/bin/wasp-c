@@ -7,10 +7,15 @@ import pathlib
 script = pathlib.Path(__file__).resolve()
 project_dir = script.parent.parent.absolute()
 module_dir = project_dir
-bin_dir = project_dir / "bin"
+bin_dir = project_dir / 'bin'
 
 sys.path.insert(0, str(module_dir))
 
+root_dir = script.parent.parent.parent.absolute()
+wasp_dir = root_dir / 'wasp'
+
+os.environ['PATH'] += os.pathsep + str(wasp_dir)
+
 import wasp
 
-sys.exit(wasp.main())
+sys.exit(wasp.main(str(project_dir)))

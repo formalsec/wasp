@@ -1,0 +1,52 @@
+CC=clang
+CFLAGS=-emit-llvm -g $(OPTIMIZE) -ffreestanding --target=wasm32 -c -m32 $(INCLUDES) -fbracket-depth=512 $(WARN)
+LD=wasm-ld
+BUILD_DIR=_build
+
+WARN += -Wno-parentheses-equality
+WARN += -Wno-attributes
+WARN += -Wno-return-type
+WARN += -Wno-int-conversion
+WARN += -Wno-incompatible-pointer-types
+WARN += -Wno-incompatible-function-pointer-types
+WARN += -Wno-pointer-sign
+WARN += -Wno-bitfield-constant-conversion
+WARN += -Wno-implicit-function-declaration
+
+INCLUDES += -I$(HEADERS)
+
+LIBC ?= bin/libc.a
+HEADERS  ?= lib
+OPTIMIZE ?= -O0
+OTHER_CODE ?=
+
+src  := $(wildcard *.c)
+objs := $(addprefix $(BUILD_DIR)/,$(src:.c=.o))
+
+.PHONY: clean
+
+default: all clean
+
+all: $(objs:.o=.wat)
+	@mv -v $< .
+
+$(BUILD_DIR)/%.bc: %.c
+	@mkdir -p $(dir $@)
+	@echo "Building $@"
+	@$(CC) $(CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
+	@echo "Building $@"
+	@opt -O1 $< -o $<
+	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
+
+$(BUILD_DIR)/%.wasm: $(BUILD_DIR)/%.o
+	@echo "Building $@"
+	@$(LD) --no-entry --export-all $^ $(LIBC) $(OTHER_CODE) -o $@
+
+$(BUILD_DIR)/%.wat: $(BUILD_DIR)/%.wasm
+	@echo "Building $@"
+	@wasm2wat $^ -o $@
+
+clean:
+	@echo "rm -rf $(BUILD_DIR)"; rm -rf $(BUILD_DIR)

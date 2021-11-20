@@ -3,9 +3,6 @@ Defines mockup interface with Symbolic Execution Tool
 **/
 
 #include "api.h"
-#include "assert.h"
-
-
 
 /**
  * summ_not_implemented_error - Check is SE tool implements function <fname> 
@@ -51,7 +48,7 @@ void* summ_maximize(symbolic sym_var, unsigned int length){
  *			0 otherwise
  */
 int summ_is_symbolic(symbolic sym_var, unsigned int length){
-  return is_symbolic(sym_var, length);
+  return __WASP_is_symbolic(sym_var, length);
 }
 
 /**

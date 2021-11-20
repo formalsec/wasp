@@ -32,7 +32,8 @@ let argspec = Arg.align
   "-d", Arg.Set Flags.dry, " dry, do not run program";
   "-t", Arg.Set Flags.trace, " trace execution";
   "-v", Arg.Unit banner, " show version";
-  "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model"
+  "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model";
+  "-r", Arg.String (fun dir -> Flags.output := dir), "Directory to output report and test-suite (default=output)"
 ]
 
 let () =
@@ -41,7 +42,6 @@ let () =
     configure ();
     Arg.parse argspec
       (fun file -> 
-        Flags.name := file;
         (*Ranges.save_useful_lines file; *)
         add_arg ("(input " ^ quote file ^ ")")) usage;
     List.iter (fun arg -> if not (Symrun.run_string arg) then exit 1) !args; (*  Changed to run symbolically  *)

@@ -1,67 +1,61 @@
+from __future__ import annotations
+
 import time
 import resource
 import subprocess
 
+from wasp import logger as logging
+
 class WASP:
     def __init__(
             self, 
-            binPath,
-            instrLimit=4611686018427387803,
-            timeLimit=900,                  # default 15mins
-            memoryLimit=15*1024*1024*1024   # default 15Gib
+            instr_limit=4611686018427387803,
+            time_limit=900,                  # default 15mins
+            memory_limit=15*1024*1024*1024   # default 15Gib
         ):
-        self.binPath = binPath
-        self.instrLimit = instrLimit
-        self.timeLimit = timeLimit
-        self.memoryLimit = memoryLimit
-
-    def getInstrLimit(self):
-        return self.instrLimit
-
-    def setInstrLimit(self, limit):
-        if limit is not None:
-            self.instrLimit = limit
-
-    def getTimeLimit(self):
-        return self.timeLimit
-
-    def setTimeLimit(self, limit):
-        if limit is not None:
-            self.timeLimit = limit
-
-    def getMemoryLimit(self):
-        return self.memoryLimit
+        self.instr_limit: int = instr_limit
+        self.time_limit: int = time_limit
+        self.memory_limit: int = memory_limit
 
     @staticmethod
-    def limit_ram(limit):
+    def limit_ram(limit) -> None:
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
-    def cmd(self, testFile):
+    def cmd(self, test_prog: str, output_dir: str = "") -> list[str]:
+        output_cmd = []
+        if not output_dir == "":
+            output_cmd = ['-r', output_dir]
         return [
-            f'./{self.binPath}/wasp',
-            testFile,
+            'wasp',
+            test_prog,
             '-e',
             '(invoke \"__original_main\")',
             '-m',
-            str(self.instrLimit)
-        ]
+            str(self.instr_limit),
+            '-t'
+        ] + output_cmd
 
-    def run(self, testFile, instrLimit=None, timeLimit=None):
+    def run(self, test_file: str, output_dir: str = "", instr_limit=None, \
+            time_limit=None) -> ExecutionResult:
         # set options
-        self.setInstrLimit(instrLimit)
-        self.setTimeLimit(timeLimit)
+        if not instr_limit is None:
+            self.instr_limit = instr_limit
+        if not time_limit is None:
+            self.time_limit = time_limit
 
         time_start = time.time()
 
         output = None
         crashed = False
         timeout = False
+        cmd = self.cmd(test_file, output_dir)
+        logging.debug(f'WASP.run:cmd=\'{cmd}\'')
         try: 
             output = subprocess.check_output(
-                    self.cmd(testFile),
-                    timeout=self.getTimeLimit(), 
+                    cmd,
+                    timeout=self.time_limit, 
                     stderr=subprocess.STDOUT,
-                    preexec_fn=(lambda: WASP.limit_ram(self.getMemoryLimit()))
+                    preexec_fn=(lambda: WASP.limit_ram(self.memory_limit))
                 )
             output = output.decode()
         except subprocess.TimeoutExpired:
@@ -71,20 +65,20 @@ class WASP:
 
         total_time = time.time() - time_start
         return ExecutionResult(
-                testFile, 
-                output, 
-                crashed, 
-                timeout, 
-                total_time
+            test_file, 
+            output, 
+            crashed, 
+            timeout, 
+            total_time
         )
 
 class ExecutionResult:
     def __init__(
             self,
-            fileName,
+            fileName: str,
             stdout,
-            crashed,
-            timeout,
+            crashed: bool,
+            timeout: bool,
             time
         ):
         self.fileName = fileName

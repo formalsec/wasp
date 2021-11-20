@@ -1,6 +1,8 @@
 #ifndef API_H_  
 #define API_H_
 
+#include <wasp.h>
+
 #define symbolic void*
 #undef NULL
 #define NULL (void*)0
