@@ -27,13 +27,13 @@ def process(inFile, args=None):
                      use_cpp=True,
                      cpp_path=cc, 
                      cpp_args=flags)
-    n_ast = PreProcessor().visit(ast)
+    n_ast = PreProcessor(boolops=True).visit(ast)
     return CGenerator().visit(n_ast)
 
 class PreProcessor(c_ast.NodeVisitor):
 
-    def __init__(self):
-        self.rm_logops = False
+    def __init__(self, boolops=False):
+        self.boolops = boolops
 
     def _safe_visit(self, node):
         return self.visit(node) if node is not None else node
@@ -64,7 +64,7 @@ class PreProcessor(c_ast.NodeVisitor):
         )
 
     def visit_BinaryOp(self, node):
-        if (node.op in ['&&', '||']) and self.rm_logops:
+        if (node.op in ['&&', '||']) and not self.boolops:
             return c_ast.FuncCall(
                 c_ast.ID(self._get_binop_func(node.op)),
                 c_ast.ExprList([
