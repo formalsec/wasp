@@ -32,11 +32,11 @@ $(BUILD)/%.bc: $(SRC)/%.c
 	@echo "$(CC) $(CFLAGS) -o $@ $<"; $(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD)/%.o: $(BUILD)/%.bc
-	@echo "opt $(OPT) $< -o $<"; opt $(OPT) $< -o $<
-	@echo "llc $(OPT) -march=wasm32 -filetype=obj $< -o $@"; llc $(OPT) -march=wasm32 -filetype=obj $< -o $@
+	@echo "opt $(OPT) $< -o $<"; opt -O1 $< -o $<
+	@echo "llc $(OPT) -march=wasm32 -filetype=obj $< -o $@"; llc -O1 -march=wasm32 -filetype=obj $< -o $@
 
 $(BUILD)/%.wasm: $(BUILD)/%.o $(LIB_OBJ)
-	@echo "wasm-ld --no-entry --export-all $^ -o $@"; wasm-ld --no-entry --export-all $^ -o $@
+	@echo "wasm-ld --no-entry --export=__original_main $^ -o $@"; wasm-ld --no-entry --export=__original_main $^ -o $@
 
 $(BUILD)/%.wat: $(BUILD)/%.wasm
 	@echo "wasm2wat $^ -o $@"; wasm2wat $^ -o $@
@@ -46,8 +46,8 @@ $(BUILD)/lib/%.bc: $(LIB)/%.c
 	@echo "$(CC) $(CFLAGS) -o $@ $<"; $(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD)/lib/%.o: $(BUILD)/lib/%.bc
-	@echo "opt $(OPT) $< -o $<"; opt $(OPT) $< -o $<
-	@echo "llc $(OPT) -march=wasm32 -filetype=obj $< -o $@"; llc $(OPT) -march=wasm32 -filetype=obj $< -o $@
+	@echo "opt $(OPT) $< -o $<"; opt -O1 $< -o $<
+	@echo "llc $(OPT) -march=wasm32 -filetype=obj $< -o $@"; llc -O1 -march=wasm32 -filetype=obj $< -o $@
 
 clean:
 	$(RM) -rf $(BUILD)

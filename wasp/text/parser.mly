@@ -114,7 +114,10 @@ let bind category space x =
 let bind_type (c : context) x ty =
   c.types.list <- c.types.list @ [ty];
   bind "type" c.types.space x
-let bind_func (c : context) x = bind "function" c.funcs x
+let bind_func (c : context) x = 
+  let i = bind "function" c.funcs x in
+  Coverage.save_func x.it i;
+  i
 let bind_local (c : context) x = bind "local" c.locals x
 let bind_global (c : context) x = bind "global" c.globals x
 let bind_table (c : context) x = bind "table" c.tables x

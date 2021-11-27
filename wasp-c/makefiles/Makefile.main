@@ -42,7 +42,7 @@ $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
 
 $(BUILD_DIR)/%.wasm: $(BUILD_DIR)/%.o
 	@echo "Building $@"
-	@$(LD) --no-entry --export-all $^ $(LIBC) $(OTHER_CODE) -o $@
+	@$(LD) --no-entry --export=__original_main $^ $(LIBC) $(OTHER_CODE) -o $@
 
 $(BUILD_DIR)/%.wat: $(BUILD_DIR)/%.wasm
 	@echo "Building $@"

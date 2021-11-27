@@ -146,8 +146,8 @@ def main(root_dir: str, argv=None) -> int:
         return -1
 
     # run WASP
-    #analyser = exe.WASP()
-    analyser = exe.WASP(instr_limit=10000000,time_limit=20)
+    analyser = exe.WASP()
+    #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
     res = analyser.run(wasm_harness, args.output_dir)
     if res.crashed:
         logging.error(f'main:Wasp crashed')

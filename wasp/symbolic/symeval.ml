@@ -117,14 +117,13 @@ exception AssertFail of sym_config * region * string
 exception BugException of bug * region * string
 exception Unsatisfiable
 
+let lines_to_ignore = ref 0
+
 let assumes     = ref []
 
 let instr_cnt   = ref 0
 
 let iterations  = ref 1
-(* To keep track of the coverage of the test *)
-let lines       = ref []
-let lines_total = ref []
 
 let incomplete  = ref false
 
@@ -239,10 +238,7 @@ let rec sym_step (c : sym_config) : sym_config =
   instr_cnt := !instr_cnt + 1;
   let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond = pc; sym_mem = mem; _} = c in
   let e = List.hd es in
-  if not (List.memq (Source.get_line e.at) !lines) then
-    lines := !lines @ [(Source.get_line e.at)];
-  if not (List.memq (Source.get_line e.at) !lines_total) then 
-    lines_total := !lines_total @ [(Source.get_line e.at)];
+  Coverage.record_line (Source.get_line e.at);
   let vs', es', logic_env', pc', mem' =
     if !instr_cnt >= !Flags.instr_max then (
       incomplete := true;
@@ -897,7 +893,6 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
            (String.make 73 '-') ^ "\n\n");
     debug ((String.make 92 '~') ^ "\n");
 
-    lines      := [];
     iterations := !iterations + 1;
     (*let env_constraint = Formula.to_formula (Logicenv.to_expr logic_env) in*)
     loop global_pc'
@@ -937,16 +932,22 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
   debug ("\n\n>>>> END OF CONCOLIC EXECUTION. ASSUME FAILS WHEN:\n" ^
       (Constraints.to_string finish_constraints) ^ "\n");
 
+  let n_lines = List.((length !inst.types) + (length !inst.tables) + 
+                      (length !inst.memories) + (length !inst.globals) +
+                      (length !inst.exports) + 1) in
+  let coverage = (Coverage.calculate_cov inst (n_lines + !lines_to_ignore)) *. 100.0 in
+
   (* Execution report *)
   let fmt_str = "{" ^
-    "\"specification\": "        ^ (string_of_bool spec)            ^ ", " ^
-    "\"reason\" : "              ^ reason                           ^ ", " ^
-    "\"witness\" : "             ^ wit                              ^ ", " ^
-    "\"loop_time\" : \""         ^ (string_of_float loop_time)      ^ "\", " ^
-    "\"solver_time\" : \""       ^ (string_of_float !solver_time)   ^ "\", " ^
-    "\"paths_explored\" : "      ^ (string_of_int !iterations)      ^ ", " ^
-    "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)       ^ ", " ^
-    "\"incomplete\" : "            ^ (string_of_bool !incomplete)       ^
+    "\"specification\": "        ^ (string_of_bool spec)          ^ ", " ^
+    "\"reason\" : "              ^ reason                         ^ ", " ^
+    "\"witness\" : "             ^ wit                            ^ ", " ^
+    "\"coverage\" : \""          ^ (string_of_float coverage)     ^ "\", " ^
+    "\"loop_time\" : \""         ^ (string_of_float loop_time)    ^ "\", " ^
+    "\"solver_time\" : \""       ^ (string_of_float !solver_time) ^ "\", " ^
+    "\"paths_explored\" : "      ^ (string_of_int !iterations)    ^ ", " ^
+    "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)     ^ ", " ^
+    "\"incomplete\" : "          ^ (string_of_bool !incomplete)   ^
   "}" 
   in Io.save_file (Filename.concat !Flags.output "report.json") fmt_str;
 
@@ -1182,6 +1183,7 @@ let init (m : module_) (exts : extern list) : module_inst =
   in
   let inst = {inst1 with exports = List.map (create_export inst1) exports} in
   List.iter (init_func inst) fs;
+  lines_to_ignore := List.((length elems) + (length data));
   let init_elems = List.map (init_table inst) elems in
   let init_datas = List.map (init_memory inst) data in
   List.iter (fun f -> f ()) init_elems;
