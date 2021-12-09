@@ -7,3 +7,4 @@ let width = ref 80
 let harness = ref true
 let instr_max = ref 1_000_000
 let output = ref "output"
+let branches = ref false

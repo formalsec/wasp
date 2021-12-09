@@ -1,12 +1,12 @@
-let name = "wasp"
-let version = "0.2"
+let name = "WebAssembly Symbolic Processor"
+let version = "v0.2"
 
 let configure () =
   Import.register (Utf8.decode "spectest") Spectest.lookup;
   Import.register (Utf8.decode "env") Env.lookup
 
 let banner () =
-  print_endline (name ^ " " ^ version ^ " reference interpreter")
+  print_endline (name ^ " " ^ version)
 
 let usage = "Usage: " ^ name ^ " [option] [file ...]"
 
@@ -31,9 +31,10 @@ let argspec = Arg.align
   "-h", Arg.Clear Flags.harness, " exclude harness for JS conversion";
   "-d", Arg.Set Flags.dry, " dry, do not run program";
   "-t", Arg.Set Flags.trace, " trace execution";
-  "-v", Arg.Unit banner, " show version";
+  "-v", Arg.Unit (fun () -> banner (); exit 0), " show version";
   "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model";
-  "-r", Arg.String (fun dir -> Flags.output := dir), "Directory to output report and test-suite (default=output)"
+  "-r", Arg.Set_string Flags.output, " directory to output report and test-suite (default=output)";
+  "-b", Arg.Set Flags.branches, " ignore assertion failures to cover more paths"
 ]
 
 let () =
