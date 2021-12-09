@@ -7,7 +7,7 @@
 
 ## Reproducing Results
 
-### Setup
+### Setup Docker
 
 From the root of the project first build the `wasp/wasp`
 docker image by running the following command:
@@ -16,7 +16,7 @@ docker image by running the following command:
 docker build -t wasp/wasp .
 ```
 
-IMPORTANT! This command may take upwards of x minutes since
+IMPORTANT! This command may take upwards of 60 minutes since
 it requires installing all dependencies of *Gillian*. If one
 does not want to install Gillian comment the lines 46-49
 in `Dockerfile`.
@@ -66,15 +66,15 @@ cd Collections-C # or cd /home/wasp/Collections-C
 ```
 #### Table 2
 
-To obtain the results from Table 2 for WASP run the command 
-(inside the directory `/home/wasp/Collections-C`):
+To obtain the results from Table 2 for WASP run the following 
+command:
 
 ```sh
 ./run.py
 ```
 
-This test script will create a file called `table.csv` with 
-the results summarised.
+The script terminates after around 60s and creates a file called 
+`table.csv`, which contains the results for Table 2 for WASP.
 To obtain the results for only one row of the table point 
 the script to the desired category:
 
@@ -84,16 +84,15 @@ the script to the desired category:
 ...
 ```
 
-Note that, this script always outputs the results to 
-the file `table.csv`, meaning that consecutive runs will 
-continuously overwrite the file `table.csv`.
-Importantly, between runs delete the `output` directory to 
-eliminate the possibility of conflicts in the results.
+The script always outputs the results to the file `table.csv`, 
+meaning that consecutive runs will continuously overwrite the file 
+`table.csv`. Additionally, between runs delete the `output` directory 
+to eliminate the possibility of conflicts in the results.
 
 To obtain the results from Table 2 for Gillian:
 
 1. Go into the Gillian directory: `cd ../Gillian` or `cd /home/wasp/Gillian`
-2. Run for each directory in `../collections-c-for-gillian/for-gillian/normal`: 
+2. Run for each category in `../collections-c-for-gillian/for-gillian/normal`: 
 
 ```sh
 time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/array/ \
@@ -103,14 +102,18 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/a
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
+The times in the table are the one reported by the command `time`.
+
 #### Table 3
 
-To obtain the results from Table 3 for WASP run the command
+To obtain the results from Table 3 for WASP run the following command
 (inside the directory `/home/wasp/Collections-C`):
 
 ```sh
 ./run.py _build/for-wasp/bugs
 ```
+
+These tests are supposed to return `false` since they have bugs.
 
 To obtain the results from Table 3 for Gillian:
 
@@ -212,13 +215,13 @@ And for Cover-Branches:
 python3 scripts/coverage.py test-suite/coverage-branches branches > branches.csv
 ```
 
-Generating the following in `error.csv` if we execute the
-command `python3 -m validator 4 error Arrays` after 
-compiling only `array-fpi` (`make -C for-wasp/array-fpi -j4`):
+In our example, the contents in `error.csv` after executing
+the command `python3 -m validator 4 error Arrays` and 
+compiling only `array-fpi` (`make -C for-wasp/array-fpi -j4`), are:
 
 ```
 Category,WASP,Time
-Arrays,47.0/69,7.613090000000001
+Arrays,69.0/69,7.613090000000001
 BitVectors,0/0,0.0
 ControlFlow,0/0,0.0
 ECA,0/0,0.0
@@ -272,6 +275,8 @@ run:
 make
 ```
 
+The Makefile will output some warnings which shouldn't be of 
+concern.
 If everything worked, the proofs were compiled into `_build/tests`.
 Next, you can run the category `Md` by running the command:
 
@@ -279,8 +284,8 @@ Next, you can run the category `Md` by running the command:
 ./run.py $(cat mappings/md.txt)
 ```
 
-This command will record the summarised results in a file `table.csv`.
-The results from the row **Md** in Table 6 are obtained by summing 
-the columns of the file in `table.csv`. The remaining rows from Table 6
+This command will save the summarised results in the file `table.csv`.
+Then, the results from the row **Md** in Table 6 are obtained by summing 
+the columns of the file `table.csv`. The remaining rows from Table 6
 can be obtained analogously by passing different file mappings from 
-directory `mappings` to `./run.py`.
+the directory `mappings` to `./run.py`.
