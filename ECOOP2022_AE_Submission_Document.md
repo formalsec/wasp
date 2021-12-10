@@ -5,66 +5,47 @@ ECOOP submission number for the paper: 25
 
 ## Overview: What does the artifact comprise?
 
-Please list for each distinct component of your artifact:
+The artifact includes the tools presented in the paper and the 
+tools and benchmarks required for their evaluation:
 
-* The artificat is comprised of:
-  * Code for the tools `WASP` and `WASP-C`
-  * Three benchmark suites in C.
-* The components of the artifact come in source code format 
-  in the directory structure show [below](#layout)
+* The source code of Gillian, WASP, and WASP-C
+* The benchmarks on which we evaluate our tools:
+  * Collections-C
+  * Test-Comp
+  * AWS Amazon Encryption SDK for C
 * The artifact can be found in [Insert Link here](https://google.com)
-* We claim the functional and available badges.
+* We claim all three badges: functional, reusable, and available.
 
 ## For authors claiming a functional or reusable badge: What are claims about the artifact’s functionality to be evaluated by the committee?
 
+The artifact includes scripts for reproducing the results documented
+in Section 5 of the paper; more specifically: Tables 2-6.
+
 * All the results from Table 2 and Table 3 can be obtained 
-  through the steps described in section [blah](#blah-ref) below
+  through the steps described in section [EQ1](#eq1) below
 * The results for WASP from Table 4 and Table 5 can be 
-  obtained through the steps described in section [blah](#blah-ref) below
+  obtained through the steps described in section [EQ2](#eq2) below
 * All the results from Table 6 can be obtained by executing
-  the commands enumerated in section [blah](#blah) below
+  the commands enumerated in section [EQ3](#eq3) below
  
-* Which data or conclusions from the paper are generated/supported by the artifact components?
-* Which activities described in the paper have led to the creation of the artifact components?
-* What is the functionality/purpose of the artifact (in case it goes beyond answering the previous 2 questions)? 
-
-Please provide explicit references that link processes, data, or conclusions in the paper with the location of the supporting component in the artifact, e.g., 
-
-* “The data in table 1 can be obtained by running script ‘abc.sh’ on the data at ‘/home/anonymous/input_data.csv’”
-* “Performing the described literature analysis on all articles listed in /home/anonymous/papers.csv led to the classification in /home/anonymous/papers_tagged.json”
-
 ## For authors claiming a reusable badge: What are the authors' claims about the artifact's reusability to be evaluated by the committee?
 
-TODO:
-
-* The three symbolic test suites described in Section 5 of our 
-  paper can be repurposed for other static analysis tools for Wasm.
-* WASP described in Section 3 of our paper ...
-
-Example:
-
-* “The implementation can easily be modified to use a different algorithm than the one described in section 4.1 of our paper by implementing a corresponding module. We provide an interface specification in ...”
+* The artifact can be used to run WASP-C on any other C program 
+  annotated with assumptions and assertions. See [examples](#examples) to 
+  check how to do this.
+* The symbolic test suites that result from the compilation of 
+  our C benchmarks can be used to evaluate other symbolic 
+  execution tools for Wasm.
 
 ## For authors claiming an available badge
 
-TODO: 
-
-We offer to publish the artifact on [DARTS](https://drops.dagstuhl.de/opus/institut_darts.php), in which case the available badge will be issued automatically.
-If you agree to publishing your artifact under a Creative Commons license, please indicate this here.
-You do not need to answer any of the following questions in this case.
-
-In case you would like to publish your artifact under different conditions, please provide the following information.
-
-* On which platform will the artifact be made publicly available?
-* Please provide a link to the platform’s retention policy (not required for DARTS, Zenodo, FigShare).
-* Under which license will the artifact be published?
+We offer to publish the artifact on [DARTS](https://drops.dagstuhl.de/opus/institut_darts.php).
 
 ## Artifact Requirements
 
-Please list any specific hardware or software requirements for accessing your artifact
+Software requirements:
 
 * `docker` 
-* 123
 
 ## Getting Started
 
@@ -103,13 +84,51 @@ version 0.1
 wasp@11194b4b99bd:~$
 ```
 
-Now you can use WASP to concolically execute Wasm programs:
+#### Examples(#examples)
+
+Now you can use WASP to concolically execute Wasm programs, 
+for example:
 
 ```sh
+wasp wasp/tests/regression/assume_assert.wast -t
 ```
+
+Will create a directory `output`, containing a report 
+(`output/report.json`) and another directory with the 
+concrete test suite generated (`output/test_suite`). 
+Familiarise, yourself with the contents of these files 
+(e.g., use `python3 -m json.tool output/report.json` 
+to analyse the generated report).
+
+As an exercise, edit the `assume_assert.wast` test
+(e.g., `vim wasp/tests/regression/assume_assert.wast`) 
+by changing the instruction `(i32.eq)` in line 12 to 
+`(i32.lt_s)` and the instruction `(i32.ne)` in line 16
+to `(i32.ge_s)`. Next, re-run `wasp` on the the file and
+inspect the new outputs in `output`.
+
+For `wasp-c` consider running: 
+
+```sh
+rm -rf output
+wasp-c wasp-c/tests/test01.c
+```
+
+`wasp-c` also creates a directory `output`. Next,
+run:
+
+```sh
+rm -rf output
+wasp-c wasp-c/tests/test01.c --rm-boolops --output output1
+```
+
+Inspect the differences between the generated files in 
+`output` and `output1`, more importantly between 
+the files `output/harness.c` and `output1/harness.c`.
 
 #### Layout(#layout)
 
+The artifact has the following directories:
 
 ```
 .
@@ -124,17 +143,23 @@ Now you can use WASP to concolically execute Wasm programs:
 └── ECOOP22_AE_Submission_Document.md
 ```
 
-* describe dirs
+Which are comprised of:
 
-### EQ1: Collections-C
+* **Collections-C**: containing code for Collections-C and its
+  symbolic test suite 
+* **Gillian**: containing code for the gillian-c tool
+* **Test-Comp**: containing code for the Test-Comp symbolic 
+  test suite
+* **test-suite-validator**: containing code for the TestCov test 
+  suite validation tool.
+* **aws-encryption-sdk**: containing code for the AWS Encryption SDK 
+  for C and its symbolic test suite
+* **wasp**: containing code for WASP
+* **wasp-c**: containing code for WASP-C
 
-If needed clone the repository through:
+### EQ1: Collections-C(#eq1)
 
-```sh
-git clone https://github.com/wasp-platform/Collections-C.git
-```
-
-Then, go into the **Collections-C** directory:
+First, go into the **Collections-C** directory:
 
 ```sh
 cd Collections-C # or cd /home/wasp/Collections-C
@@ -150,8 +175,9 @@ command:
 ```
 
 The script terminates after around 60s and creates a file called 
-`table.csv`, which contains the results for Table 2 for WASP.
-To obtain the results for only one row of the table point 
+`table.csv`, that contains the results from Table 2 for WASP.
+
+To obtain the results for only one row of the table, point 
 the script to the desired category:
 
 ```sh
@@ -160,40 +186,82 @@ the script to the desired category:
 ...
 ```
 
-The script always outputs the results to the file `table.csv`, 
-meaning that consecutive runs will continuously overwrite the file 
-`table.csv`. Additionally, between runs delete the `output` directory 
-to eliminate the possibility of conflicts in the results.
+Note that, the script always outputs the results to the file 
+`table.csv`, meaning that consecutive runs will continuously 
+overwrite the file `table.csv`. Additionally, in order to avoid
+possible conflicts between results, delete the `output` directory
+before running the script.
 
-To obtain the results from Table 2 for Gillian:
+To obtain the results from Table 2 for Gillian-C:
 
-1. Go into the Gillian directory: `cd ../Gillian` or `cd /home/wasp/Gillian`
-2. Run for each category in `../collections-c-for-gillian/for-gillian/normal`: 
+1. `cd` into the `Gillian` directory: `cd ../Gillian` or 
+  `cd /home/wasp/Gillian`
+2. Run either:
 
 ```sh
-time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/array/ \
+time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/ \
   -I ../collections-c-for-gillian/lib/include/ \
   -S ../collections-c-for-gillian/lib \
   -I ../collections-c-for-gillian/for-gillian/test-utils/ \
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-The times in the table are the one reported by the command `time`.
+To execute all categories of the benchmark, or:
+
+```sh
+time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/array \
+  -I ../collections-c-for-gillian/lib/include/ \
+  -S ../collections-c-for-gillian/lib \
+  -I ../collections-c-for-gillian/for-gillian/test-utils/ \
+  -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
+```
+
+To execute only the `array` category. Analogously, one may 
+individually execute the other categories by pointing the 
+above command to the other directories in 
+`../collections-c-for-gillian/for-gillian/normal/`.
+
+Lastly, the execution time for Gillian-C reported in the 
+table is the one outputted by the `time` command.
 
 #### Table 3
 
-To obtain the results from Table 3 for WASP run the following command
-(inside the directory `/home/wasp/Collections-C`):
+To obtain the results from Table 3 for WASP run the following 
+command (from `/home/wasp/Collections-C`):
 
 ```sh
 ./run.py _build/for-wasp/bugs
 ```
 
-These tests are supposed to return `false` since they have bugs.
+Note that, these tests are supposed to return false since they
+have bugs.
 
-To obtain the results from Table 3 for Gillian:
+As an exercise, edit the line 279 in the `lib-with-bugs/array.c` 
+(`vim lib-with-bugs/array.c`) to: 
 
-1. Go into the Gillian directory: `cd ../Gillian` or `cd /home/wasp/Gillian`
+```c
+size_t block_size = (ar->size - 1 - index) * sizeof(void*);
+```
+
+Then, clean and re-compile the benchmarks:
+
+```sh
+make clean
+make
+```
+And re-run the command:
+
+```sh
+./run.py _build/for-wasp/bugs
+```
+
+Note that, since we fixed the bug in `array.c` WASP now
+reports that the test passed, i.e., returns `true`.
+
+Finally, to obtain the results from Table 3 for Gillian:
+
+1. `cd` into the `Gillian` directory: `cd ../Gillian` or 
+  `cd /home/wasp/Gillian`
 2. Run:
 
 ```sh
@@ -204,15 +272,9 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/bugs \
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-### EQ2: Test-Comp
+### EQ2: Test-Comp(#eq2)
 
-If needed clone the repository through:
-
-```sh
-git clone https://github.com/wasp-platform/Test-Comp.git
-```
-
-Go into the **Test-Comp** directory:
+First, go into the **Test-Comp** directory:
 
 ```sh
 cd Test-Comp # or cd /home/wasp/Test-Comp
@@ -250,7 +312,7 @@ Then, to run the test-suite on a category run:
 python3 -m validator <THREADS> <TYPE> <CATEGORY>
 ```
 
-Where, `THREADS` is an optional argument denoting the number
+Where: `THREADS` is an optional argument denoting the number
 of analysis processes to be launched, `TYPE` is the
 type of task to analyse (e.g., `branches` or `error`), and 
 `CATEGORY` is the category from Table 4 to run (e.g., `Arrays` 
@@ -260,26 +322,20 @@ For example, since we compiled `array-fpi` from `Arrays`,
 we can run:
 
 ```sh
-python3 -m validator 4 error Arrays # Executes Cover-Error with 8 threads on sub-category C1.Arrays
-python3 -m validator 4 branches Arrays # Executes Cover-Branches with 8 threads on sub-category C1.Arrays
-python3 -m validator 4 error all # Executes Cover-Branches with 8 threads on all compiled categories 
+python3 -m validator 4 error Arrays # Executes Cover-Error with 4 threads on sub-category C1.Arrays
+python3 -m validator 4 branches Arrays # Executes Cover-Branches with 4 threads on sub-category C1.Arrays
+python3 -m validator 4 error all # Executes Cover-Branches with 4 threads on all compiled categories 
 ```
 
-IMPORTANT! Since these benchmarks take a considerable 
-amount of time to execute, the `validator` does not 
-repeat tasks when re-running the same command. To 
-generate new values one must delete the directory
-`test-suite` before the executing the `validator`.
-Additionally, for `branches` the `validator` might
-only output to `stdout` after 15 mins, meaning 
-that the tool reached the timeout. For this reason,
-we recommend running the benchmarks that do not timeout
-as often: `python3 -m validator 4 error Arrays`.
-At the start of a category the `validator` displays the number 
-of categories remaining, and for each line of the output, the 
-current executed tests over the total number of tests.
+IMPORTANT! The `validator` does not repeat tasks when re-running 
+the same command, to generate new values one must delete the 
+directory `test-suite` before the executing 
+the `validator`. Additionally, the `branches` tasks may only 
+output to `stdout` after 15 mins, when the timeout is reached. 
+For this reason, we recommend running the benchmarks that do not 
+timeout as often: `python3 -m validator 4 error Arrays`.
 
-Lastly, to obtain the results from Table 4 for Cover-Error run:
+Lastly, to table the results used in Table 4 for Cover-Error run:
 
 ```sh
 python3 scripts/coverage.py test-suite/coverage-error-call error > error.csv
@@ -291,9 +347,7 @@ And for Cover-Branches:
 python3 scripts/coverage.py test-suite/coverage-branches branches > branches.csv
 ```
 
-In our example, the contents in `error.csv` after executing
-the command `python3 -m validator 4 error Arrays` and 
-compiling only `array-fpi` (`make -C for-wasp/array-fpi -j4`), are:
+In the example above, the contents in `error.csv` will be:
 
 ```
 Category,WASP,Time
@@ -311,23 +365,17 @@ Combinations,0/0,0.0
 MainHeap,0/0,0.0
 ```
 
-IMPORTANT! Note that, to replicate all the numbers of WASP on the table
-one must compile all the symbolic test suite and subsequently run the 
-validator on `all` for `error` and `branches`. However, as we have reported 
-in the paper this can take over 300hours.
+To replicate all the numbers of WASP on the table one must compile all 
+the symbolic test suite and subsequently run the `validator` on `all` 
+for the types of tasks `error` and `branches`. However, as we have reported 
+in the paper this can take over 300 hours.
 
 #### Table 5
 
-The CPU times for WASP in Table 5 are acquired from the sum of the
+The CPU times for WASP in Table 5 are obtained from the sum of the
 `Time` column in `error.csv` and `branches.csv`.
 
-### EQ3: AWS Encryption SDK for C
-
-If needed clone the repository through:
-
-```sh
-git clone https://github.com/wasp-platform/aws-cryptosdk-c.git
-```
+### EQ3: AWS Encryption SDK for C(#eq3)
 
 First, go into the **AWS Encryption SDK for C** directory:
 
@@ -354,7 +402,7 @@ make
 The Makefile will output some warnings which shouldn't be of 
 concern.
 If everything worked, the proofs were compiled into `_build/tests`.
-Next, you can run the category `Md` by running the command:
+Next, you can run the category `Md` using the command:
 
 ```sh
 ./run.py $(cat mappings/md.txt)

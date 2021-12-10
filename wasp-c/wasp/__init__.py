@@ -20,9 +20,9 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        '--version', 
-        '-v', 
-        action='version', 
+        '--version',
+        '-v',
+        action='version',
         version=f'version {info.__VERSION__}'
     )
 
@@ -60,7 +60,15 @@ def get_parser() -> argparse.ArgumentParser:
         default=False,
         help='show messages verbose',
     )
- 
+
+    parser.add_argument(
+        '--rm-boolops',
+        dest='boolops',
+        action='store_true',
+        default=False,
+        help='remove short-circuit evaluation'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -69,16 +77,17 @@ def parse(argv: list[str]) -> argparse.Namespace:
     parser = get_parser()
     return parser.parse_args(argv)
 
-def preprocess_file(input_file: str, args: list[str], output_file: str) -> int:
+def preprocess_file(input_file: str, args: list[str], output_file: str, \
+                    boolops: bool) -> int:
     logging.debug(f'preprocess_file:input_file={input_file}' \
             f', output_file={output_file}')
-    harness = pre.process(input_file, args)
+    harness = pre.process(input_file, args, boolops)
     with open(output_file, 'w') as file:
         file.write(harness)
     return 0
 
 def compile_file(output_dir: str, root_dir: str, src_code: str, \
-        filename: str) -> int:
+                 filename: str) -> int:
     logging.debug(f'compile_file:output_dir={output_dir}' \
             f', root_dir={root_dir}, filename={filename}')
 
@@ -131,7 +140,7 @@ def main(root_dir: str, argv=None) -> int:
     args.includes.append(os.path.join(root_dir, 'lib'))
     includes = ['-I'+lib for lib in args.includes]
     harness = os.path.join(args.output_dir, 'harness.c')
-    if not preprocess_file(args.file, includes, harness) == 0:
+    if not preprocess_file(args.file, includes, harness, args.boolops) == 0:
         logging.error(f'main:Preprocessing failed')
         return -1
 

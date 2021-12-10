@@ -8,7 +8,7 @@ from wasp import logger as logging
 
 class WASP:
     def __init__(
-            self, 
+            self,
             instr_limit=4611686018427387803,
             time_limit=900,                  # default 15mins
             memory_limit=15*1024*1024*1024   # default 15Gib

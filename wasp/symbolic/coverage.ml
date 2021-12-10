@@ -64,7 +64,6 @@ let count_func (id : int32) (inst : module_inst ref) : int =
 let calculate_cov (inst : module_inst ref) (n_lines : int) : float =
   let ign_lines = Hashtbl.fold (
     fun a b acc ->
-      print_endline ("ignoring " ^ a);
       acc + (count_func b inst) 
   ) funcs 0 in
   let visited_len = List.length !visited in

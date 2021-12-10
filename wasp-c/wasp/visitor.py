@@ -14,7 +14,7 @@ class MethodNotImplemented(Exception):
         self.message = f'visit_{name}: method not implemented'
         super().__init__(self.message)
 
-def process(inFile, args=None):
+def process(inFile, args=None, rmBoolops=True):
     """
     The client of the function is responsible for includes
     """
@@ -27,7 +27,7 @@ def process(inFile, args=None):
                      use_cpp=True,
                      cpp_path=cc, 
                      cpp_args=flags)
-    n_ast = PreProcessor(boolops=True).visit(ast)
+    n_ast = PreProcessor(boolops=(not rmBoolops)).visit(ast)
     return CGenerator().visit(n_ast)
 
 class PreProcessor(c_ast.NodeVisitor):
