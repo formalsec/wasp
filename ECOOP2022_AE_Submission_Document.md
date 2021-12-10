@@ -43,9 +43,26 @@ We offer to publish the artifact on [DARTS](https://drops.dagstuhl.de/opus/insti
 
 ## Artifact Requirements
 
+Hardware requirements:
+
+* Minimum:
+  * 4GiB Ram
+  * 10GiB disk space
+  * These requirements will not be able to reproduce all the 
+    results but can be used to test individual categories for
+    each evaluation question (EQ)
+* Recommended: 
+  * 33GiB Ram
+  * 60GiB disk space
+  * CPU >= Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz:
+    * at least 12 cores
+  * These requirements can reproduce all the results in our 
+    paper
+
 Software requirements:
 
 * `docker` 
+
 
 ## Getting Started
 
@@ -54,14 +71,14 @@ Software requirements:
 Load the `wasp/wasp` docker image by running the following command:
 
 ```sh
-docker load --input wasp.tar.gz 
+docker load --input wasp_image.tar.gz 
 ```
 
 This command may take upwards of 20 minutes. Next, create a 
 temporary container and gain shell access:
 
 ```sh
-docker run --rm -ti --ulimit='stack=-1:-1'--cpus=<value> wasp/wasp
+docker run --rm -ti --ulimit='stack=-1:-1' wasp/wasp:version2
 ```
 
 If this worked correctly your shell prompt should have 
@@ -118,7 +135,6 @@ wasp-c wasp-c/tests/test01.c
 run:
 
 ```sh
-rm -rf output
 wasp-c wasp-c/tests/test01.c --rm-boolops --output output1
 ```
 
@@ -162,7 +178,7 @@ Which are comprised of:
 First, go into the **Collections-C** directory:
 
 ```sh
-cd Collections-C # or cd /home/wasp/Collections-C
+cd /home/wasp/Collections-C
 ```
 
 #### Table 2
@@ -192,13 +208,10 @@ overwrite the file `table.csv`. Additionally, in order to avoid
 possible conflicts between results, delete the `output` directory
 before running the script.
 
-To obtain the results from Table 2 for Gillian-C:
-
-1. `cd` into the `Gillian` directory: `cd ../Gillian` or 
-  `cd /home/wasp/Gillian`
-2. Run either:
+To obtain the results from Table 2 for Gillian-C, run either:
 
 ```sh
+cd /home/wasp/Gillian
 time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/ \
   -I ../collections-c-for-gillian/lib/include/ \
   -S ../collections-c-for-gillian/lib \
@@ -209,6 +222,7 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/ 
 To execute all categories of the benchmark, or:
 
 ```sh
+cd /home/wasp/Gillian
 time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/array \
   -I ../collections-c-for-gillian/lib/include/ \
   -S ../collections-c-for-gillian/lib \
@@ -227,9 +241,10 @@ table is the one outputted by the `time` command.
 #### Table 3
 
 To obtain the results from Table 3 for WASP run the following 
-command (from `/home/wasp/Collections-C`):
+command:
 
 ```sh
+cd /home/wasp/Collections-C
 ./run.py _build/for-wasp/bugs
 ```
 
@@ -243,28 +258,21 @@ As an exercise, edit the line 279 in the `lib-with-bugs/array.c`
 size_t block_size = (ar->size - 1 - index) * sizeof(void*);
 ```
 
-Then, clean and re-compile the benchmarks:
+Then, clean, compile, and run the benchmarks:
 
 ```sh
 make clean
 make
-```
-And re-run the command:
-
-```sh
 ./run.py _build/for-wasp/bugs
 ```
 
 Note that, since we fixed the bug in `array.c` WASP now
 reports that the test passed, i.e., returns `true`.
 
-Finally, to obtain the results from Table 3 for Gillian:
-
-1. `cd` into the `Gillian` directory: `cd ../Gillian` or 
-  `cd /home/wasp/Gillian`
-2. Run:
+Finally, to obtain the results from Table 3 for Gillian run:
 
 ```sh
+cd /home/wasp/Gillian
 time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/bugs \
   -I ../collections-c-for-gillian/lib-with-bugs/include/ \
   -S ../collections-c-for-gillian/lib-with-bugs/ \
@@ -274,16 +282,11 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/bugs \
 
 ### EQ2: Test-Comp(#eq2)
 
-First, go into the **Test-Comp** directory:
+Go into the **Test-Comp** directory and compile our *glibc*
+implementation:
 
 ```sh
-cd Test-Comp # or cd /home/wasp/Test-Comp
-```
-
-Next, compile our *glibc* implementation and the symbolic 
-test suite:
-
-```sh
+cd /home/wasp/Test-Comp
 make -C lib           # Compiles bin/libc.a
 ```
 
@@ -328,8 +331,8 @@ python3 -m validator 4 error all # Executes Cover-Branches with 4 threads on all
 ```
 
 IMPORTANT! The `validator` does not repeat tasks when re-running 
-the same command, to generate new values one must delete the 
-directory `test-suite` before the executing 
+the same command. To generate new values one must delete the 
+directory `/home/wasp/Test-Comp/test-suite` before the executing 
 the `validator`. Additionally, the `branches` tasks may only 
 output to `stdout` after 15 mins, when the timeout is reached. 
 For this reason, we recommend running the benchmarks that do not 
@@ -377,30 +380,17 @@ The CPU times for WASP in Table 5 are obtained from the sum of the
 
 ### EQ3: AWS Encryption SDK for C(#eq3)
 
-First, go into the **AWS Encryption SDK for C** directory:
-
-```sh
-cd aws-cryptosdk-c # or cd /home/wasp/aws-cryptosdk-c
-```
-
-Next, compile our *glibc* implementation and the symbolic 
-test suite:
-
-```sh
-make -C lib           # Compiles bin/libc.a
-```
-
 #### Table 6
 
-To compile the verification proofs into symbolic tests simply 
-run:
+Go into the **AWS Encryption SDK for C** directory and compile
+our *glibc* implementation and test suite:
 
 ```sh
+cd /home/wasp/aws-cryptosdk-c
+make -C lib           # Compiles bin/libc.a
 make
 ```
 
-The Makefile will output some warnings which shouldn't be of 
-concern.
 If everything worked, the proofs were compiled into `_build/tests`.
 Next, you can run the category `Md` using the command:
 
