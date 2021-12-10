@@ -55,7 +55,7 @@ Hardware requirements:
   * 33GiB Ram
   * 60GiB disk space
   * CPU >= Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz:
-    * at least 12 cores
+    * at least 8 cores
   * These requirements can reproduce all the results in our 
     paper
 
@@ -75,10 +75,11 @@ docker load --input wasp_image.tar.gz
 ```
 
 This command may take upwards of 20 minutes. Next, create a 
-temporary container and gain shell access:
+temporary container and gain shell access (allocate enough 
+`--cpus=8` to run the bigger benchmarks):
 
 ```sh
-docker run --rm -ti --ulimit='stack=-1:-1' wasp/wasp:version2
+docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> wasp/wasp
 ```
 
 If this worked correctly your shell prompt should have 
@@ -175,19 +176,14 @@ Which are comprised of:
 
 ### EQ1: Collections-C(#eq1)
 
-First, go into the **Collections-C** directory:
+#### Table 2
+
+To obtain the results from Table 2 for WASP, go into the 
+**Collections-C** directory and run the following command:
 
 ```sh
 cd /home/wasp/Collections-C
-```
-
-#### Table 2
-
-To obtain the results from Table 2 for WASP run the following 
-command:
-
-```sh
-./run.py
+time ./run.py
 ```
 
 The script terminates after around 60s and creates a file called 
@@ -386,8 +382,8 @@ Go into the **AWS Encryption SDK for C** directory and compile
 our *glibc* implementation and test suite:
 
 ```sh
-cd /home/wasp/aws-cryptosdk-c
-make -C lib           # Compiles bin/libc.a
+cd /home/wasp/aws-encryption-sdk
+make -C lib
 make
 ```
 
