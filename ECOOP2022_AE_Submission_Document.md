@@ -13,7 +13,7 @@ tools and benchmarks required for their evaluation:
   * Collections-C
   * Test-Comp
   * AWS Amazon Encryption SDK for C
-* The artifact can be found in [Insert Link here](https://google.com)
+* The artifact can be found in [wasp_image.tar.gz](https://zenodo.org/record/5773287)
 * We claim all three badges: functional, reusable, and available.
 
 ## For authors claiming a functional or reusable badge: What are claims about the artifact’s functionality to be evaluated by the committee?
@@ -79,7 +79,7 @@ temporary container and gain shell access (allocate enough
 `--cpus=8` to run the bigger benchmarks):
 
 ```sh
-docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> wasp/wasp
+docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> wasp/wasp:v2
 ```
 
 If this worked correctly your shell prompt should have 
@@ -104,8 +104,12 @@ wasp@11194b4b99bd:~$
 
 #### Examples(#examples)
 
-Now you can use WASP to concolically execute Wasm programs, 
-for example:
+**WASP Example:**
+
+Now you can use WASP to concolically execute Wasm programs;
+for example, in order to execute the Wasm test 
+`/home/wasp/wasp/tests/regression/assume_assert.wast` 
+run the following command:
 
 ```sh
 wasp wasp/tests/regression/assume_assert.wast -t
@@ -114,34 +118,28 @@ wasp wasp/tests/regression/assume_assert.wast -t
 Will create a directory `output`, containing a report 
 (`output/report.json`) and another directory with the 
 concrete test suite generated (`output/test_suite`). 
-Familiarise, yourself with the contents of these files 
-(e.g., use `python3 -m json.tool output/report.json` 
-to analyse the generated report).
+To analyse the generated report, use the command:
 
-As an exercise, edit the `assume_assert.wast` test
+```sh
+python3 -m json.tool output/report.json 
+```
+
+Verify that the outputs change by editing the `assume_assert.wast` test 
 (e.g., `vim wasp/tests/regression/assume_assert.wast`) 
-by changing the instruction `(i32.eq)` in line 12 to 
-`(i32.lt_s)` and the instruction `(i32.ne)` in line 16
-to `(i32.ge_s)`. Next, re-run `wasp` on the the file and
+by changing the instruction `i32.eq` in line 12 to 
+`i32.lt_s` and the instruction `i32.ne` in line 16
+to `i32.ge_s`. Next, re-run `wasp` on the file and
 inspect the new outputs in `output`.
 
-For `wasp-c` consider running: 
+
+**WASP-C Example**: 
+
+To test `wasp-c` run: 
 
 ```sh
 rm -rf output
 wasp-c wasp-c/tests/test01.c
 ```
-
-`wasp-c` also creates a directory `output`. Next,
-run:
-
-```sh
-wasp-c wasp-c/tests/test01.c --rm-boolops --output output1
-```
-
-Inspect the differences between the generated files in 
-`output` and `output1`, more importantly between 
-the files `output/harness.c` and `output1/harness.c`.
 
 #### Layout(#layout)
 
@@ -169,16 +167,16 @@ Which are comprised of:
   test suite
 * **test-suite-validator**: containing code for the TestCov test 
   suite validation tool.
-* **aws-encryption-sdk**: containing code for the AWS Encryption SDK 
+* **aws-encryption-sdk**: containing the code of AWS Encryption SDK 
   for C and its symbolic test suite
-* **wasp**: containing code for WASP
-* **wasp-c**: containing code for WASP-C
+* **wasp**: containing the code of WASP
+* **wasp-c**: containing the code of WASP-C
 
 ### EQ1: Collections-C(#eq1)
 
 #### Table 2
 
-To obtain the results from Table 2 for WASP, go into the 
+To obtain the results from **Table 2 for WASP**, go into the 
 **Collections-C** directory and run the following command:
 
 ```sh
@@ -204,7 +202,7 @@ overwrite the file `table.csv`. Additionally, in order to avoid
 possible conflicts between results, delete the `output` directory
 before running the script.
 
-To obtain the results from Table 2 for Gillian-C, run either:
+To obtain the results from **Table 2 for Gillian-C**, run EITHER:
 
 ```sh
 cd /home/wasp/Gillian
@@ -215,7 +213,7 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/ 
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-To execute all categories of the benchmark, or:
+to execute all categories of the benchmark, OR:
 
 ```sh
 cd /home/wasp/Gillian
@@ -226,18 +224,20 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/normal/a
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-To execute only the `array` category. Analogously, one may 
+to execute only the `array` category. Analogously, one may 
 individually execute the other categories by pointing the 
-above command to the other directories in 
-`../collections-c-for-gillian/for-gillian/normal/`.
+above command to their corresponding directories in
+`../collections-c-for-gillian/for-gillian/normal/`; by 
+replacing `array` in the first line with the name of the 
+category.
 
 Lastly, the execution time for Gillian-C reported in the 
 table is the one outputted by the `time` command.
 
 #### Table 3
 
-To obtain the results from Table 3 for WASP run the following 
-command:
+To obtain the results from **Table 3 for WASP** run the following 
+commands:
 
 ```sh
 cd /home/wasp/Collections-C
@@ -247,8 +247,8 @@ cd /home/wasp/Collections-C
 Note that, these tests are supposed to return false since they
 have bugs.
 
-As an exercise, edit the line 279 in the `lib-with-bugs/array.c` 
-(`vim lib-with-bugs/array.c`) to: 
+To fix the bug in the test `array_test_remove` edit the line 279 
+in the `lib-with-bugs/array.c` (`vim lib-with-bugs/array.c`) to: 
 
 ```c
 size_t block_size = (ar->size - 1 - index) * sizeof(void*);
@@ -262,10 +262,10 @@ make
 ./run.py _build/for-wasp/bugs
 ```
 
-Note that, since we fixed the bug in `array.c` WASP now
+Note that, since we fixed the bug in `array.c`, WASP now
 reports that the test passed, i.e., returns `true`.
 
-Finally, to obtain the results from Table 3 for Gillian run:
+Finally, to obtain the results from **Table 3 for Gillian** run:
 
 ```sh
 cd /home/wasp/Gillian
@@ -326,15 +326,15 @@ python3 -m validator 4 branches Arrays # Executes Cover-Branches with 4 threads 
 python3 -m validator 4 error all # Executes Cover-Branches with 4 threads on all compiled categories 
 ```
 
-IMPORTANT! The `validator` does not repeat tasks when re-running 
+**IMPORTANT!** The `validator` does not repeat tasks when re-running 
 the same command. To generate new values one must delete the 
 directory `/home/wasp/Test-Comp/test-suite` before the executing 
 the `validator`. Additionally, the `branches` tasks may only 
-output to `stdout` after 15 mins, when the timeout is reached. 
+output to `stdout` after 15 mins, corresponding to the default timeout. 
 For this reason, we recommend running the benchmarks that do not 
-timeout as often: `python3 -m validator 4 error Arrays`.
+timeout: `python3 -m validator 4 error Arrays`.
 
-Lastly, to table the results used in Table 4 for Cover-Error run:
+Lastly, to obtain the results used in Table 4 for Cover-Error, in `csv` format, run:
 
 ```sh
 python3 scripts/coverage.py test-suite/coverage-error-call error > error.csv
@@ -365,9 +365,11 @@ MainHeap,0/0,0.0
 ```
 
 To replicate all the numbers of WASP on the table one must compile all 
-the symbolic test suite and subsequently run the `validator` on `all` 
-for the types of tasks `error` and `branches`. However, as we have reported 
-in the paper this can take over 300 hours.
+the symbolic test suite and subsequently run the `validator` with the 
+CATEGORY `all` for the TYPE `error` and `branches`. However, as we have 
+reported in the paper this can take over 300 hours. Hence, we recommend 
+doing it one category at the time, starting with the categories that 
+take less time. 
 
 #### Table 5
 
@@ -394,8 +396,26 @@ Next, you can run the category `Md` using the command:
 ./run.py $(cat mappings/md.txt)
 ```
 
-This command will save the summarised results in the file `table.csv`.
+This command will save the summarised results into the file `table.csv`.
 Then, the results from the row **Md** in Table 6 are obtained by summing 
-the columns of the file `table.csv`. The remaining rows from Table 6
+the columns of the file `./table.csv`. The remaining rows from Table 6
 can be obtained analogously by passing different file mappings from 
-the directory `mappings` to `./run.py`.
+the directory `mappings` to `./run.py`. For instance, to obtain the
+results for the **Decrypt** category use:
+
+```sh
+./run.py $(cat mappings/decrypt.txt)
+```
+
+All possible categories:
+
+```
+/home/wasp/aws-encryption-sdk/mappings/
+├── cmm.txt
+├── decrypt.txt
+├── edk.txt
+├── keyring.txt
+├── md.txt
+├── misc-ops.txt
+└── private.txt
+```
