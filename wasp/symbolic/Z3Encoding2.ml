@@ -183,6 +183,8 @@ struct
       | F32Sub -> FloatingPoint.mk_sub ctx rne
       | F32Mul -> FloatingPoint.mk_mul ctx rne
       | F32Div -> FloatingPoint.mk_div ctx rne
+      | F32Min -> FloatingPoint.mk_min ctx
+      | F32Max -> FloatingPoint.mk_max ctx
     in op' e1 e2
 
   let encode_relop

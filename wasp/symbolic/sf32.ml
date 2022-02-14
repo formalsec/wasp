@@ -1,4 +1,4 @@
-type binop = F32Add | F32Sub | F32Mul | F32Div (*  Falta: | Min | Max | CopySign *)
+type binop = F32Add | F32Sub | F32Mul | F32Div | F32Min | F32Max (*  Falta: | CopySign *)
 type unop  = F32Neg | F32Abs | F32Sqrt (*  Falta: | Ceil | Floor | Trunc | Nearest *)
 type relop = F32Eq | F32Ne | F32Lt |  F32Le | F32Gt | F32Ge
 type cvtop = F32DemoteF64 | F32ConvertSI32 | F32ConvertUI32 |
@@ -21,6 +21,8 @@ let string_of_binop (op : binop) : string =
 	| F32Sub -> "F32Sub"
 	| F32Mul -> "F32Mul"
 	| F32Div -> "F32Div"
+	| F32Min -> "F32Min"
+	| F32Max -> "F32Max"
 
 let pp_string_of_binop (op : binop) : string =
 	match op with
@@ -28,6 +30,8 @@ let pp_string_of_binop (op : binop) : string =
 	| F32Sub -> "-"
 	| F32Mul -> "*"
 	| F32Div -> "/"
+	| F32Min -> "F32Min"
+	| F32Max -> "F32Max"
 
 (*  String representation of an f32 unary operation  *)
 let string_of_unop (op : unop) : string =

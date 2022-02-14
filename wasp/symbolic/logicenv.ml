@@ -203,6 +203,8 @@ let rec eval (env : t) (e : sym_expr) : value =
       | F32Sub -> F32 Ast.F32Op.Sub
       | F32Mul -> F32 Ast.F32Op.Mul
       | F32Div -> F32 Ast.F32Op.Div
+      | F32Min -> F32 Ast.F32Op.Min
+      | F32Max -> F32 Ast.F32Op.Max
     in Eval_numeric.eval_binop op' v1 v2
   | F32Unop (op, e') ->
     let v = eval env e'

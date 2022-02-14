@@ -92,8 +92,8 @@ let eval_binop (e1 : sym_value) (e2 : sym_value) (op : Ast.binop) : sym_value =
     | F32Op.Sub  -> F32Binop (F32Sub, e1, e2)
     | F32Op.Div  -> F32Binop (F32Div, e1, e2)
     | F32Op.Mul  -> F32Binop (F32Mul, e1, e2)
-    | F32Op.Min  -> failwith "eval F32Binop: TODO Min"
-    | F32Op.Max  -> failwith "eval F32Binop: TODO Max"
+    | F32Op.Min  -> F32Binop (F32Min, e1, e2)
+    | F32Op.Max  -> F32Binop (F32Max, e1, e2)
     | F32Op.CopySign -> failwith "eval F32Binop: TODO CopySign"
     end
   in
