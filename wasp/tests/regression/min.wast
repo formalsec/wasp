@@ -10,7 +10,7 @@
         (local.get 0)
         (f32.const 5)
         (f32.eq)
-        (i32.or)
+        (i32.__logor)
         (sym_assume)        ;; *a* == 1 || *a* == 5
 
         (local.get 0)
