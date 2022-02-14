@@ -32,9 +32,9 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
     | F64Op.Sqrt    -> raise (UnsupportedOp "eval_unop: Sqrt")
     end
   in
-	let (c, s) = e in 
+	let (c, s) = e in
 	let c' = Eval_numeric.eval_unop op c in
-	let s' = 
+	let s' =
 		begin match s with
     | Value _ -> Value c'
 	  | _ -> (* dispatch *)
@@ -46,7 +46,7 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
     end
   in (c', s')
 
-(*  Evaluate a binary operation *) 
+(*  Evaluate a binary operation *)
 let eval_binop (e1 : sym_value) (e2 : sym_value) (op : Ast.binop) : sym_value =
   let i32_binop op e1 e2 =
     begin match op with
@@ -109,9 +109,9 @@ let eval_binop (e1 : sym_value) (e2 : sym_value) (op : Ast.binop) : sym_value =
     end
   in
 	let (c1, s1) = e1
-  and (c2, s2) = e2 in 
+  and (c2, s2) = e2 in
 	let c = Eval_numeric.eval_binop op c1 c2 in
-	let s = 
+	let s =
     begin match s1, s2 with
     | Value _, Value _ -> Value c
 		| _ -> (* dispatch *)
@@ -126,13 +126,13 @@ let eval_binop (e1 : sym_value) (e2 : sym_value) (op : Ast.binop) : sym_value =
 
 (*  Evaluate a test operation  *)
 let eval_testop (e : sym_value) (op : testop) : sym_value =
-	let (c, s) = e in 
+	let (c, s) = e in
 	let c' = Values.value_of_bool (Eval_numeric.eval_testop op c) in
 	let s' =
 		begin match s with
     | Value _ -> Value c'
     | Ptr   _ -> Value c'
-		| _ -> 
+		| _ ->
         begin match op with
 				| Values.I32 I32Op.Eqz -> I32Relop (I32Eq, s, Value (Values.I32 0l))
 				| Values.I64 I64Op.Eqz -> I64Relop (I64Eq, s, Value (Values.I64 0L))
@@ -192,9 +192,9 @@ let eval_relop (e1 : sym_value) (e2 : sym_value) (op : Ast.relop) : sym_value =
     end
   in
 	let (c1, s1) = e1
-  and (c2, s2) = e2 in 
+  and (c2, s2) = e2 in
 	let c = Values.value_of_bool (Eval_numeric.eval_relop op c1 c2) in
-	let s = 
+	let s =
     begin match s1, s2 with
     | Value _, Value _ -> Value c
 		| _ -> (* dispatch *)
@@ -258,10 +258,10 @@ let eval_cvtop (op : Ast.cvtop) (e : sym_value) : sym_value =
   in
   let (c, s) = e in
   let c = Eval_numeric.eval_cvtop op c in
-  let s = 
+  let s =
     begin match s with
     | Value _ -> Value c
-    | _ -> 
+    | _ ->
         (* dispatch cvtop func *)
         begin match op with
         | Values.I32 x -> i32_cvtop x e
