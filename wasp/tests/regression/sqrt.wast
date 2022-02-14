@@ -16,7 +16,7 @@
         (local.get 0)
         (f32.const 16)
         (f32.eq)
-        (i32.or)
+        (i32.__logor)
         (sym_assume)        ;; assume *a* == 64 || *a* == 16
 
         (local.get 0)
