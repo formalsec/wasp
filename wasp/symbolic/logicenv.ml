@@ -209,6 +209,7 @@ let rec eval (env : t) (e : sym_expr) : value =
     and op' = match op with
       | F32Neg -> F32 Ast.F32Op.Neg
       | F32Abs -> F32 Ast.F32Op.Abs
+      | F32Sqrt -> F32 Ast.F32Op.Sqrt
     in Eval_numeric.eval_unop op' v
   | F32Relop (op, e1, e2) ->
     let v1 = eval env e1

@@ -171,6 +171,7 @@ struct
     let op' = match op with
       | F32Neg -> FloatingPoint.mk_neg ctx
       | F32Abs -> FloatingPoint.mk_abs ctx
+      | F32Sqrt -> FloatingPoint.mk_sqrt ctx rne
     in op' e
 
   let encode_binop
