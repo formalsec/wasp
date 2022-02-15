@@ -240,6 +240,8 @@ struct
       | F64Sub -> FloatingPoint.mk_sub ctx rne
       | F64Mul -> FloatingPoint.mk_mul ctx rne
       | F64Div -> FloatingPoint.mk_div ctx rne
+      | F64Min -> FloatingPoint.mk_min ctx
+      | F64Max -> FloatingPoint.mk_max ctx
     in op' e1 e2
 
   let encode_relop
