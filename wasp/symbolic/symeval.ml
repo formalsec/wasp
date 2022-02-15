@@ -444,8 +444,8 @@ let rec sym_step (c : sym_config) : sym_config =
       | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
-          if pc = [] then []
-          else 
+          if pc = [] && !assumes = [] then []
+          else
             match simplify ex with
             | Value (I32 v) when not (v = 0l) -> []
             | Ptr   (I32 v) when not (v = 0l) -> []
