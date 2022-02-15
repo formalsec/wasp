@@ -40,7 +40,7 @@ let encode_bool (to_bv : bool) (cond : Expr.expr) : Expr.expr =
   if to_bv then Boolean.mk_ite ctx cond bv_true bv_false
            else cond
 
-module Zi32 = 
+module Zi32 =
 struct
   open Si32
 
@@ -50,8 +50,8 @@ struct
   let encode_unop (op : unop) (e : Expr.expr) : Expr.expr =
     failwith "Zi32: encode_unop: Construct not supported yet"
 
-  let encode_binop 
-      (op : binop) 
+  let encode_binop
+      (op : binop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -70,10 +70,10 @@ struct
       | I32RemU -> BitVector.mk_urem ctx
     in op' e1 e2
 
-  let encode_relop 
+  let encode_relop
       ?(to_bv=false)
-      (op : relop) 
-      (e1 : Expr.expr) 
+      (op : relop)
+      (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
       | I32Eq  -> Boolean.mk_eq ctx
@@ -94,7 +94,7 @@ struct
       | I32TruncUF32 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 32)
       | I32TruncSF64 -> (fun f -> FloatingPoint.mk_to_sbv ctx rtz f 32)
       | I32TruncUF64 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 32)
-      | I32ReinterpretFloat -> FloatingPoint.mk_to_ieee_bv ctx 
+      | I32ReinterpretFloat -> FloatingPoint.mk_to_ieee_bv ctx
     in op' e
 end
 
@@ -109,8 +109,8 @@ struct
   let encode_unop (op : unop) (e : Expr.expr) : Expr.expr =
     failwith "Zi64: encode_unop: Construct not supported yet"
 
-  let encode_binop 
-      (op : binop) 
+  let encode_binop
+      (op : binop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -129,9 +129,9 @@ struct
       | I64RemU -> BitVector.mk_urem ctx
     in op' e1 e2
 
-  let encode_relop 
+  let encode_relop
       ?(to_bv=false)
-      (op : relop) 
+      (op : relop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -156,7 +156,7 @@ struct
       | I64TruncUF32 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 64)
       | I64TruncSF64 -> (fun f -> FloatingPoint.mk_to_sbv ctx rtz f 64)
       | I64TruncUF64 -> (fun f -> FloatingPoint.mk_to_ubv ctx rtz f 64)
-      | I64ReinterpretFloat -> FloatingPoint.mk_to_ieee_bv ctx 
+      | I64ReinterpretFloat -> FloatingPoint.mk_to_ieee_bv ctx
     in op' e
 end
 
@@ -171,10 +171,11 @@ struct
     let op' = match op with
       | F32Neg -> FloatingPoint.mk_neg ctx
       | F32Abs -> FloatingPoint.mk_abs ctx
+      | F32Sqrt -> FloatingPoint.mk_sqrt ctx rne
     in op' e
 
-  let encode_binop 
-      (op : binop) 
+  let encode_binop
+      (op : binop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -182,11 +183,13 @@ struct
       | F32Sub -> FloatingPoint.mk_sub ctx rne
       | F32Mul -> FloatingPoint.mk_mul ctx rne
       | F32Div -> FloatingPoint.mk_div ctx rne
+      | F32Min -> FloatingPoint.mk_min ctx
+      | F32Max -> FloatingPoint.mk_max ctx
     in op' e1 e2
 
-  let encode_relop 
+  let encode_relop
       ?(to_bv=false)
-      (op : relop) 
+      (op : relop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -202,7 +205,7 @@ struct
     let op' = match op with
       | F32DemoteF64 ->
           (fun bv -> FloatingPoint.mk_to_fp_float    ctx rne bv fp32_sort)
-      | F32ConvertSI32 -> 
+      | F32ConvertSI32 ->
           (fun bv -> FloatingPoint.mk_to_fp_signed   ctx rne bv fp32_sort)
       | F32ConvertUI32 ->
           (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp32_sort)
@@ -210,7 +213,7 @@ struct
           (fun bv -> FloatingPoint.mk_to_fp_signed   ctx rne bv fp32_sort)
       | F32ConvertUI64 ->
           (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp32_sort)
-      | F32ReinterpretInt -> 
+      | F32ReinterpretInt ->
           (fun bv -> FloatingPoint.mk_to_fp_bv ctx bv fp32_sort)
     in op' e
 end
@@ -228,8 +231,8 @@ struct
       | F64Abs -> FloatingPoint.mk_abs ctx
     in op' e
 
-  let encode_binop 
-      (op : binop) 
+  let encode_binop
+      (op : binop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -239,9 +242,9 @@ struct
       | F64Div -> FloatingPoint.mk_div ctx rne
     in op' e1 e2
 
-  let encode_relop 
+  let encode_relop
       ?(to_bv=false)
-      (op : relop) 
+      (op : relop)
       (e1 : Expr.expr)
       (e2 : Expr.expr) : Expr.expr =
     let op' = match op with
@@ -257,7 +260,7 @@ struct
     let op' = match op with
       | F64PromoteF32 ->
           (fun bv -> FloatingPoint.mk_to_fp_float    ctx rne bv fp64_sort)
-      | F64ConvertSI32 -> 
+      | F64ConvertSI32 ->
           (fun bv -> FloatingPoint.mk_to_fp_signed   ctx rne bv fp64_sort)
       | F64ConvertUI32 ->
           (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp64_sort)
@@ -265,7 +268,7 @@ struct
           (fun bv -> FloatingPoint.mk_to_fp_signed   ctx rne bv fp64_sort)
       | F64ConvertUI64 ->
           (fun bv -> FloatingPoint.mk_to_fp_unsigned ctx rne bv fp64_sort)
-      | F64ReinterpretInt -> 
+      | F64ReinterpretInt ->
           (fun bv -> FloatingPoint.mk_to_fp_bv ctx bv fp64_sort)
     in op' e
 
@@ -292,7 +295,7 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : sym_expr) : Expr.expr =
   | I32Relop (op, e1, e2) ->
       let e1' = encode_sym_expr ~bool_to_bv:true e1
       and e2' = encode_sym_expr ~bool_to_bv:true e2 in
-      Zi32.encode_relop ~to_bv:bool_to_bv op e1' e2' 
+      Zi32.encode_relop ~to_bv:bool_to_bv op e1' e2'
   | I32Cvtop (op, e) ->
       let e' = encode_sym_expr e in
       Zi32.encode_cvtop op e'
@@ -340,10 +343,10 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : sym_expr) : Expr.expr =
       Zf64.encode_cvtop op e'
   | Symbolic (t, x) ->
       Expr.mk_const_s ctx x (get_sort (type_of_symbolic t))
-  | Extract  (e, h, l) -> 
+  | Extract  (e, h, l) ->
       let e' = encode_sym_expr ~bool_to_bv:true e in
       BitVector.mk_extract ctx (h * 8 - 1) (l * 8) e'
-  | Concat (e1, e2) -> 
+  | Concat (e1, e2) ->
       let e1' = encode_sym_expr e1
       and e2' = encode_sym_expr e2 in
       BitVector.mk_concat ctx e1' e2'
@@ -370,7 +373,7 @@ let check_sat_core (asrt : Formula.t) : Model.model option =
   List.iter (fun a -> Solver.add solver [a]) (Goal.get_formulas goal);
   (*
   let vars = Formula.get_vars asrt in
-  List.iter (fun (x, t) -> 
+  List.iter (fun (x, t) ->
     if (x = "n") || (x = "N") then (
       let symb = to_symbolic (type_of_symbolic t) x in
       ignore (Optimize.minimize solver (encode_sym_expr symb))
@@ -386,17 +389,17 @@ let check_sat_core (asrt : Formula.t) : Model.model option =
   *)
   begin match Solver.check solver [] with
   | Solver.UNSATISFIABLE -> None
-  | Solver.UNKNOWN       -> 
+  | Solver.UNKNOWN       ->
       failwith ("unknown: " ^ (Solver.get_reason_unknown solver)) (* fail? *)
   | Solver.SATISFIABLE   -> Solver.get_model solver
   end
 
-let lift_z3_model 
-    (model : Model.model) 
+let lift_z3_model
+    (model : Model.model)
     (sym_int32 : string list)
-    (sym_int64 : string list) 
+    (sym_int64 : string list)
     (sym_float32 : string list)
-    (sym_float64 : string list) : (string * value) list = 
+    (sym_float64 : string list) : (string * value) list =
 
   let set s i n =
     let bs = Bytes.of_string s in
@@ -410,31 +413,31 @@ let lift_z3_model
     in
     let float_of_fp (fp : Expr.expr) (ebits : int) (sbits : int ) : int64 =
       assert (Expr.is_numeral fp);
-      if FloatingPoint.is_numeral_nan ctx fp then 
+      if FloatingPoint.is_numeral_nan ctx fp then
           if FloatingPoint.is_numeral_negative ctx fp then
             if sbits = 23 then Int64.of_int32 0xffc0_0000l
                           else 0xfff8_0000_0000_0000L
           else
             if sbits = 23 then Int64.of_int32 0x7fc0_0000l
                           else 0x7ff8_0000_0000_0000L
-      else if FloatingPoint.is_numeral_inf ctx fp then 
+      else if FloatingPoint.is_numeral_inf ctx fp then
         if FloatingPoint.is_numeral_negative ctx fp then
           if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float (-. (1.0 /. 0.0))))
                         else Int64.bits_of_float (-. (1.0 /. 0.0))
         else
           if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float (1.0 /. 0.0)))
                         else Int64.bits_of_float (1.0 /. 0.0)
-      else if FloatingPoint.is_numeral_zero ctx fp then 
-        if FloatingPoint.is_numeral_negative ctx fp then 
+      else if FloatingPoint.is_numeral_zero ctx fp then
+        if FloatingPoint.is_numeral_negative ctx fp then
           if sbits = 23 then (Int64.of_int32 0x8000_0000l)
                         else 0x8000_0000_0000_0000L
         else
-          if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float 0.0)) 
+          if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float 0.0))
                         else Int64.bits_of_float 0.0
       else begin
         let fp = Expr.to_string fp in
         let fp = String.sub fp 4 ((String.length fp) - 5) in
-        let fp_list = List.map (fun fp -> set fp 0 '0') 
+        let fp_list = List.map (fun fp -> set fp 0 '0')
                                (String.split_on_char ' ' fp) in
         let bit_list = List.map (fun fp -> Int64.of_string fp) fp_list in
         let sign     = Int64.shift_left (List.nth bit_list 0) (ebits + sbits)
@@ -444,7 +447,7 @@ let lift_z3_model
       end
     in
     let interp = Model.get_const_interp_e model (encode_sym_expr c) in
-    let f e = 
+    let f e =
       if BitVector.is_bv e then int_of_bv e
       else (
         let ebits = FloatingPoint.get_ebits ctx (Expr.get_sort e)

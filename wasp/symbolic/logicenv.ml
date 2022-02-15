@@ -26,7 +26,7 @@ let clear (env : t) : unit =
 let init (env : t) (binds : bind list) : unit =
   List.iter (fun (k, v) -> Hashtbl.add env k v) binds
 
-let create (binds : bind list) : logicenv = 
+let create (binds : bind list) : logicenv =
   let env = Hashtbl.create 512 in
   init env binds;
   env
@@ -35,7 +35,7 @@ let add (env : t) (k : name) (v : value) : unit =
   names := k :: !names;
   Hashtbl.replace env k v
 
-let find (env : t) (k : name) : value = 
+let find (env : t) (k : name) : value =
   Hashtbl.find env k
 
 let exists (x : name) : bool =
@@ -75,7 +75,7 @@ let to_json (env : bind list) : string =
   in
   "[" ^ (String.concat ", " (List.map jsonify_bind env)) ^ "]"
 
-let to_string (env : t) : string = 
+let to_string (env : t) : string =
   List.fold_left (fun a b ->
     let (k, v) = b in
     a ^ "(" ^ k ^ "->" ^ (string_of_value v) ^ ")\n"
@@ -100,7 +100,7 @@ let rec eval (env : t) (e : sym_expr) : value =
   | Ptr p   -> p
   | Value v -> v
   | I32Binop (op, e1, e2) ->
-    let v1 = eval env e1 
+    let v1 = eval env e1
     and v2 = eval env e2
     and op' = match op with
       | I32Add  -> I32 Ast.I32Op.Add
@@ -147,7 +147,7 @@ let rec eval (env : t) (e : sym_expr) : value =
       | I32ReinterpretFloat -> I32 Ast.I32Op.ReinterpretFloat
     in Eval_numeric.eval_cvtop op' v
   | I64Binop (op, e1, e2) ->
-    let v1 = eval env e1 
+    let v1 = eval env e1
     and v2 = eval env e2
     and op' = match op with
       | I64Add  -> I64 Ast.I64Op.Add
@@ -203,12 +203,15 @@ let rec eval (env : t) (e : sym_expr) : value =
       | F32Sub -> F32 Ast.F32Op.Sub
       | F32Mul -> F32 Ast.F32Op.Mul
       | F32Div -> F32 Ast.F32Op.Div
+      | F32Min -> F32 Ast.F32Op.Min
+      | F32Max -> F32 Ast.F32Op.Max
     in Eval_numeric.eval_binop op' v1 v2
   | F32Unop (op, e') ->
     let v = eval env e'
     and op' = match op with
       | F32Neg -> F32 Ast.F32Op.Neg
       | F32Abs -> F32 Ast.F32Op.Abs
+      | F32Sqrt -> F32 Ast.F32Op.Sqrt
     in Eval_numeric.eval_unop op' v
   | F32Relop (op, e1, e2) ->
     let v1 = eval env e1
@@ -260,7 +263,7 @@ let rec eval (env : t) (e : sym_expr) : value =
   | F64Cvtop (op, e') ->
     let v = eval env e'
     and op' = match op with
-      | F64PromoteF32 -> F64 Ast.F64Op.PromoteF32 
+      | F64PromoteF32 -> F64 Ast.F64Op.PromoteF32
       | F64ConvertSI32 -> F64 Ast.F64Op.ConvertSI32
       | F64ConvertUI32 -> F64 Ast.F64Op.ConvertUI32
       | F64ConvertSI64 -> F64 Ast.F64Op.ConvertSI64
