@@ -250,6 +250,7 @@ let rec eval (env : t) (e : sym_expr) : value =
     and op' = match op with
       | F64Neg -> F64 Ast.F64Op.Neg
       | F64Abs -> F64 Ast.F64Op.Abs
+      | F64Sqrt -> F64 Ast.F64Op.Sqrt
     in Eval_numeric.eval_unop op' v
   | F64Relop (op, e1, e2) ->
     let v1 = eval env e1

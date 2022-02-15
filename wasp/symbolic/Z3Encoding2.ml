@@ -229,6 +229,7 @@ struct
     let op'  = match op with
       | F64Neg -> FloatingPoint.mk_neg ctx
       | F64Abs -> FloatingPoint.mk_abs ctx
+      | F64Sqrt -> FloatingPoint.mk_sqrt ctx rne
     in op' e
 
   let encode_binop
