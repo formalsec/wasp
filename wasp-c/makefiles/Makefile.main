@@ -1,7 +1,16 @@
 CC=clang
-CFLAGS=-emit-llvm -g $(OPTIMIZE) -ffreestanding --target=wasm32 -c -m32 $(INCLUDES) -fbracket-depth=512 $(WARN)
 LD=wasm-ld
-BUILD_DIR=_build
+
+LIBC_DIR ?= bin/
+LIBC_INC ?= lib
+
+OPT_LVL ?= -O0
+OTHER_CODE ?=
+
+BUILD_DIR ?= _build
+
+# Will overwrite TODO
+-include Makefile.config
 
 WARN += -Wno-parentheses-equality
 WARN += -Wno-attributes
@@ -13,27 +22,31 @@ WARN += -Wno-pointer-sign
 WARN += -Wno-bitfield-constant-conversion
 WARN += -Wno-implicit-function-declaration
 
-INCLUDES += -I$(HEADERS)
+INCLUDES += -I$(LIBC_INC)
 
-LIBC ?= bin/libc.a
-HEADERS  ?= lib
-OPTIMIZE ?= -O0
-OTHER_CODE ?=
+CFLAGS += -g -emit-llvm --target=wasm32 -m32
+CFLAGS += -ffreestanding -fbracket-depth=512 -fno-jump-tables
+CFLAGS += $(INCLUDES)
+CFLAGS += $(WARN) -c
 
-src  := $(wildcard *.c)
-objs := $(addprefix $(BUILD_DIR)/,$(src:.c=.o))
+LDFLAGS += -L$(LIBC_DIR)
+LDFLAGS += --no-entry --export=__original_main 
+LDFLAGS += -lc
+
+SOURCES := $(wildcard *.c)
+OBJECTS := $(addprefix $(BUILD_DIR)/,$(SOURCES:.c=.o))
 
 .PHONY: clean
 
 default: all clean
 
-all: $(objs:.o=.wat)
+all: $(OBJECTS:.o=.wat)
 	@mv -v $< .
 
 $(BUILD_DIR)/%.bc: %.c
 	@mkdir -p $(dir $@)
 	@echo "Building $@"
-	@$(CC) $(CFLAGS) -o $@ $<
+	@$(CC) $(OPT_LVL) $(CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
 	@echo "Building $@"
@@ -42,7 +55,7 @@ $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
 
 $(BUILD_DIR)/%.wasm: $(BUILD_DIR)/%.o
 	@echo "Building $@"
-	@$(LD) --no-entry --export=__original_main $^ $(LIBC) $(OTHER_CODE) -o $@
+	@$(LD) $^ $(OTHER_CODE) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/%.wat: $(BUILD_DIR)/%.wasm
 	@echo "Building $@"

@@ -1,6 +1,7 @@
 import logging
 
 from sys import stdout
+from copy import copy
 
 # levels
 DEBUG = logging.DEBUG
@@ -9,40 +10,32 @@ WARNING = logging.WARNING
 ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 
-# global logger
-logger = logging.getLogger(__name__)
+MAPPING = {
+    'DEBUG'    : 37,
+    'INFO'     : 36,
+    'WARNING'  : 33,
+    'ERROR'    : 31,
+    'CRITICAL' : 41
+}
 
-def create_logger(level):
-    log = logging.getLogger(__name__)
-    log.setLevel(level)
+PREFIX = '\033[1m\033['
+SUFFIX = '\033[0m'
+
+class ColoredFormatter(logging.Formatter):
+
+    def __init__(self, fmt):
+        logging.Formatter.__init__(self, fmt)
+
+    def format(self, record):
+        colored_record = copy(record)
+        levelname = colored_record.levelname
+        seq = MAPPING.get(levelname, 37)
+        colored_record.levelname = f'{PREFIX}{seq}m{levelname}{SUFFIX}'
+        return logging.Formatter.format(self, colored_record)
+
+def init(log, level):
     handler = logging.StreamHandler(stdout)
-    handler.setFormatter(logging.Formatter(fmt=logging.BASIC_FORMAT))
+    log_fmt = '[%(levelname)s][%(name)s] %(message)s (%(filename)s:%(lineno)d)'
+    handler.setFormatter(ColoredFormatter(fmt=log_fmt))
+    log.setLevel(level)
     log.addHandler(handler)
-    return log
-
-def init(level):
-    global logger
-    logger = create_logger(level)
-
-def critical(*args, **kwargs):
-    logger.critical(*args, **kwargs)
-
-
-def error(*args, **kwargs):
-    logger.error(*args, **kwargs)
-
-
-def exception(*args, **kwargs):
-    logger.exception(*args, **kwargs)
-
-
-def warning(*args, **kwargs):
-    logger.warning(*args, **kwargs)
-
-
-def info(*args, **kwargs):
-    logger.info(*args, **kwargs)
-
-
-def debug(*args, **kwargs):
-    logger.debug(*args, **kwargs)

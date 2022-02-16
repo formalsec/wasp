@@ -3547,8 +3547,10 @@
 
 		;; 2 symbolic variables w/ order
 		;; a and b
-		(sym_int32 "a")
-		(sym_int32 "b")
+		(i32.const 1024)
+		(i32.symbolic)
+		(i32.const 1026)
+		(i32.symbolic)
 		(i32.ne)		
 
 		;; logical order: a>b
@@ -3560,8 +3562,9 @@
 
 		;; 1 symbolic variable w/o order
 		;; h
-		(sym_int32 "h")
-		(sym_int32 "a")
+		(i32.const 1028)
+		(i32.symbolic)
+		(get_sym_int32 "a")
 		(i32.ne)
 
 		(get_sym_int32 "h")
@@ -3606,7 +3609,6 @@
 
 		(i32.and)
 		(i32.and)
-		(sym_assert)
 
 		;; delete & check that it was deleted
 		;; a
@@ -3618,8 +3620,10 @@
 		(local.get 0)
 		(get_sym_int32 "a")
 		(call $btreeSearch)
+		(print_stack)
 		(i32.const -1)
 		(i32.eq)
+		(print_stack)
 
 		;; b
 		(local.get 0)
@@ -3630,12 +3634,15 @@
 		(local.get 0)
 		(get_sym_int32 "b")
 		(call $btreeSearch)
+		(print_stack)
 		(i32.const -1)
 		(i32.eq)
+		(print_stack)
 
 
 		(print_btree)
 		
+		(i32.and)
 		(i32.and)
 		
 		(sym_assert)
@@ -3644,6 +3651,5 @@
 
     )
 	(export "main" (func $main))
-
-)
+	(data $0 (i32.const 1024) "a\00b\00h\00"))
 (invoke "main")

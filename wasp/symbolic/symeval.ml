@@ -240,7 +240,7 @@ let rec sym_step (c : sym_config) : sym_config =
   let e = List.hd es in
   Coverage.record_line (Source.get_line e.at);
   let vs', es', logic_env', pc', mem' =
-    if !instr_cnt >= !Flags.instr_max then (
+    if (!Flags.instr_max != -1) && (!instr_cnt >= !Flags.instr_max) then (
       incomplete := true;
       vs, [(Interrupt (IntLimit)) @@ e.at], logic_env, pc, mem
     ) else (match e.it, vs with

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 
 patterns = [
@@ -18,12 +16,11 @@ patterns = [
     ('\(elem \(;0;\) \(i32.const 1\) func', '(elem (;0;) (i32.const 1)')
 ]
 
-def sub_patterns(line: str) -> str:
+def sub_patterns(line):
     for (pattern, repl) in patterns:
         line = re.sub(pattern, repl, line)
     return line
 
-def process(input_file: str) -> list[str]:
-    with open(input_file, 'r') as file:
-        lines = file.readlines()
-    return [sub_patterns(line) for line in lines]
+def process(text):
+    lines = text.splitlines()
+    return '\n'.join([sub_patterns(line) for line in lines])

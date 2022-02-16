@@ -1,19 +1,21 @@
-from __future__ import annotations
-from __future__ import print_function
-
 import os
 import sys
 import shutil
+import logging
 import argparse
 import subprocess
 
 from wasp import info
-from wasp import logger as logging
+
+from wasp import logger
 from wasp import visitor as pre
 from wasp import postprocessor as post
-from wasp import execution as exe
 
-def get_parser() -> argparse.ArgumentParser:
+from wasp.execution import WASP
+
+log = logging.getLogger(__name__)
+
+def get_parser():
     parser = argparse.ArgumentParser(
         prog=info.__NAME__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -73,96 +75,125 @@ def get_parser() -> argparse.ArgumentParser:
 
     return parser
 
-def parse(argv: list[str]) -> argparse.Namespace:
+def parse(argv):
     parser = get_parser()
     return parser.parse_args(argv)
 
-def preprocess_file(input_file: str, args: list[str], output_file: str, \
-                    boolops: bool) -> int:
-    logging.debug(f'preprocess_file:input_file={input_file}' \
-            f', output_file={output_file}')
-    harness = pre.process(input_file, args, boolops)
-    with open(output_file, 'w') as file:
-        file.write(harness)
+def preprocess_file(src_file, dst_file, includes, boolops):
+    log.debug(f'Processing \'{src_file}\'...')
+    try:
+        pre.process_file(src_file, dst_file, includes, boolops)
+    except pre.ParsingError as e:
+        log.error('ParsingError: ' + e.message)
+        return 1
+    log.debug(f'Created \'{dst_file}\'.')
     return 0
 
-def compile_file(output_dir: str, root_dir: str, src_code: str, \
-                 filename: str) -> int:
-    logging.debug(f'compile_file:output_dir={output_dir}' \
-            f', root_dir={root_dir}, filename={filename}')
+def configure(output_dir, root_dir, src_code, includes):
+    log.debug(f'Configuring compilation...')
 
-    bin_dir = os.path.join(root_dir, 'bin')
-    lib_dir = os.path.join(root_dir, 'lib')
-
-    src_make = os.path.join(root_dir, 'makefiles/Makefile.main')
+    # Copy `Makefile' to `output_dir'
+    src_make = os.path.join(root_dir, 'makefiles', 'Makefile.main')
     dst_make = os.path.join(output_dir, 'Makefile')
-    logging.debug(f'compile_file:cp {src_make} {dst_make}')
+    log.debug(f'... Copy \'{src_make}\' to \'{dst_make}\'.')
     shutil.copyfile(src_make, dst_make)
 
-    libc = os.path.join(bin_dir, 'libc.a')
-    logging.debug(f'compile_file:make -C {output_dir} LIBC={libc}' \
-            f' HEADERS={lib_dir}')
-    subprocess.call([
-        'make',
-        '-C',
-        output_dir,
-        f'LIBC={libc}',
-        f'HEADERS={lib_dir}',
-        f'OTHER_CODE={src_code}'
-    ])
+    # Create `Makefile.config'
+    libs = os.path.join(root_dir, 'bin')
+    incl = os.path.join(root_dir, 'lib')
+    conf = os.path.join(output_dir, 'Makefile.config')
+    log.debug(f'... Using static libc in \'{libs}\'.')
+    log.debug(f'... Using static libc includes in \'{incl}\'.')
+    log.debug(f'... Using additional includes: {includes}')
+    log.debug(f'... Using additional sources in \'{src_code}\'.')
+    with open(conf, 'w') as f:
+        f.write(f'LIBC_DIR = {libs}\n')
+        f.write(f'LIBC_INC = {incl}\n')
+        for inc in includes:
+            f.write(f'INCLUDES += -I{inc}\n')
+        f.write(f'OTHER_CODE = {src_code}\n')
+
+    log.debug(f'Created \'{conf}\'.')
+
+def compile_sources(sources):
+    log.debug(f'Compiling sources in \'{sources}\'...')
+    try:
+        result = subprocess.run(
+            ['make', '-C', sources],
+            text=True,
+            check=True,
+            capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        log.error(e.stdout)
+        log.error(e.stderr)
+        return -1
+    log.debug(f'Compilation done.')
     return 0
 
-def postprocess_file(input_file: str) -> int:
-    logging.debug(f'postprocess_file:input_file={input_file}')
-    test = post.process(input_file)
-    with open(input_file, 'w') as file:
-        file.writelines(test)
+def postprocess_file(file):
+    log.debug(f'Processing Wasm module \'{file}\'...')
+    
+    with open(file, 'r') as f:
+        text = f.read()
+
+    n_text = post.process(text)
+
+    with open(file, 'w') as f:
+        f.write(n_text)
     return 0
 
-def main(root_dir: str, argv=None) -> int:
+def main(root_dir, argv=None):
     if argv is None:
         argv = sys.argv[1:]
     args = parse(argv)
 
     if args.verbose:
-        logging.init(logging.DEBUG) 
+        logger.init(log, logging.DEBUG) 
     else:
-        logging.init(logging.INFO)
+        logger.init(log, logging.INFO)
 
     if not os.path.exists(args.output_dir):
-        logging.debug(f'main:mkdir -p \'{args.output_dir}\'')
+        log.debug(f'Creating directory \'{args.output_dir}\'...')
         os.makedirs(args.output_dir)
 
     if not os.path.exists(args.file):
-        logging.error(f'main:File \'{args.file}\' not found')
+        log.error(f'Input file \'{args.file}\' not found!')
         return -1
 
-    args.includes.append(os.path.join(root_dir, 'lib'))
-    includes = ['-I'+lib for lib in args.includes]
+    log.info('Setting up analysis files...')
+
+    includes = args.includes + [os.path.join(root_dir, 'lib')]
     harness = os.path.join(args.output_dir, 'harness.c')
-    if not preprocess_file(args.file, includes, harness, args.boolops) == 0:
-        logging.error(f'main:Preprocessing failed')
+    if preprocess_file(args.file, harness, includes, args.boolops) != 0:
+        log.error(f'Failed to process input file \'{args.file}\'!')
         return -1
 
-    if not compile_file(args.output_dir, root_dir, args.source, \
-            harness) == 0:
-        logging.error(f'main:Compilation failed')
+    configure(args.output_dir, root_dir, args.source, args.includes)
+
+    if compile_sources(args.output_dir) != 0:
+        log.error(f'Failed to compile project sources!')
         return -1
 
     wasm_harness = os.path.splitext(harness)[0] + '.wat'
-    if not postprocess_file(wasm_harness) == 0:
-        logging.error(f'main:Postprocessing failed')
+    if postprocess_file(wasm_harness) != 0:
+        log.error(f'Failed to annotate Wasm module!')
         return -1
 
     # run WASP
-    analyser = exe.WASP()
+    analyser = WASP()
     #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
+    log.info('Starting WASP...')
     res = analyser.run(wasm_harness, args.output_dir)
+    with open(wasm_harness + '.out', 'w') as out, \
+            open(wasm_harness + '.err', 'w') as err:
+        out.write(res.stdout)
+        err.write(res.stderr)
     if res.crashed:
-        logging.error(f'main:Wasp crashed')
+        log.error(f'WASP crashed')
         return -1
-    if res.timeout:
-        logging.error(f'main:Wasp timeout')
+    elif res.timeout:
+        log.error(f'WASP timed out')
         return -1
-    print(res.stdout)
+    log.info('Analysis done.')
     return 0

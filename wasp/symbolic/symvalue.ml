@@ -627,6 +627,7 @@ let rec simplify (e : sym_expr) : sym_expr =
       end
   | _ -> e
 
+(* not working properly *)
 let rewrite (cond : sym_expr) asgn : sym_expr =
   let var, v = asgn in
   let t, x = var in

@@ -3547,12 +3547,15 @@
 
 		;; 3 symbolic variables w/ order
 		;; a and b
-		(sym_int32 "a")
-		(sym_int32 "b")
+		(i32.const 1024)
+		(i32.symbolic)
+		(i32.const 1026)
+		(i32.symbolic)
 		(i32.ne)
 
 		;;c
-		(sym_int32 "c")
+		(i32.const 1028)
+		(i32.symbolic)
 		(get_sym_int32 "a")
 		(i32.ne)
 
@@ -3577,8 +3580,9 @@
 
 		;; 1 symbolic variable w/o order
 		;; h
-		(sym_int32 "h")
-		(sym_int32 "a")
+		(i32.const 1030)
+		(i32.symbolic)
+		(get_sym_int32 "a")
 		(i32.ne)
 
 		(get_sym_int32 "h")
@@ -3689,6 +3693,6 @@
 
     )
 	(export "main" (func $main))
-
+	(data $0 (i32.const 1024) "a\00b\00c\00h\00i\00j\00")
 )
 (invoke "main")

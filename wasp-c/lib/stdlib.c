@@ -2,6 +2,9 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdlib.h>
+
+#include "accuracy.h"
+#include "getchar.h"
 #include "wasp.h"
 
 #define ABS_LONG_MIN 2147483648UL
@@ -181,4 +184,9 @@ void qsort(void* base,size_t nmemb,size_t size,int (*compar)(const void*,const v
 
 int posix_memalign(void **memptr, size_t alignment, size_t size) {
   return 0;
+}
+
+char (*getchar_array[1]) () = {getchar1};
+char getchar(){
+	return (*getchar_array[GETCHAR_ACCURACY-1])();
 }

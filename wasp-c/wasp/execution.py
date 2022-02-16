@@ -1,30 +1,26 @@
-from __future__ import annotations
-
 import time
+import logging
 import resource
 import subprocess
 
-from wasp import logger as logging
+log = logging.getLogger(__name__)
 
 class WASP:
     def __init__(
             self,
-            instr_limit=4611686018427387803,
+            instr_limit=-1,
             time_limit=900,                  # default 15mins
             memory_limit=15*1024*1024*1024   # default 15Gib
         ):
-        self.instr_limit: int = instr_limit
-        self.time_limit: int = time_limit
-        self.memory_limit: int = memory_limit
+        self.instr_limit = instr_limit
+        self.time_limit = time_limit
+        self.memory_limit = memory_limit
 
     @staticmethod
-    def limit_ram(limit) -> None:
+    def limit_ram(limit):
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
-    def cmd(self, test_prog: str, output_dir: str = "") -> list[str]:
-        output_cmd = []
-        if not output_dir == "":
-            output_cmd = ['-r', output_dir]
+    def cmd(self, test_prog, output_dir):
         return [
             'wasp',
             test_prog,
@@ -32,56 +28,74 @@ class WASP:
             '(invoke \"__original_main\")',
             '-m',
             str(self.instr_limit),
-        ] + output_cmd
+            '-r',
+            output_dir,
+            '-t'
+        ]
 
-    def run(self, test_file: str, output_dir: str = "", instr_limit=None, \
-            time_limit=None) -> ExecutionResult:
+    def run(self, 
+            test_file, 
+            output_dir="output",
+            instr_limit=None, 
+            time_limit=None
+        ):
         # set options
-        if not instr_limit is None:
+        if not (instr_limit is None):
             self.instr_limit = instr_limit
-        if not time_limit is None:
+        if not (time_limit is None):
             self.time_limit = time_limit
 
         time_start = time.time()
 
-        output = None
         crashed = False
         timeout = False
+        stdout = None
+        stderr = None
         cmd = self.cmd(test_file, output_dir)
-        logging.debug(f'WASP.run:cmd=\'{cmd}\'')
+        log.debug(f'WASP command: \'{" ".join(cmd)}\'')
         try: 
-            output = subprocess.check_output(
-                    cmd,
-                    timeout=self.time_limit, 
-                    stderr=subprocess.STDOUT,
-                    preexec_fn=(lambda: WASP.limit_ram(self.memory_limit))
-                )
-            output = output.decode()
-        except subprocess.TimeoutExpired:
+            result = subprocess.run(
+                cmd,
+                text=True,
+                check=True,
+                capture_output=True,
+                timeout=self.time_limit, 
+                preexec_fn=(lambda: WASP.limit_ram(self.memory_limit))
+            )
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.TimeoutExpired as e:
             timeout = True
-        except subprocess.CalledProcessError:
+            stdout = e.stdout
+            stderr = e.stderr
+        except subprocess.CalledProcessError as e:
             crashed = True
+            stdout = e.stdout
+            stderr = e.stderr
 
         total_time = time.time() - time_start
         return ExecutionResult(
-            test_file, 
-            output, 
-            crashed, 
-            timeout, 
-            total_time
+            filename=test_file, 
+            stdout=stdout, 
+            stderr=stderr,
+            crashed=crashed, 
+            timeout=timeout, 
+            time=total_time
         )
 
 class ExecutionResult:
     def __init__(
             self,
-            fileName: str,
+            filename: str,
             stdout,
+            stderr,
             crashed: bool,
             timeout: bool,
             time
         ):
-        self.fileName = fileName
+        self.filename = filename
         self.stdout = stdout
+        self.stderr = stderr
         self.crashed = crashed
         self.timeout = timeout
         self.time = time

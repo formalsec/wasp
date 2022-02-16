@@ -1,10 +1,14 @@
 import sys
+import logging
+import tempfile
 
 from pycparser import c_ast, parse_file
 from pycparser.c_generator import CGenerator
+from pycparser.plyparser import ParseError
 
-cnt = 0
 sys.setrecursionlimit(10000)
+
+log = logging.getLogger(__name__)
 
 class MethodNotImplemented(Exception):
     """Exception raised when visit method not available"""
@@ -14,25 +18,78 @@ class MethodNotImplemented(Exception):
         self.message = f'visit_{name}: method not implemented'
         super().__init__(self.message)
 
-def process(inFile, args=None, rmBoolops=True):
-    """
-    The client of the function is responsible for includes
-    """
-    cc = 'gcc'
-    flags = ['-E']
-    if not args is None:
-        flags += args
-    # force the preprocess of the C file to remove includes
-    ast = parse_file(inFile,
-                     use_cpp=True,
-                     cpp_path=cc, 
-                     cpp_args=flags)
-    n_ast = PreProcessor(boolops=(not rmBoolops)).visit(ast)
-    return CGenerator().visit(n_ast)
+class ParsingError(Exception):
 
-class PreProcessor(c_ast.NodeVisitor):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+
+def process_text(text, src_file, includes, rm_boolops=True):
+    visitor = BinopVisitor(boolops=not rm_boolops)
+
+    # split includes from the program string
+    lines = text.splitlines()
+    incl = filter(lambda l: l.startswith('#include'), lines)
+    incl = '\n'.join(list(incl))
+
+    try:
+        args = map(lambda path: f'-I{path}', includes)
+        ast = parse_file(
+            src_file,
+            use_cpp=True,
+            cpp_path='gcc',
+            cpp_args=[r'-E'] + list(args)
+        )
+    except ParseError as e:
+        raise ParsingError(str(e))
+
+    n_ast = visitor.visit(ast)          
+    n_code = visitor.to_string(n_ast)
+
+    return incl + '\n' + n_code
+
+def process_file(src_file, dst_file, includes, rm_boolops=True):
+
+    def _split_includes(text):
+        lines = text.splitlines()
+        includes = '\n'.join(list(filter(lambda l: l.startswith('#include'), 
+                                      lines)))
+        code = '\n'.join(list(filter(lambda l: not l.startswith('#include'), 
+                                     lines)))
+        return includes, code
+
+    # preprocess input file
+    with open(src_file, 'r') as src, open(dst_file, 'w') as dst:
+        incls, code = _split_includes(src.read())
+        dst.write(incls + '\n' + 'void __start();' + '\n' + code)
+
+    # parse input file
+    args = map(lambda inc: f'-I{inc}', includes)
+    try:
+        ast = parse_file(
+            dst_file,
+            use_cpp=True,
+            cpp_path='gcc',
+            cpp_args=[r'-E'] + list(args)
+        )
+    except ParseError as e:
+        raise ParsingError(str(e))
+
+    # visit AST
+    visitor = BinopVisitor(boolops=not rm_boolops)
+    n_code = visitor.to_string(visitor.visit(ast))
+
+    lines = n_code.splitlines()
+    i = lines.index('void __start();')
+
+    with open(dst_file, 'w') as dst:
+        dst.write(incls + '\n' + '\n'.join(lines[i+1:]))
+
+class BinopVisitor(c_ast.NodeVisitor):
 
     def __init__(self, boolops=False):
+        self.counter = 0
         self.boolops = boolops
 
     def _safe_visit(self, node):
@@ -41,6 +98,11 @@ class PreProcessor(c_ast.NodeVisitor):
     def _safe_map(self, f, lst):
         return list(map(f, lst)) if lst is not None else lst
 
+    def _fresh_int(self):
+        fresh = self.counter
+        self.counter += 1
+        return fresh
+
     def _get_binop_func(self, op):
         if op == '&&':
             return '__logand'
@@ -48,6 +110,9 @@ class PreProcessor(c_ast.NodeVisitor):
             return '__logor'
         else:
             raise RuntimeError
+
+    def to_string(self, node):
+        return CGenerator().visit(node)
 
     def visit_ArrayDecl(self, node):
         return node
@@ -131,13 +196,11 @@ class PreProcessor(c_ast.NodeVisitor):
         )
 
     def visit_DoWhile(self, node):
-        global cnt
-        cnt = cnt + 1
         n_cond = c_ast.FuncCall(
             c_ast.ID('IFG'),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(cnt))
+                c_ast.Constant('int', str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -176,13 +239,11 @@ class PreProcessor(c_ast.NodeVisitor):
         )
 
     def visit_For(self, node):
-        global cnt
-        cnt = cnt + 1
         n_cond = c_ast.FuncCall(
             c_ast.ID('IFG'),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(cnt))
+                c_ast.Constant('int', str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -223,13 +284,11 @@ class PreProcessor(c_ast.NodeVisitor):
         return node
     
     def visit_If(self, node):
-        global cnt
-        cnt = cnt + 1
         n_cond = c_ast.FuncCall(
             c_ast.ID('IFG'),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(cnt))
+                c_ast.Constant('int', str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -283,13 +342,11 @@ class PreProcessor(c_ast.NodeVisitor):
         return node
 
     def visit_Switch(self, node):
-        global cnt
-        cnt = cnt + 1
         n_cond = c_ast.FuncCall(
             c_ast.ID('IFG'),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(cnt))
+                c_ast.Constant('int', str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -337,13 +394,11 @@ class PreProcessor(c_ast.NodeVisitor):
         return node
 
     def visit_While(self, node):
-        global cnt
-        cnt = cnt + 1
         n_cond = c_ast.FuncCall(
             c_ast.ID('IFG'),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(cnt))
+                c_ast.Constant('int', str(self._fresh_int()))
             ]),
             node.coord
         )

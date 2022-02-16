@@ -56,8 +56,8 @@ int summ_is_symbolic(symbolic sym_var, unsigned int length){
  * @length
  */
 symbolic summ_new_sym_var(unsigned int length){
-	summ_not_implemented_error("summ_new_sym_var");
-	return NULL;
+	if (length <= 32) return __WASP_symb_int("sym_i32");
+	else return __WASP_symb_long("sym_i64");
 }
 
 

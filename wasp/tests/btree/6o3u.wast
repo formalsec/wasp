@@ -3547,12 +3547,15 @@
 
 		;; 6 symbolic variables w/ order
 		;; a and b
-		(sym_int32 "a")
-		(sym_int32 "b")
+		(i32.const 1024)
+		(i32.symbolic)
+		(i32.const 1026)
+		(i32.symbolic)
 		(i32.ne)
 
 		;;c
-		(sym_int32 "c")
+		(i32.const 1028)
+		(i32.symbolic)
 		(get_sym_int32 "a")
 		(i32.ne)
 
@@ -3561,7 +3564,8 @@
 		(i32.ne)
 
 		;;d
-		(sym_int32 "d")
+		(i32.const 1030)
+		(i32.symbolic)
 		(get_sym_int32 "a")
 		(i32.ne)
 
@@ -3574,7 +3578,8 @@
 		(i32.ne)
 
 		;;e
-		(sym_int32 "e")
+		(i32.const 1032)
+		(i32.symbolic)
 		(get_sym_int32 "a")
 		(i32.ne)
 
@@ -3591,7 +3596,8 @@
 		(i32.ne)
 
 		;; f
-		(sym_int32 "f")
+		(i32.const 1034)
+		(i32.symbolic)
 		(get_sym_int32 "a")
 		(i32.ne)
 
@@ -3657,8 +3663,9 @@
 
 		;; 3 symbolic variables w/o order
 		;; h
-		(sym_int32 "h")
-		(sym_int32 "a")
+		(i32.const 1036)
+		(i32.symbolic)
+		(get_sym_int32 "a")
 		(i32.ne)
 
 		(get_sym_int32 "h")
@@ -3682,8 +3689,9 @@
 		(i32.ne)
 
 		;; i
-		(sym_int32 "i")
-		(sym_int32 "a")
+		(i32.const 1038)
+		(i32.symbolic)
+		(get_sym_int32 "a")
 		(i32.ne)
 
 		(get_sym_int32 "i")
@@ -3711,8 +3719,9 @@
 		(i32.ne)
 
 		;; i
-		(sym_int32 "j")
-		(sym_int32 "a")
+		(i32.const 1040)
+		(i32.symbolic)
+		(get_sym_int32 "a")
 		(i32.ne)
 
 		(get_sym_int32 "j")
@@ -3973,6 +3982,6 @@
 
     )
 	(export "main" (func $main))
-
+	(data $0 (i32.const 1024) "a\00b\00c\00d\00e\00f\00h\00i\00j\00")
 )
 (invoke "main")
