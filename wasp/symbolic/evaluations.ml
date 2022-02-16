@@ -26,10 +26,10 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
     | F64Op.Neg     -> F64Unop (F64Neg, e)
     | F64Op.Abs     -> F64Unop (F64Abs, e)
     | F64Op.Sqrt    -> F64Unop (F64Sqrt, e)
+    | F64Op.Nearest -> F64Unop (F64Nearest, e)
     | F64Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
     | F64Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
     | F64Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
-    | F64Op.Nearest -> raise (UnsupportedOp "eval_unop: Nearest")
     end
   in
 	let (c, s) = e in

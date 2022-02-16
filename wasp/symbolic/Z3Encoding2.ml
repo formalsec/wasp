@@ -230,6 +230,7 @@ struct
       | F64Neg -> FloatingPoint.mk_neg ctx
       | F64Abs -> FloatingPoint.mk_abs ctx
       | F64Sqrt -> FloatingPoint.mk_sqrt ctx rne
+      | F64Nearest -> FloatingPoint.mk_round_to_integral ctx rne
     in op' e
 
   let encode_binop
