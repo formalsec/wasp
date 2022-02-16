@@ -15,10 +15,10 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
     | F32Op.Neg     -> F32Unop (F32Neg, e)
     | F32Op.Abs     -> F32Unop (F32Abs, e)
     | F32Op.Sqrt    -> F32Unop (F32Sqrt, e)
+    | F32Op.Nearest -> F32Unop (F32Nearest, e)
     | F32Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
     | F32Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
     | F32Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
-    | F32Op.Nearest -> raise (UnsupportedOp "eval_unop: Nearest")
     end
   in
   let f64_unop op e =
