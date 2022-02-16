@@ -172,6 +172,7 @@ struct
       | F32Neg -> FloatingPoint.mk_neg ctx
       | F32Abs -> FloatingPoint.mk_abs ctx
       | F32Sqrt -> FloatingPoint.mk_sqrt ctx rne
+      | F32Nearest -> FloatingPoint.mk_round_to_integral ctx rne
     in op' e
 
   let encode_binop

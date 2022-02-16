@@ -1,5 +1,5 @@
 type binop = F32Add | F32Sub | F32Mul | F32Div | F32Min | F32Max (*  Falta: | CopySign *)
-type unop  = F32Neg | F32Abs | F32Sqrt (*  Falta: | Ceil | Floor | Trunc | Nearest *)
+type unop  = F32Neg | F32Abs | F32Sqrt | F32Nearest (*  Falta: | Ceil | Floor | Trunc *)
 type relop = F32Eq | F32Ne | F32Lt |  F32Le | F32Gt | F32Ge
 type cvtop = F32DemoteF64 | F32ConvertSI32 | F32ConvertUI32 |
              F32ConvertSI64 | F32ConvertUI64 | F32ReinterpretInt
@@ -39,12 +39,14 @@ let string_of_unop (op : unop) : string =
   | F32Neg -> "F32Neg"
   | F32Abs -> "F32Abs"
   | F32Sqrt -> "F32Sqrt"
+  | F32Nearest -> "F32Nearest"
 
 let pp_string_of_unop (op : unop) : string =
   match op with
   | F32Neg -> "-"
   | F32Abs -> "F32Abs"
   | F32Sqrt -> "F32Sqrt"
+  | F32Nearest -> "F32Nearest"
 
 (*  String representation of an f32 relative operation  *)
 let string_of_relop (op : relop) : string =
