@@ -243,12 +243,16 @@ let rec eval (env : t) (e : sym_expr) : value =
       | F64Sub -> F64 Ast.F64Op.Sub
       | F64Mul -> F64 Ast.F64Op.Mul
       | F64Div -> F64 Ast.F64Op.Div
+      | F64Min -> F64 Ast.F64Op.Min
+      | F64Max -> F64 Ast.F64Op.Max
     in Eval_numeric.eval_binop op' v1 v2
   | F64Unop (op, e') ->
     let v = eval env e'
     and op' = match op with
       | F64Neg -> F64 Ast.F64Op.Neg
       | F64Abs -> F64 Ast.F64Op.Abs
+      | F64Sqrt -> F64 Ast.F64Op.Sqrt
+      | F64Nearest -> F64 Ast.F64Op.Nearest
     in Eval_numeric.eval_unop op' v
   | F64Relop (op, e1, e2) ->
     let v1 = eval env e1

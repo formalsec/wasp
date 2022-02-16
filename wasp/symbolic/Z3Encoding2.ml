@@ -230,6 +230,8 @@ struct
     let op'  = match op with
       | F64Neg -> FloatingPoint.mk_neg ctx
       | F64Abs -> FloatingPoint.mk_abs ctx
+      | F64Sqrt -> FloatingPoint.mk_sqrt ctx rne
+      | F64Nearest -> FloatingPoint.mk_round_to_integral ctx rne
     in op' e
 
   let encode_binop
@@ -241,6 +243,8 @@ struct
       | F64Sub -> FloatingPoint.mk_sub ctx rne
       | F64Mul -> FloatingPoint.mk_mul ctx rne
       | F64Div -> FloatingPoint.mk_div ctx rne
+      | F64Min -> FloatingPoint.mk_min ctx
+      | F64Max -> FloatingPoint.mk_max ctx
     in op' e1 e2
 
   let encode_relop

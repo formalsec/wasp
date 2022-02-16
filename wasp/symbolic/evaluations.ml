@@ -25,11 +25,11 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
     begin match op with
     | F64Op.Neg     -> F64Unop (F64Neg, e)
     | F64Op.Abs     -> F64Unop (F64Abs, e)
+    | F64Op.Sqrt    -> F64Unop (F64Sqrt, e)
+    | F64Op.Nearest -> F64Unop (F64Nearest, e)
     | F64Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
     | F64Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
     | F64Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
-    | F64Op.Nearest -> raise (UnsupportedOp "eval_unop: Nearest")
-    | F64Op.Sqrt    -> raise (UnsupportedOp "eval_unop: Sqrt")
     end
   in
 	let (c, s) = e in
@@ -103,8 +103,8 @@ let eval_binop (e1 : sym_value) (e2 : sym_value) (op : Ast.binop) : sym_value =
     | F64Op.Sub  -> F64Binop (F64Sub, e1, e2)
     | F64Op.Div  -> F64Binop (F64Div, e1, e2)
     | F64Op.Mul  -> F64Binop (F64Mul, e1, e2)
-    | F64Op.Min  -> failwith "eval F64Binop: TODO Min"
-    | F64Op.Max  -> failwith "eval F64Binop: TODO Max"
+    | F64Op.Min  -> F64Binop (F64Min, e1, e2)
+    | F64Op.Max  -> F64Binop (F64Max, e1, e2)
     | F64Op.CopySign -> failwith "eval F64Binop: TODO CopySign"
     end
   in
