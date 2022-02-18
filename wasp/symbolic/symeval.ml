@@ -530,10 +530,16 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | Free, (I32 i, _) :: vs' ->
         let es' =
-          if not (Hashtbl.mem chunk_table i) then [Interrupt (Bug (InvalidFree,Logicenv.(to_json (to_list logic_env)))) @@ e.at]
-                                             else (Hashtbl.remove chunk_table i; [])
+          if not (Hashtbl.mem chunk_table i) then (
+            let witness = Logicenv.(to_json (to_list logic_env)) in
+            [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
+          ) else (
+            Hashtbl.remove chunk_table i;
+            []
+          )
         in vs', es', logic_env, pc, mem
 
+      (* Deprecated *)
       | SymInt32 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
@@ -543,6 +549,7 @@ let rec sym_step (c : sym_config) : sym_config =
             v'
         in (v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], logic_env, pc, mem
 
+      (* Deprecated *)
       | SymInt64 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
@@ -552,6 +559,7 @@ let rec sym_step (c : sym_config) : sym_config =
             v'
         in (v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], logic_env, pc, mem
 
+      (* Deprecated *)
       | SymFloat32 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
@@ -561,6 +569,7 @@ let rec sym_step (c : sym_config) : sym_config =
             v'
         in (v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], logic_env, pc, mem
 
+      (* Deprecated *)
       | SymFloat64 x, vs' ->
         let v =
           try Logicenv.find logic_env x with
@@ -729,15 +738,31 @@ let rec sym_step (c : sym_config) : sym_config =
       take n vs0 e.at @ vs, [], logic_env, pc, mem
 
     | SFrame (n, frame', code'), vs ->
-      let c' = sym_step {sym_frame = frame'; sym_code = code'; logic_env = c.logic_env; path_cond = c.path_cond; sym_mem = c.sym_mem; sym_budget = c.sym_budget - 1} in
-      vs, [SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at], c'.logic_env, c'.path_cond, c'.sym_mem
+      let c' = sym_step {
+        sym_frame = frame';
+        sym_code = code';
+        logic_env = c.logic_env;
+        path_cond = c.path_cond;
+        sym_mem = c.sym_mem;
+        sym_budget = c.sym_budget - 1
+      }
+      in vs, [SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at], c'.logic_env, c'.path_cond, c'.sym_mem
 
     | SInvoke func, vs when c.sym_budget = 0 ->
       Exhaustion.error e.at "call stack exhausted"
 
     | SInvoke func, vs ->
+      let symbolic_arg t =
+        let x = Logicenv.next logic_env "arg" in
+        let v = Logicenv.get logic_env x t false in
+        (v, to_symbolic t x)
+      in
       let FuncType (ins, out) = Func.type_of func in
       let n = List.length ins in
+      let vs =
+        if (List.length vs) = 0 then List.map (fun t -> symbolic_arg t) ins
+                                else vs
+      in
       let args, vs' = take n vs e.at, drop n vs e.at in
       (match func with
       | Func.AstFunc (t, inst', f) ->

@@ -22,7 +22,7 @@ let add (cnt : counter) (key : name) (data : count) : unit =
 let find (cnt : counter) (x : name) : count =
   Hashtbl.find cnt x
 
-let get (cnt : counter) (x : name) : count =
+let get_and_inc (cnt : counter) (x : name) : count =
   let c = try find cnt x with Not_found -> 0 in
   add cnt x (c + 1);
   c

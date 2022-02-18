@@ -71,6 +71,14 @@ def get_parser():
         help='remove short-circuit evaluation'
     )
 
+    parser.add_argument(
+        '--entry',
+        dest='entry_func',
+        action='store',
+        default='__original_main',
+        help='entry function to start analysis'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -89,7 +97,13 @@ def preprocess_file(src_file, dst_file, includes, boolops):
     log.debug(f'Created \'{dst_file}\'.')
     return 0
 
-def configure(output_dir, root_dir, src_code, includes):
+def configure(
+        output_dir,
+        root_dir,
+        src_code,
+        includes,
+        entry_func
+    ):
     log.debug(f'Configuring compilation...')
 
     # Copy `Makefile' to `output_dir'
@@ -112,6 +126,7 @@ def configure(output_dir, root_dir, src_code, includes):
         for inc in includes:
             f.write(f'INCLUDES += -I{inc}\n')
         f.write(f'OTHER_CODE = {src_code}\n')
+        f.write(f'ENTRY_FUN = {entry_func}\n')
 
     log.debug(f'Created \'{conf}\'.')
 
@@ -169,7 +184,8 @@ def main(root_dir, argv=None):
         log.error(f'Failed to process input file \'{args.file}\'!')
         return -1
 
-    configure(args.output_dir, root_dir, args.source, args.includes)
+    configure(args.output_dir, root_dir, args.source, args.includes,
+              args.entry_func)
 
     if compile_sources(args.output_dir) != 0:
         log.error(f'Failed to compile project sources!')
@@ -184,7 +200,7 @@ def main(root_dir, argv=None):
     analyser = WASP()
     #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
     log.info('Starting WASP...')
-    res = analyser.run(wasm_harness, args.output_dir)
+    res = analyser.run(wasm_harness, args.entry_func, args.output_dir)
     with open(wasm_harness + '.out', 'w') as out, \
             open(wasm_harness + '.err', 'w') as err:
         out.write(res.stdout)

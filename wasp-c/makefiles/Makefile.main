@@ -8,6 +8,7 @@ OPT_LVL ?= -O0
 OTHER_CODE ?=
 
 BUILD_DIR ?= _build
+ENTRY_FUN ?= __original_main
 
 # Will overwrite TODO
 -include Makefile.config
@@ -30,7 +31,7 @@ CFLAGS += $(INCLUDES)
 CFLAGS += $(WARN) -c
 
 LDFLAGS += -L$(LIBC_DIR)
-LDFLAGS += --no-entry --export=__original_main 
+LDFLAGS += --no-entry --export=$(ENTRY_FUN)
 LDFLAGS += -lc
 
 SOURCES := $(wildcard *.c)

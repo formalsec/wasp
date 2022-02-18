@@ -52,7 +52,7 @@ let get (env : t) (k : name) (ty : value_type) (b : bool) : value =
   v
 
 let next (env : t) (k : name) : name =
-  let id = Counter.get ids k in
+  let id = Counter.get_and_inc ids k in
   if id = 0 then k else (k ^ "_" ^ (string_of_int id))
 
 let is_empty (env : t) : bool =
