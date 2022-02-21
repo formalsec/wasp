@@ -624,27 +624,6 @@ let rec sym_step (c : sym_config) : sym_config =
           )
         in v :: vs', [], logic_env, pc, mem
 
-      | TraceCondition, (I32 id, _) :: (ci, si) :: vs' ->
-        (*
-        let cond_str =
-          (string_of_int (if ci = Values.(default_value (type_of ci)) then 0 else 1)) in
-        prefix := [cond_str] @ !prefix;
-        let id_s = (Int32.to_string id)
-        and ci_s = (string_of_int
-        and si_s = Symvalue.to_string si in
-        let lbl  = !prefix ^ id_s ^ ci_s in prefix := lbl;
-        let hist = try History.find history lbl with Not_found -> "" in
-        let value = match hist with
-          | "" -> History.add history lbl (Symvalue.to_string si);
-            true
-          | s when s = si_s       -> false
-          | s when not (s = si_s) -> false
-          | _ -> failwith "UnrecoverableError"
-        in
-        skip := value;
-        *)
-        (ci, si) :: vs', [], logic_env, pc, mem
-
       | PrintStack, vs' ->
         debug ("STACK STATE: " ^ (string_of_sym_value vs'));
         vs', [], logic_env, pc, mem

@@ -364,7 +364,6 @@ rule token = parse
   | (ixx)".__logand" { BOOLOP i32_logand }
   | (ixx)".__logor" { BOOLOP i32_logor }
   | "__ternary_op" { TERNARY_OP }
-  | "__trace_condition" { TRACE_CONDITION }
 
   | "alloc" { ALLOC }
   | "free" { FREE }

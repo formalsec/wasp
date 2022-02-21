@@ -185,7 +185,7 @@ let inline_type_explicit (c : context) x ft at =
 
 %token SYM_INT32 SYM_INT64 SYM_FLOAT32 SYM_FLOAT64
 
-%token TRACE_CONDITION PRINT_STACK PRINT_MEMORY PRINT_BTREE COMPARE_EXPR
+%token PRINT_STACK PRINT_MEMORY PRINT_BTREE COMPARE_EXPR
 
 
 %token<string> NAT
@@ -368,7 +368,6 @@ plain_instr :
 
   | BOOLOP { fun c -> $1 }
   | TERNARY_OP { fun c -> ternary_op }
-  | TRACE_CONDITION { fun c -> trace_condition }
 
   | ALLOC { fun c -> alloc }
   | FREE { fun c -> free }
