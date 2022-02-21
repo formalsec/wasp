@@ -760,8 +760,9 @@ let rec sym_step (c : sym_config) : sym_config =
       let FuncType (ins, out) = Func.type_of func in
       let n = List.length ins in
       let vs =
-        if (List.length vs) = 0 then List.map (fun t -> symbolic_arg t) ins
-                                else vs
+        if n > 0 && (List.length vs) = 0 then
+          List.map (fun t -> symbolic_arg t) ins
+        else vs
       in
       let args, vs' = take n vs e.at, drop n vs e.at in
       (match func with
