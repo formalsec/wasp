@@ -107,14 +107,14 @@ let bind category space x =
   let i = space.count in
   space.map <- VarMap.add x.it space.count space.map;
   space.count <- Int32.add space.count 1l;
-  if space.count = 0l then 
+  if space.count = 0l then
     error x.at ("too many " ^ category ^ " bindings");
   i
 
 let bind_type (c : context) x ty =
   c.types.list <- c.types.list @ [ty];
   bind "type" c.types.space x
-let bind_func (c : context) x = 
+let bind_func (c : context) x =
   let i = bind "function" c.funcs x in
   Coverage.save_func x.it i;
   i
