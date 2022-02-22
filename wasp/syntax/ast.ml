@@ -105,7 +105,6 @@ and instr' =
   | Boolop of binop
   | Alloc
   | Free
-  | TraceCondition
   (* LIBC SUMM APIs *)
   | IsSymbolic
   | SymInt32 of string                  (* Symbolic integer 32 variable *)
