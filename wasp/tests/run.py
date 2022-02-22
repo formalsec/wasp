@@ -5,6 +5,7 @@ import csv
 import json
 import glob
 import time
+import threading
 import subprocess
 
 from manticore.wasm import ManticoreWASM
@@ -43,6 +44,9 @@ def progress(msg, i, t, prev=0):
 
 def btree():
     output = 'wasp_output'
+    if not os.path.exists(output):
+        os.makedirs(output)
+
     btree_dir = 'tests/btree'
     results_path = os.path.join(output, 'results-btree-wasp.csv')
     with open(results_path, 'w') as f:
@@ -1036,8 +1040,17 @@ def btree_manticore():
 
 def main(argv=None):
     # execute btree tests
-    btree()
-    btree_manticore()
+    threads = []
+    t1 = threading.Thread(target=btree, args=())
+    threads.append(t1)
+    t1.start()
+
+    t2 = threading.Thread(target=btree_manticore, args=())
+    threads.append(t2)
+    t2.start()
+
+    for t in threads:
+        t.join()
     return 0
 
 if __name__ == '__main__':
