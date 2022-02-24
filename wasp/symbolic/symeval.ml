@@ -475,10 +475,15 @@ let rec sym_step (c : sym_config) : sym_config =
         debug (">>> Assumed false {line> " ^ (Source.string_of_pos e.at.left) ^
           "}. Finishing...");
         let cond = to_constraint (simplify ex) in
-        assumes := Option.map_default (fun a -> a :: !assumes) !assumes cond;
-        if (!assumes = []) || (not (pc = [])) then
+        if !Flags.smt_assume then
+          assumes := Option.map_default (fun a -> a :: !assumes) !assumes cond;
+        if not !Flags.smt_assume then (
+          let c = Option.map negate_relop cond in
+          let pc' = Option.map_default (fun a -> a :: pc) pc c in
+          vs', [Interrupt (AsmFail pc') @@ e.at], logic_env, pc', mem
+        ) else if (!assumes = []) || (not (pc = [])) then (
           vs', [Interrupt (AsmFail !assumes) @@ e.at], logic_env, pc, mem
-        else (
+        ) else (
           let assertion = Formula.to_formula (!assumes @ pc) in
           let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
           let vs'', es' = match model with
@@ -502,10 +507,14 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | SymAssume, (I32 i, ex) :: vs' ->
         let cond = to_constraint (simplify ex) in
-        assumes := Option.map_default (fun a -> a :: !assumes) !assumes cond;
-        (* let pc' = Option.map_default (fun a -> a :: pc) pc cond in *)
+        let pc' =
+          if !Flags.smt_assume then (
+              assumes := Option.map_default (fun a -> a :: !assumes) !assumes cond;
+              pc
+          ) else Option.map_default (fun a -> a :: pc) pc cond
+        in
         debug ">>> Assume passed. Continuing execution...";
-        vs', [], logic_env, pc, mem
+        vs', [], logic_env, pc', mem
 
       | Symbolic (ty, b), (I32 i, _) :: vs' ->
         let base = I64_convert.extend_i32_u i in

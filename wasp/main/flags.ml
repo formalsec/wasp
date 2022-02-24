@@ -8,3 +8,4 @@ let harness = ref true
 let instr_max = ref 1_000_000
 let output = ref "output"
 let branches = ref false
+let smt_assume = ref false
