@@ -33,9 +33,13 @@ let argspec = Arg.align
   "-t", Arg.Set Flags.trace, " trace execution";
   "-v", Arg.Unit (fun () -> banner (); exit 0), " show version";
   "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model";
-  "-r", Arg.Set_string Flags.output, " directory to output report and test-suite (default=output)";
-  "-smt-assume", Arg.Set Flags.smt_assume, "use the solver to progress in the assume rule";
-  "-b", Arg.Set Flags.branches, " ignore assertion failures to cover more paths"
+  "-b", Arg.Set Flags.branches, " ignore assertion failures to cover more paths";
+  "--workspace", Arg.Set_string Flags.output,
+    " directory to output report and test-suite (default=output)";
+  "--smt-assume", Arg.Set Flags.smt_assume,
+    " use the solver to progress in the assume rule";
+  "--no-simplify", Arg.Clear Flags.simplify,
+    " do not perform algebraic simplifications of symbolic expressions"
 ]
 
 let () =
