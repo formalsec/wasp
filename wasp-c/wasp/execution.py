@@ -8,10 +8,14 @@ log = logging.getLogger(__name__)
 class WASP:
     def __init__(
             self,
+            smt_assume,
+            no_simplify,
             instr_limit=-1,
             time_limit=900,                  # default 15mins
             memory_limit=15*1024*1024*1024   # default 15Gib
         ):
+        self.smt_assume = smt_assume
+        self.no_simplify = no_simplify
         self.instr_limit = instr_limit
         self.time_limit = time_limit
         self.memory_limit = memory_limit
@@ -21,17 +25,18 @@ class WASP:
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
     def cmd(self, test_prog, entry_func, output_dir):
+        args = []
+        if self.smt_assume:
+            args.append('--smt-assume')
+        if self.no_simplify:
+            args.append('--no-simplify')
         return [
-            'wasp',
-            test_prog,
-            '-e',
-            f'(invoke \"{entry_func}\")',
-            '-m',
-            str(self.instr_limit),
-            '-r',
-            output_dir,
-            '-t'
-        ]
+            'wasp', test_prog,
+            '-t',
+            '-e', f'(invoke \"{entry_func}\")',
+            '-m', str(self.instr_limit),
+            '--workspace', output_dir,
+        ] + args
 
     def run(self, 
             test_file, 
