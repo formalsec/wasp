@@ -140,12 +140,15 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
     _} = c in
   match es with
   | [] -> [], [c]
-  | e :: t -> 
+  | e :: t ->
   (match e.it, vs with
   | SPlain e', vs ->
       (match e', vs with
       | Nop, vs ->
         [ { c with sym_code = vs, List.tl es } ], []
+
+      | Drop, v :: vs' ->
+        [ { c with sym_code = vs', List.tl es } ], []
 
       | Block (ts, es'), vs ->
         let es'' = [SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at] in
