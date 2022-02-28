@@ -169,6 +169,10 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let es' = List.tl es in
         [ { c with sym_code = v :: vs', es' } ], []
 
+      | Const v, vs ->
+        let es' = List.tl es in
+        [ { c with sym_code = (Value v.it) :: vs, es' } ], []
+
       | _ -> (failwith (instr_str e')))
 
   | SLabel (n, es0, (vs', [])), vs ->
