@@ -159,6 +159,16 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let es' = List.tl es in
         [ { c with sym_code = vs', es' } ], []
 
+      | LocalSet x, v :: vs' ->
+        local frame x := v;
+        let es' = List.tl es in
+        [ { c with sym_code = vs', es' } ], []
+
+      | LocalTee x, v :: vs' ->
+        local frame x := v;
+        let es' = List.tl es in
+        [ { c with sym_code = v :: vs', es' } ], []
+
       | _ -> (failwith (instr_str e')))
 
   | SLabel (n, es0, (vs', [])), vs ->
