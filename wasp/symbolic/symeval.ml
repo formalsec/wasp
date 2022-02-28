@@ -1,12 +1,3 @@
-
-(*
-░██████╗██╗░░░██╗███╗░░░███╗  ███████╗██╗░░░██╗░█████╗░██╗░░░░░
-██╔════╝╚██╗░██╔╝████╗░████║  ██╔════╝██║░░░██║██╔══██╗██║░░░░░
-╚█████╗░░╚████╔╝░██╔████╔██║  █████╗░░╚██╗░██╔╝███████║██║░░░░░
-░╚═══██╗░░╚██╔╝░░██║╚██╔╝██║  ██╔══╝░░░╚████╔╝░██╔══██║██║░░░░░
-██████╔╝░░░██║░░░██║░╚═╝░██║  ███████╗░░╚██╔╝░░██║░░██║███████╗
-╚═════╝░░░░╚═╝░░░╚═╝░░░░░╚═╝  ╚══════╝░░░╚═╝░░░╚═╝░░╚═╝╚══════╝   *)
-
 open Values
 open Symvalue
 open Types
@@ -1202,5 +1193,8 @@ let init (m : module_) (exts : extern list) : module_inst =
   let init_datas = List.map (init_memory inst) data in
   List.iter (fun f -> f ()) init_elems;
   List.iter (fun f -> f ()) init_datas;
-  Lib.Option.app (fun x -> ignore (sym_invoke' (func inst x) [])) start;
+  if !Flags.static then
+    Lib.Option.app (fun x -> ignore (Symstatic.invoke (func inst x) [])) start
+  else
+    Lib.Option.app (fun x -> ignore (sym_invoke' (func inst x) [])) start;
   inst

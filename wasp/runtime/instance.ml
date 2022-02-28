@@ -30,8 +30,8 @@ type Table.elem += FuncElem of func_inst
 (* Auxiliary functions *)
 
 let empty_module_inst =
-  { types = []; funcs = []; tables = []; memories = []; sym_memory = Symmem2.alloc 512;
-    globals = []; exports = [] }
+  { types = []; funcs = []; tables = []; memories = []; 
+    sym_memory = Symmem2.alloc 512; globals = []; exports = [] }
 
 let extern_type_of = function
   | ExternFunc func -> ExternFuncType (Func.type_of func)

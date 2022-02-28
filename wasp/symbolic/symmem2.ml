@@ -85,7 +85,7 @@ let load_bytes (mem : memory) (a : address) (n : int) : string * sym_expr =
   let se = simplify 
     (List.fold_left (fun a b -> Concat (b, a)) (List.hd lst) (List.tl lst))
   in (Buffer.contents buf, se)
-    
+
 let load_string (mem : memory) (a : address) : string =
   let rec loop a acc =
     let (c, _) = load_byte mem a in
@@ -107,7 +107,7 @@ let effective_address (a : I64.t) (o : offset) : address =
 
 let loadn (mem : memory) (a : address) (o : offset) (n : int) =
   assert (n > 0 && n <= 8);
-  let rec loop a n acc = 
+  let rec loop a n acc =
     if n = 0 then acc else begin
       let (x, lacc) = acc
       and (cv, se) = load_byte mem a in
@@ -131,7 +131,7 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
           | F32 x -> I64 (Int64.of_int32 (F32.to_bits x))
           | F64 x -> I64 (F64.to_bits x)
           in Symvalue.Value v'
-        | _ -> se 
+        | _ -> se
       in store_byte mem a (b, Extract (se', i+1, i));
       loop (Int64.add a 1L) (i + 1) n ((Int64.shift_right cv 8), se)
     end 
@@ -195,7 +195,7 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension)
     | _ -> raise Memory.Type
     end
   in
-  let sv' = 
+  let sv' =
     let rec loop acc i =
       if i >= (Types.size t) then acc
       else loop (acc @ [Extract (Value (I64 0L), i+1, i)]) (i + 1)
