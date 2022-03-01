@@ -32,14 +32,24 @@ let argspec = Arg.align
   "-d", Arg.Set Flags.dry, " dry, do not run program";
   "-t", Arg.Set Flags.trace, " trace execution";
   "-v", Arg.Unit (fun () -> banner (); exit 0), " show version";
-  "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model";
-  "-b", Arg.Set Flags.branches, " ignore assertion failures to cover more paths";
+  (* Analysis Types *)
+  "-concrete", Arg.Set Flags.concrete,
+    " concrete module interpretation (default: false)";
+  "-static", Arg.Set Flags.static, 
+    " static symbolic execution (default: false)";
+  (* Common Flags *)
   "--workspace", Arg.Set_string Flags.output,
     " directory to output report and test-suite (default=output)";
+  (* Flags for Dynamic SE *)
+  "-m", Arg.Set_int Flags.instr_max,
+    " maximum instr interpreted during a model";
+  "-b", Arg.Set Flags.branches,
+    " ignore assertion failures to cover more paths";
   "--smt-assume", Arg.Set Flags.smt_assume,
     " use the solver to progress in the assume rule";
   "--no-simplify", Arg.Clear Flags.simplify,
     " do not perform algebraic simplifications of symbolic expressions"
+  (* Flags for Static SE *)
 ]
 
 let () =

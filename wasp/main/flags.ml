@@ -10,4 +10,5 @@ let output = ref "output"
 let branches = ref false
 let smt_assume = ref false
 let simplify = ref true
-let static = ref true
+let concrete = ref false
+let static = ref false

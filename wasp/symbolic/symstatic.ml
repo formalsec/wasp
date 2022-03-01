@@ -151,8 +151,8 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         [ { c with sym_code = vs', List.tl es } ], []
 
       | Block (ts, es'), vs ->
-        let es'' = [SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at] in
-        [ { c with sym_code = vs, es'' @ (List.tl es) } ], []
+        let es0 = SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at in
+        [ { c with sym_code = vs, es0 :: (List.tl es) } ], []
 
       | LocalGet x, vs ->
         let vs' = !(local frame x) :: vs in
@@ -173,13 +173,20 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let es' = List.tl es in
         [ { c with sym_code = (Value v.it) :: vs, es' } ], []
 
-      | _ -> (failwith (instr_str e')))
+      | PrintStack, vs ->
+        let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
+        print_endline ("Stack:" ^ "\n" ^ (String.concat "\n" vs'));
+        let es' = List.tl es in
+        [ { c with sym_code = vs, es' } ], []
+
+      | _ -> (failwith (instr_str e'))
+      )
 
   | SLabel (n, es0, (vs', [])), vs ->
     [ { c with sym_code = vs' @ vs, List.tl es } ], []
 
   | SLabel (n, es0, (vs', {it = Interrupt i; at} :: es')), vs ->
-    let es' = [Interrupt i @@ at] @ [SLabel (n, es0, (vs', es')) @@ e.at] in
+    let es' = (Interrupt i @@ at) :: [SLabel (n, es0, (vs', es')) @@ e.at] in
     [ { c with sym_code = vs, es' @ (List.tl es) } ], []
 
   | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
@@ -196,21 +203,22 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
     [ { c with sym_code = vs'', es' @ (List.tl es) } ], []
 
   | SLabel (n, es0, (vs', {it = SBreaking (k, vs0); at} :: es')), vs ->
-    let es' = [SBreaking (Int32.sub k 1l, vs0) @@ at] in
-    [ { c with sym_code = vs, es' @ (List.tl es) } ], []
+    let es0' = SBreaking (Int32.sub k 1l, vs0) @@ at in
+    [ { c with sym_code = vs, es0' :: (List.tl es) } ], []
 
   | SLabel (n, es0, code'), vs ->
+    (* FIXME: path conditions *)
     let cs', outs' = step {c with sym_code = code'} in
     List.map (fun c ->
-      let es' = [SLabel (n, es0, c.sym_code) @@ e.at] in
-      { c with sym_code = vs, es' @ List.tl es }
+      let es0' = SLabel (n, es0, c.sym_code) @@ e.at in
+      { c with sym_code = vs, es0' :: (List.tl es) }
     ) (cs' @ outs'), []
 
   | SFrame (n, frame', (vs', [])), vs ->
     [ { c with sym_code = vs' @ vs, List.tl es } ], []
 
   | SFrame (n, frame', (vs', {it = Interrupt i; at} :: es')), vs ->
-    let es' = [Interrupt i @@ at] @ [SFrame (n, frame', (vs', es')) @@ e.at] in
+    let es' = (Interrupt i @@ at) :: [SFrame (n, frame', (vs', es')) @@ e.at] in
     [ { c with sym_code = vs, es' @ (List.tl es) } ], []
 
   | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
@@ -222,6 +230,7 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
     [ { c with sym_code = vs'', List.tl es } ], []
 
   | SFrame (n, frame', code'), vs ->
+    (* FIXME: path conditions *)
     let cs', outs' = step {
       sym_frame = frame';
       sym_code = code';
@@ -230,8 +239,8 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
       sym_budget = c.sym_budget - 1
     } in
     List.map (fun c ->
-      let es' = [SFrame (n, c.sym_frame, c.sym_code) @@ e.at] in
-      { c with sym_code = vs, es' @ List.tl es }
+      let es0 = SFrame (n, c.sym_frame, c.sym_code) @@ e.at in
+      { c with sym_code = vs, es0 :: (List.tl es) }
     ) (cs' @ outs'), []
 
   | STrapping msg, vs ->
@@ -259,8 +268,9 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let locals'' = List.rev args @ locals' in
         let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
         let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in
-        let es' = [SFrame (List.length out, frame', code') @@ e.at] in
-        [ { c with sym_code = vs', es' @ (List.tl es) } ], []
+        let es0 = (SFrame (List.length out, frame', code') @@ e.at) in
+        [ { c with sym_code = vs', es0 :: (List.tl es) } ], []
+
       | Func.HostFunc (t, f) -> failwith "HostFunc error"
       )
   )
@@ -280,10 +290,5 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
     Crash.error at ("sym_invoke: " ^ s) in
   let c = sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at]
     !inst.sym_memory in
-  (* Initial memory config *)
-  (* let initial_memory = Symmem2.to_list !inst.sym_memory in *)
-  (* let initial_globals = Global.contents !inst.globals in *)
-  (* Assume constraints are stored here *)
-  ignore (eval [c] []);
-  ()
+  ignore (eval [c] [])
 

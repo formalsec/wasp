@@ -343,10 +343,10 @@ let pp_string_of_pc (pc : path_conditions) : string =
   List.fold_left (fun acc e -> acc ^ (pp_to_string e) ^ ";  ") "" pc
 
 let string_of_sym_value (el : sym_value list) : string = 
-  List.fold_left (
-    fun acc (v, s) -> 
-      acc ^ (Values.string_of_value v) ^ ", " ^ (pp_to_string s) ^ "\n"
-  ) "" el
+  let el' = List.map (
+    fun (v, s) -> (Values.string_of_value v) ^ ", " ^ (pp_to_string s)
+  ) el in
+  String.concat "\n" el'
 
 let rec type_of (e : sym_expr) : value_type  =
   let rec concat_length (e' : sym_expr) : int =

@@ -794,12 +794,12 @@ let write_test_case out_dir fmt test_data : unit =
   let i = next_int () in
   Io.save_file (Printf.sprintf fmt out_dir (i ())) test_data
 
-let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
+let invoke (func : func_inst) (vs : sym_value list) : sym_value list =
   Sys.(set_signal sigalrm (Signal_handle (fun i -> instr_cnt := !Flags.instr_max)));
   ignore (Unix.alarm 895);
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
-    Crash.error at ("sym_invoke: " ^ s) in
+    Crash.error at ("Symeval: invoke: " ^ s) in
   let c = ref (sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at]
     !inst.sym_memory) in
   (* Prepare output *)
@@ -1193,8 +1193,10 @@ let init (m : module_) (exts : extern list) : module_inst =
   let init_datas = List.map (init_memory inst) data in
   List.iter (fun f -> f ()) init_elems;
   List.iter (fun f -> f ()) init_datas;
-  if !Flags.static then
+  if !Flags.concrete then
+    Lib.Option.app (fun x -> ignore (Eval.invoke (func inst x) [])) start
+  else if !Flags.static then
     Lib.Option.app (fun x -> ignore (Symstatic.invoke (func inst x) [])) start
   else
-    Lib.Option.app (fun x -> ignore (sym_invoke' (func inst x) [])) start;
+    Lib.Option.app (fun x -> ignore (invoke (func inst x) [])) start;
   inst
