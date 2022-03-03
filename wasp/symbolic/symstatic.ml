@@ -169,6 +169,11 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let es' = List.tl es in
         [ { c with sym_code = v :: vs', es' } ], []
 
+      | GlobalGet x, vs ->
+        let v' = Global.load (global frame.sym_inst x) in
+        let es' = List.tl es in
+        [ { c with sym_code = (Value v') :: vs, es' } ], []
+
       | Const v, vs ->
         let es' = List.tl es in
         [ { c with sym_code = (Value v.it) :: vs, es' } ], []
