@@ -32,8 +32,9 @@ let argspec = Arg.align
   "-d", Arg.Set Flags.dry, " dry, do not run program";
   "-t", Arg.Set Flags.trace, " trace execution";
   "-v", Arg.Unit (fun () -> banner (); exit 0), " show version";
-  "-m", Arg.Set_int Flags.instr_max, " maximum instr interpreted during a model";
+  "-m", Arg.Set_int Flags.inst_limit, " maximum instr interpreted during a model";
   "-b", Arg.Set Flags.branches, " ignore assertion failures to cover more paths";
+  "--timeout", Arg.Set_int Flags.timeout, " time limit (default=900s)";
   "--workspace", Arg.Set_string Flags.output,
     " directory to output report and test-suite (default=output)";
   "--smt-assume", Arg.Set Flags.smt_assume,
