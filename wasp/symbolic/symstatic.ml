@@ -173,6 +173,11 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let es' = List.tl es in
         [ { c with sym_code = (Value v.it) :: vs, es' } ], []
 
+      | Dup, v :: vs' ->
+        let vs'' = v :: v :: vs' in
+        let es' = List.tl es in
+        [ { c with sym_code = (vs'', es') } ], []
+
       | PrintStack, vs ->
         let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
         print_endline ("Stack:" ^ "\n" ^ (String.concat "\n" vs'));
