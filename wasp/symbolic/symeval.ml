@@ -120,12 +120,10 @@ exception Unsatisfiable
 let lines_to_ignore = ref 0
 
 let assumes     = ref []
-
-let instr_cnt   = ref 0
-
+let step_cnt    = ref 0
 let iterations  = ref 1
-
 let incomplete  = ref false
+let timeout     = ref false
 
 (* Time statistics *)
 let solver_time = ref 0.
@@ -235,12 +233,12 @@ let fresh_sym_var : (unit -> string) =
 
 (*  Symbolic step  *)
 let rec sym_step (c : sym_config) : sym_config =
-  instr_cnt := !instr_cnt + 1;
+  step_cnt := !step_cnt + 1;
   let {sym_frame = frame; sym_code = vs, es; logic_env; path_cond = pc; sym_mem = mem; _} = c in
   let e = List.hd es in
   Coverage.record_line (Source.get_line e.at);
   let vs', es', logic_env', pc', mem' =
-    if (!Flags.instr_max != -1) && (!instr_cnt >= !Flags.instr_max) then (
+    if ((!Flags.inst_limit != -1) && (!step_cnt >= !Flags.inst_limit)) || !timeout then (
       incomplete := true;
       vs, [(Interrupt (IntLimit)) @@ e.at], logic_env, pc, mem
     ) else (match e.it, vs with
@@ -453,9 +451,7 @@ let rec sym_step (c : sym_config) : sym_config =
               let c = Option.map negate_relop (to_constraint ex') in
               let pc' = Option.map_default (fun a -> a :: pc) pc c in
               let assertion = Formula.to_formula (!assumes @ pc') in
-              let start = Sys.time () in
-              let model = Z3Encoding2.check_sat_core assertion in
-              solver_time := !solver_time +. ((Sys.time ()) -. start);
+              let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
               match model with
               | None   -> []
               | Some m ->
@@ -804,8 +800,9 @@ let write_test_case out_dir fmt test_data : unit =
   Io.save_file (Printf.sprintf fmt out_dir (i ())) test_data
 
 let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
-  Sys.(set_signal sigalrm (Signal_handle (fun i -> instr_cnt := !Flags.instr_max)));
-  ignore (Unix.alarm 895);
+  Sys.(set_signal sigalrm (Signal_handle (fun i ->
+    Z3Encoding2.interrupt_z3 (); timeout := true)));
+  ignore (Unix.alarm !Flags.timeout);
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
     Crash.error at ("sym_invoke: " ^ s) in
@@ -869,7 +866,6 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     let opt_model = Z3Encoding2.check_sat_core formula in
     let curr_time = (Sys.time ()) -. start in
     solver_time := !solver_time +. curr_time;
-
 
     let model = try Option.get opt_model with _ ->
       raise Unsatisfiable in
@@ -960,7 +956,7 @@ let sym_invoke' (func : func_inst) (vs : sym_value list) : sym_value list =
     "\"loop_time\" : \""         ^ (string_of_float loop_time)    ^ "\", " ^
     "\"solver_time\" : \""       ^ (string_of_float !solver_time) ^ "\", " ^
     "\"paths_explored\" : "      ^ (string_of_int !iterations)    ^ ", " ^
-    "\"instruction_counter\" : " ^ (string_of_int !instr_cnt)     ^ ", " ^
+    "\"instruction_counter\" : " ^ (string_of_int !step_cnt)     ^ ", " ^
     "\"incomplete\" : "          ^ (string_of_bool !incomplete)   ^
   "}"
   in Io.save_file (Filename.concat !Flags.output "report.json") fmt_str;
