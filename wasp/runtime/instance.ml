@@ -29,8 +29,26 @@ type Table.elem += FuncElem of func_inst
 
 (* Auxiliary functions *)
 
+let clone(m: module_inst): module_inst =
+  let types = m.types in
+  let funcs = m.funcs in
+  let tables = m.tables in
+  let memories = m.memories in
+  let sym_memory = m.sym_memory in
+  let globals = m.globals in
+  let exports = m.exports in
+  {
+    types = types;
+    funcs = funcs;
+    tables = tables;
+    memories = memories;
+    sym_memory = sym_memory;
+    globals = globals;
+    exports = exports;
+  }
+
 let empty_module_inst =
-  { types = []; funcs = []; tables = []; memories = []; 
+  { types = []; funcs = []; tables = []; memories = [];
     sym_memory = Symmem2.alloc 512; globals = []; exports = [] }
 
 let extern_type_of = function

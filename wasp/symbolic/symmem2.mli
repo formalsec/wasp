@@ -3,6 +3,7 @@ open Symvalue
 
 type memory
 type t = memory
+val clone : t -> t
 
 type size = int32
 type address = int64
@@ -30,12 +31,12 @@ val load_string : memory -> address -> string
 val load_bytes : memory -> address -> int -> string * sym_expr
 val store_bytes : memory -> address -> string -> unit
 
-val load_value : 
+val load_value :
   memory -> address -> offset -> value_type -> sym_value
-val store_value : 
+val store_value :
   memory -> address -> offset -> sym_value -> unit
-val load_packed : 
+val load_packed :
   Memory.pack_size -> Memory.extension -> memory -> address ->
     offset -> value_type -> sym_value
-val store_packed : 
+val store_packed :
   Memory.pack_size -> memory -> address -> offset -> sym_value -> unit

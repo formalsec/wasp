@@ -40,6 +40,14 @@ type sym_frame =
   sym_locals : sym_expr ref list; (*  Locals can be symbolic  *)
 }
 
+let clone(frame: sym_frame): sym_frame =
+  let sym_inst = clone(frame.sym_inst) in
+  let sym_locals = frame.sym_locals in
+  {
+    sym_inst = sym_inst;
+    sym_locals = sym_locals;
+  }
+
 (*  Symbolic code  *)
 type sym_code = sym_expr stack * sym_admin_instr list
 
@@ -67,6 +75,20 @@ type sym_config =
   sym_mem    : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
 }
+
+let clone(c: sym_config): sym_config =
+  let sym_frame = clone(c.sym_frame) in
+  let sym_code = c.sym_code in
+  let path_cond = c.path_cond in
+  let sym_mem = clone(c.sym_mem) in
+  let sym_budget = c.sym_budget in
+  {
+    sym_frame = sym_frame;
+    sym_code = sym_code;
+    path_cond = path_cond;
+    sym_mem = sym_mem;
+    sym_budget = sym_budget;
+  }
 
 (* Symbolic frame and configuration  *)
 let sym_frame sym_inst sym_locals = {sym_inst; sym_locals}
