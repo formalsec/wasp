@@ -35,13 +35,14 @@ let argspec = Arg.align
   (* Analysis Types *)
   "-concrete", Arg.Set Flags.concrete,
     " concrete module interpretation (default: false)";
-  "-static", Arg.Set Flags.static, 
+  "-static", Arg.Set Flags.static,
     " static symbolic execution (default: false)";
   (* Common Flags *)
+  "--timeout", Arg.Set_int Flags.timeout, " time limit (default=900s)";
   "--workspace", Arg.Set_string Flags.output,
     " directory to output report and test-suite (default=output)";
   (* Flags for Dynamic SE *)
-  "-m", Arg.Set_int Flags.instr_max,
+  "-m", Arg.Set_int Flags.inst_limit,
     " maximum instr interpreted during a model";
   "-b", Arg.Set Flags.branches,
     " ignore assertion failures to cover more paths";
@@ -57,7 +58,7 @@ let () =
   try
     configure ();
     Arg.parse argspec
-      (fun file -> 
+      (fun file ->
         (*Ranges.save_useful_lines file; *)
         Coverage.record_loc file;
         add_arg ("(input " ^ quote file ^ ")")) usage;

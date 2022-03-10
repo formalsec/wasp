@@ -371,6 +371,9 @@ let rec encode_formula (a : Formula.t) : Expr.expr =
       and c2' = encode_formula c2 in
       Boolean.mk_or ctx [c1'; c2']
 
+let interrupt_z3 () =
+  Tactic.interrupt ctx
+
 let check_sat_core (asrt : Formula.t) : Model.model option =
   let goal = Goal.mk_goal ctx true false false in
   Goal.add goal [encode_formula asrt];
