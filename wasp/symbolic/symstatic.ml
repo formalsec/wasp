@@ -80,7 +80,7 @@ let clone(c: sym_config): sym_config =
   let sym_frame = clone(c.sym_frame) in
   let sym_code = c.sym_code in
   let path_cond = c.path_cond in
-  let sym_mem = clone(c.sym_mem) in
+  let sym_mem = (Symmem2.clone c.sym_mem) in
   let sym_budget = c.sym_budget in
   {
     sym_frame = sym_frame;
