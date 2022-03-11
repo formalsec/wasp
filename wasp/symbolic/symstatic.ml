@@ -176,6 +176,17 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let es0 = SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at in
         [ { c with sym_code = vs, es0 :: (List.tl es) } ], []
 
+      | If (ts, es1, es2), (ex) :: vs' ->
+        (match ex with
+        | Value (I32 0l) ->
+          (* if it is 0 *)
+          [ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at]} ], []
+        | Value (I32 _) ->
+          (* if it is not 0 *)
+          [ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], []
+        | _ -> (failwith "if of symbolic value not implemented")
+        )
+
       | LocalGet x, vs ->
         let vs' = !(local frame x) :: vs in
         let es' = List.tl es in
