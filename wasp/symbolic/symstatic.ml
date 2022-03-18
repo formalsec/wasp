@@ -175,6 +175,7 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
   | e :: t ->
   (match e.it, vs with
   | SPlain e', vs ->
+      print_endline((instr_str e'));
       (match e', vs with
       | Nop, vs ->
         [ { c with sym_code = vs, List.tl es } ], []
@@ -269,9 +270,11 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         (match ex with
         | Value (I32 0l) ->
           (* if it is 0 *)
-          [ ], []
+          (* TODO: what to do? *)
+          [], []
         | Value (I32 _) ->
           (* if it is not 0 *)
+          (* TODO: just continue right? *)
           [ { c with sym_code = vs, List.tl es } ], []
         | _ -> (
           failwith "TODO: Ask Z3 if expression is satisfiable, if so continue as is"
@@ -295,6 +298,9 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         print_endline ("Stack:" ^ "\n" ^ (String.concat "\n" vs'));
         let es' = List.tl es in
         [ { c with sym_code = vs, es' } ], []
+
+        (* TODO: PrintMem *)
+        (* TODO: Assert *)
 
       | _ -> (failwith (instr_str e'))
       )
