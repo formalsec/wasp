@@ -194,7 +194,16 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         | Value (I32 _) ->
           (* if it is not 0 *)
           [ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], []
-        | _ -> (failwith "if of symbolic value not implemented")
+        | _ -> (
+          let c_clone = clone c in
+          let pc_false = add_constraint ex pc true in
+          let pc_true = add_constraint ex pc false in
+          (* TODO: check if ex != 0 is sat and if so include that config *)
+          let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] ; path_cond = pc_true } in
+          (* TODO: check if ex == 0 is sat and if so include that config *)
+          let c_false = { c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] ; path_cond = pc_false } in
+          [ c_true; c_false ], []
+          )
         )
 
       | LocalGet x, vs ->
