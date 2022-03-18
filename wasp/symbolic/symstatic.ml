@@ -66,6 +66,8 @@ and sym_admin_instr' =
     *)
   | Interrupt of interruption
 
+type varmap = (string, value_type) Hashtbl.t
+
 (* Symbolic configuration  *)
 type sym_config =
 {
@@ -74,6 +76,7 @@ type sym_config =
   path_cond  : path_conditions;
   sym_mem    : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
+  var_map    : varmap;
 }
 
 let clone(c: sym_config): sym_config =
@@ -82,12 +85,14 @@ let clone(c: sym_config): sym_config =
   let path_cond = c.path_cond in
   let sym_mem = (Symmem2.clone c.sym_mem) in
   let sym_budget = c.sym_budget in
+  let var_map = Hashtbl.copy(c.var_map) in
   {
     sym_frame = sym_frame;
     sym_code = sym_code;
     path_cond = path_cond;
     sym_mem = sym_mem;
     sym_budget = sym_budget;
+    var_map = var_map;
   }
 
 (* Symbolic frame and configuration  *)
@@ -97,7 +102,8 @@ let sym_config inst vs es sym_m = {
   sym_code   = vs, es;
   path_cond  = [];
   sym_mem    = sym_m;
-  sym_budget = 100000 (* models default recursion limit in a system *)
+  sym_budget = 100000; (* models default recursion limit in a system *)
+  var_map = Hashtbl.create 100;
 }
 
 let plain e = SPlain e.it @@ e.at
@@ -162,6 +168,7 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
     sym_code = vs, es;
     path_cond = pc;
     sym_mem = mem;
+    var_map = var_map;
     _} = c in
   match es with
   | [] -> [], [c]
@@ -337,7 +344,8 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
       sym_code = code';
       path_cond = c.path_cond;
       sym_mem = c.sym_mem;
-      sym_budget = c.sym_budget - 1
+      sym_budget = c.sym_budget - 1;
+      var_map = c.var_map;
     } in
     List.map (fun c ->
       let es0 = SFrame (n, c.sym_frame, c.sym_code) @@ e.at in
