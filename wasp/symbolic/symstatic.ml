@@ -151,6 +151,9 @@ let instr_str e =
     | Unary op -> "unary"
     | Binary op -> "binary"
     | Convert op -> "convert"
+    | SymAssert -> "sym_assert"
+    | SymAssume -> "sym_assume"
+    | Symbolic _ -> "symbolic"
     | _ -> "not support"
 
 let rec step (c : sym_config) : (sym_config list * sym_config list) =
@@ -215,6 +218,61 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let vs'' = v :: v :: vs' in
         let es' = List.tl es in
         [ { c with sym_code = (vs'', es') } ], []
+
+      | SymAssert, (Value (I32 0l)) :: vs' ->
+        (* TODO: finish this *)
+        (* debug ">>> Assert FAILED! Stopping..."; *)
+        failwith "SymAssert with 0"
+
+      | SymAssert, (Value (I32 _)) :: vs' ->
+        (* passed *)
+        [ { c with sym_code = vs', List.tl es } ], []
+
+      | SymAssert, v :: vs' ->
+        let es' =
+          if pc = [] then []
+          else
+            match simplify v with
+            | Value (I32 v) when not (v = 0l) -> []
+            | Ptr   (I32 v) when not (v = 0l) -> []
+            | ex' ->
+              let c = Option.map negate_relop (to_constraint ex') in
+              let pc' = Option.map_default (fun a -> a :: pc) pc c in
+              let assertion = Formula.to_formula pc' in
+              let model = Z3Encoding2.check_sat_core assertion in
+              match model with
+              | None   -> []
+              | Some m ->
+                (* [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at] *)
+                failwith "TODO: ask Z3 if v is possibly true"
+        in
+        let es'' = es' @ List.tl es in
+        [ { c with sym_code = (vs', es'') } ], []
+
+      | SymAssume, ex :: vs' ->
+        (match ex with
+        | Value (I32 0l) ->
+          (* if it is 0 *)
+          [ ], []
+        | Value (I32 _) ->
+          (* if it is not 0 *)
+          [ { c with sym_code = vs, List.tl es } ], []
+        | _ -> (
+          failwith "TODO: Ask Z3 if expression is satisfiable, if so continue as is"
+          (* else, return [], [] *)
+          let pc_true = add_constraint ex pc false in
+          let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] ; path_cond = pc_true } in
+          [ { c_true } ], []
+          )
+        )
+
+      | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
+        let base = I64_convert.extend_i32_u i in
+        let x = Symmem2.load_string mem base in
+        let v = to_symbolic ty x in
+        let es' = List.tl es in
+        Hashtbl.replace var_map x ty;
+        [ { c with sym_code = (v :: vs', es') } ], []
 
       | PrintStack, vs ->
         let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
