@@ -162,7 +162,7 @@ let instr_str e =
     | Symbolic _ -> "symbolic"
     | _ -> "not support"
 
-let rec step (c : sym_config) : (sym_config list * sym_config list) =
+let rec step (c : sym_config) : ((sym_config list * sym_config list), string) result =
   let {
     sym_frame = frame;
     sym_code = vs, es;
@@ -171,30 +171,30 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
     var_map = var_map;
     _} = c in
   match es with
-  | [] -> [], [c]
+  | [] -> Result.ok ([], [c])
   | e :: t ->
   (match e.it, vs with
-  | SPlain e', vs ->
+    | SPlain e', vs ->
       print_endline((instr_str e'));
       (match e', vs with
       | Nop, vs ->
-        [ { c with sym_code = vs, List.tl es } ], []
+        Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
 
       | Drop, v :: vs' ->
-        [ { c with sym_code = vs', List.tl es } ], []
+        Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | Block (ts, es'), vs ->
         let es0 = SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at in
-        [ { c with sym_code = vs, es0 :: (List.tl es) } ], []
+        Result.ok ([ { c with sym_code = vs, es0 :: (List.tl es) } ], [])
 
       | If (ts, es1, es2), (ex) :: vs' ->
         (match ex with
         | Value (I32 0l) ->
           (* if it is 0 *)
-          [ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at]} ], []
+          Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at]} ], [])
         | Value (I32 _) ->
           (* if it is not 0 *)
-          [ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], []
+          Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], [])
         | _ -> (
           let c_clone = clone c in
           let pc_false = add_constraint ex pc true in
@@ -203,47 +203,47 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
           let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] ; path_cond = pc_true } in
           (* TODO: check if ex == 0 is sat and if so include that config *)
           let c_false = { c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] ; path_cond = pc_false } in
-          [ c_true; c_false ], []
+          Result.ok ([ c_true; c_false ], [])
           )
         )
 
       | LocalGet x, vs ->
         let vs' = !(local frame x) :: vs in
         let es' = List.tl es in
-        [ { c with sym_code = vs', es' } ], []
+        Result.ok ([ { c with sym_code = vs', es' } ], [])
 
       | LocalSet x, v :: vs' ->
         local frame x := v;
         let es' = List.tl es in
-        [ { c with sym_code = vs', es' } ], []
+        Result.ok ([ { c with sym_code = vs', es' } ], [])
 
       | LocalTee x, v :: vs' ->
         local frame x := v;
         let es' = List.tl es in
-        [ { c with sym_code = v :: vs', es' } ], []
+        Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
 
       | GlobalGet x, vs ->
         let v' = Global.load (global frame.sym_inst x) in
         let es' = List.tl es in
-        [ { c with sym_code = (Value v') :: vs, es' } ], []
+        Result.ok ([ { c with sym_code = (Value v') :: vs, es' } ], [])
 
       | Const v, vs ->
         let es' = List.tl es in
-        [ { c with sym_code = (Value v.it) :: vs, es' } ], []
+        Result.ok ([ { c with sym_code = (Value v.it) :: vs, es' } ], [])
 
       | Dup, v :: vs' ->
         let vs'' = v :: v :: vs' in
         let es' = List.tl es in
-        [ { c with sym_code = (vs'', es') } ], []
+        Result.ok ([ { c with sym_code = (vs'', es') } ], [])
 
       | SymAssert, (Value (I32 0l)) :: vs' ->
-        (* TODO: finish this *)
+        (* TODO: finish this? *)
         (* debug ">>> Assert FAILED! Stopping..."; *)
-        failwith "SymAssert with 0"
+        failwith "Reached SymAssert with 0"
 
       | SymAssert, (Value (I32 _)) :: vs' ->
         (* passed *)
-        [ { c with sym_code = vs', List.tl es } ], []
+        Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | SymAssert, v :: vs' ->
         let es' =
@@ -264,24 +264,24 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
                 failwith "TODO: ask Z3 if v is possibly true"
         in
         let es'' = es' @ List.tl es in
-        [ { c with sym_code = (vs', es'') } ], []
+        Result.ok ([ { c with sym_code = (vs', es'') } ], [])
 
       | SymAssume, ex :: vs' ->
         (match ex with
         | Value (I32 0l) ->
           (* if it is 0 *)
           (* TODO: what to do? *)
-          [], []
+          Result.ok ([], [])
         | Value (I32 _) ->
           (* if it is not 0 *)
           (* TODO: just continue right? *)
-          [ { c with sym_code = vs, List.tl es } ], []
+          Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
         | _ -> (
-          failwith "TODO: Ask Z3 if expression is satisfiable, if so continue as is"
           (* else, return [], [] *)
-          let pc_true = add_constraint ex pc false in
-          let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] ; path_cond = pc_true } in
-          [ { c_true } ], []
+          (* let pc_true = add_constraint ex pc false in *)
+          (* let c_true = { c with sym_code = vs', List.tl es ; path_cond = pc_true } in *)
+          failwith "TODO: Ask Z3 if expression is satisfiable, if so continue with line below"
+          (* ([ c_true ], []); *)
           )
         )
 
@@ -291,96 +291,103 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let v = to_symbolic ty x in
         let es' = List.tl es in
         Hashtbl.replace var_map x ty;
-        [ { c with sym_code = (v :: vs', es') } ], []
+        Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
 
       | PrintStack, vs ->
         let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
         print_endline ("Stack:" ^ "\n" ^ (String.concat "\n" vs'));
         let es' = List.tl es in
-        [ { c with sym_code = vs, es' } ], []
+        Result.ok ([ { c with sym_code = vs, es' } ], [])
 
-        (* TODO: PrintMem *)
-        (* TODO: Assert *)
+      (* TODO: PrintMem *)
+      (* TODO: Assert *)
 
-      | _ -> (failwith (instr_str e'))
+      | _ ->
+        failwith ("Not implemented" ^ instr_str e')
       )
 
   | SLabel (n, es0, (vs', [])), vs ->
-    [ { c with sym_code = vs' @ vs, List.tl es } ], []
+    Result.ok ([ { c with sym_code = vs' @ vs, List.tl es } ], [])
 
   | SLabel (n, es0, (vs', {it = Interrupt i; at} :: es')), vs ->
     let es' = (Interrupt i @@ at) :: [SLabel (n, es0, (vs', es')) @@ e.at] in
-    [ { c with sym_code = vs, es' @ (List.tl es) } ], []
+    Result.ok ([ { c with sym_code = vs, es' @ (List.tl es) } ], [])
 
   | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
-      (* TODO *)
-      [], []
+    (* TODO *)
+    Result.ok ([], [])
 
   | SLabel (n, es0, (vs', {it = SReturning vs0; at} :: es')), vs ->
     let vs'' = take n vs0 e.at @ vs in
-    [ { c with sym_code = vs'', List.tl es } ], []
+    Result.ok ([ { c with sym_code = vs'', List.tl es } ], [])
 
   | SLabel (n, es0, (vs', {it = SBreaking (0l, vs0); at} :: es')), vs ->
     let vs'' = take n vs0 e.at @ vs in
     let es' = List.map plain es0 in
-    [ { c with sym_code = vs'', es' @ (List.tl es) } ], []
+    Result.ok ([ { c with sym_code = vs'', es' @ (List.tl es) } ], [])
 
   | SLabel (n, es0, (vs', {it = SBreaking (k, vs0); at} :: es')), vs ->
     let es0' = SBreaking (Int32.sub k 1l, vs0) @@ at in
-    [ { c with sym_code = vs, es0' :: (List.tl es) } ], []
+    Result.ok ([ { c with sym_code = vs, es0' :: (List.tl es) } ], [])
 
   | SLabel (n, es0, code'), vs ->
     (* FIXME: path conditions *)
-    let cs', outs' = step {c with sym_code = code'} in
-    List.map (fun c ->
-      let es0' = SLabel (n, es0, c.sym_code) @@ e.at in
-      { c with sym_code = vs, es0' :: (List.tl es) }
-    ) (cs' @ outs'), []
+    Result.map (fun (cs', outs') ->
+      (List.map (fun c ->
+        let es0' = SLabel (n, es0, c.sym_code) @@ e.at in
+        { c with sym_code = vs, es0' :: (List.tl es) })
+      (cs' @ outs'), [])) (step {c with sym_code = code'})
 
   | SFrame (n, frame', (vs', [])), vs ->
-    [ { c with sym_code = vs' @ vs, List.tl es } ], []
+    Result.ok ([ { c with sym_code = vs' @ vs, List.tl es } ], [])
 
   | SFrame (n, frame', (vs', {it = Interrupt i; at} :: es')), vs ->
     let es' = (Interrupt i @@ at) :: [SFrame (n, frame', (vs', es')) @@ e.at] in
-    [ { c with sym_code = vs, es' @ (List.tl es) } ], []
+    Result.ok ([ { c with sym_code = vs, es' @ (List.tl es) } ], [])
 
   | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
-      (* TODO *)
-      [], []
+    (* TODO *)
+    Result.ok ([], [])
 
   | SFrame (n, frame', (vs', {it = SReturning vs0; at} :: es')), vs ->
     let vs'' = take n vs0 e.at @ vs in
-    [ { c with sym_code = vs'', List.tl es } ], []
+    Result.ok ([ { c with sym_code = vs'', List.tl es } ], [])
 
   | SFrame (n, frame', code'), vs ->
     (* FIXME: path conditions *)
-    let cs', outs' = step {
+    Result.map (fun (cs', outs') ->
+      (List.map (fun c ->
+        let es0 = SFrame (n, c.sym_frame, c.sym_code) @@ e.at in
+        { c with sym_code = vs, es0 :: (List.tl es) }
+      ) (cs' @ outs'), [])
+    ) (step {
       sym_frame = frame';
       sym_code = code';
       path_cond = c.path_cond;
       sym_mem = c.sym_mem;
       sym_budget = c.sym_budget - 1;
       var_map = c.var_map;
-    } in
-    List.map (fun c ->
-      let es0 = SFrame (n, c.sym_frame, c.sym_code) @@ e.at in
-      { c with sym_code = vs, es0 :: (List.tl es) }
-    ) (cs' @ outs'), []
+    })
 
   | STrapping msg, vs ->
-    assert false
+    (* assert false *)
+    failwith "assert false"
 
   | Interrupt i, vs ->
-    assert false
+    (* assert false *)
+    failwith "assert false"
 
   | SReturning vs', vs ->
-    Crash.error e.at "undefined frame"
+    (* Crash.error e.at "undefined frame" *)
+    failwith "undefined frame"
 
   | SBreaking (k, vs'), vs ->
-    Crash.error e.at "undefined label"
+    (* Crash.error e.at "undefined label" *)
+    failwith "undefined label"
 
   | SInvoke func, vs when c.sym_budget = 0 ->
-    Exhaustion.error e.at "call stack exhausted"
+    (* Exhaustion.error e.at "call stack exhausted" *)
+    failwith "call stack exhausted"
 
   | SInvoke func, vs ->
       let FuncType (ins, out) = Func.type_of func in
@@ -393,9 +400,10 @@ let rec step (c : sym_config) : (sym_config list * sym_config list) =
         let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
         let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in
         let es0 = (SFrame (List.length out, frame', code') @@ e.at) in
-        [ { c with sym_code = vs', es0 :: (List.tl es) } ], []
+        Result.ok ([ { c with sym_code = vs', es0 :: (List.tl es) } ], [])
 
-      | Func.HostFunc (t, f) -> failwith "HostFunc error"
+      | Func.HostFunc (t, f) ->
+        failwith "HostFunc error"
       )
   )
 
@@ -405,7 +413,7 @@ let rec eval (cs : sym_config list) (outs : sym_config list) :
   | [] -> [], outs
 
   | c :: t ->
-      let cs', outs' = step c in
+      let cs', outs' = Result.get_ok (step c) in
       eval (cs' @ t) (outs' @ outs)
 
 let invoke (func : func_inst) (vs : sym_expr list) : unit =
