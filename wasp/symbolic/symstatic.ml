@@ -66,8 +66,6 @@ and sym_admin_instr' =
     *)
   | Interrupt of interruption
 
-type varmap = (string, value_type) Hashtbl.t
-
 (* Symbolic configuration  *)
 type sym_config =
 {
@@ -76,7 +74,7 @@ type sym_config =
   path_cond  : path_conditions;
   sym_mem    : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
-  var_map    : varmap;
+  var_map    : Varmap.t;
 }
 
 let clone(c: sym_config): sym_config =
@@ -246,42 +244,53 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | SymAssert, v :: vs' ->
-        let es' =
-          if pc = [] then []
-          else
-            match simplify v with
-            | Value (I32 v) when not (v = 0l) -> []
-            | Ptr   (I32 v) when not (v = 0l) -> []
-            | ex' ->
-              let c = Option.map negate_relop (to_constraint ex') in
-              let pc' = Option.map_default (fun a -> a :: pc) pc c in
-              let assertion = Formula.to_formula pc' in
-              let model = Z3Encoding2.check_sat_core assertion in
-              match model with
-              | None   -> []
-              | Some m ->
-                (* [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at] *)
-                failwith "TODO: ask Z3 if v is possibly true"
+        (let opt_c =
+        (match simplify v with
+        | Value (I32 v) when not (v = 0l) -> None
+        | Ptr   (I32 v) when not (v = 0l) -> None
+        | ex' ->
+          let c = Option.map negate_relop (to_constraint ex') in
+          let pc' = Option.map_default (fun a -> a :: pc) pc c in
+          let assertion = Formula.to_formula pc' in
+          let model = Z3Encoding2.check_sat_core assertion in
+          match model with
+          | None   -> None
+          | Some m ->
+            let li32 = Varmap.get_vars_by_type I32Type var_map
+            and li64 = Varmap.get_vars_by_type I64Type var_map
+            and lf32 = Varmap.get_vars_by_type F32Type var_map
+            and lf64 = Varmap.get_vars_by_type F64Type var_map in
+            let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+            Some Logicenv.(to_json binds)
+        )
         in
-        let es'' = es' @ List.tl es in
-        Result.ok ([ { c with sym_code = (vs', es'') } ], [])
+        match opt_c with
+        | Some c -> Result.error c
+        | None -> Result.ok ([ { c with sym_code = (vs', List.tl es) } ], [])
+        )
 
       | SymAssume, ex :: vs' ->
-        (match ex with
+        (match simplify ex with
+        | Ptr   (I32 0l)
         | Value (I32 0l) ->
           (* if it is 0 *)
           (* TODO: what to do? *)
           Result.ok ([], [])
+        | Ptr   (I32 _)
         | Value (I32 _) ->
           (* if it is not 0 *)
-          (* TODO: just continue right? *)
           Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
-        | _ -> (
-          (* else, return [], [] *)
-          (* let pc_true = add_constraint ex pc false in *)
-          (* let c_true = { c with sym_code = vs', List.tl es ; path_cond = pc_true } in *)
-          failwith "TODO: Ask Z3 if expression is satisfiable, if so continue with line below"
-          (* ([ c_true ], []); *)
+        | ex' -> (
+          let pc_true = add_constraint ex' pc false in
+          let assertion = Formula.to_formula pc_true in
+          let model = Z3Encoding2.check_sat_core assertion in
+          match model with
+          | None   ->
+            Result.ok ([], [])
+          | Some _ ->
+            let c_true = { c with sym_code = vs', List.tl es ; path_cond = pc_true } in
+            print_endline "added";
+            Result.ok ([ c_true ], []);
           )
         )
 
@@ -370,24 +379,19 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
     })
 
   | STrapping msg, vs ->
-    (* assert false *)
-    failwith "assert false"
+    assert false
 
   | Interrupt i, vs ->
-    (* assert false *)
-    failwith "assert false"
+    assert false
 
   | SReturning vs', vs ->
-    (* Crash.error e.at "undefined frame" *)
-    failwith "undefined frame"
+    Crash.error e.at "undefined frame"
 
   | SBreaking (k, vs'), vs ->
-    (* Crash.error e.at "undefined label" *)
-    failwith "undefined label"
+    Crash.error e.at "undefined label"
 
   | SInvoke func, vs when c.sym_budget = 0 ->
-    (* Exhaustion.error e.at "call stack exhausted" *)
-    failwith "call stack exhausted"
+    Exhaustion.error e.at "call stack exhausted"
 
   | SInvoke func, vs ->
       let FuncType (ins, out) = Func.type_of func in
@@ -408,13 +412,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
   )
 
 let rec eval (cs : sym_config list) (outs : sym_config list) :
-    (sym_config list * sym_config list) =
+    ((sym_config list * sym_config list), string) result =
   match cs with
-  | [] -> [], outs
+  | [] -> Result.ok ([], outs)
 
   | c :: t ->
-      let cs', outs' = Result.get_ok (step c) in
-      eval (cs' @ t) (outs' @ outs)
+      match (step c) with
+      | Result.Ok (cs', outs') -> eval (cs' @ t) (outs' @ outs)
+      | err -> err
 
 let invoke (func : func_inst) (vs : sym_expr list) : unit =
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
@@ -422,5 +427,9 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
     Crash.error at ("sym_invoke: " ^ s) in
   let c = sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at]
     !inst.sym_memory in
-  ignore (eval [c] [])
+  match (eval [c] []) with
+  | Result.Ok _ -> ()
+  | Result.Error str -> (
+    print_endline str
+  )
 
