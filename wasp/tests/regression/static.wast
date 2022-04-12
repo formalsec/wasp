@@ -12,7 +12,7 @@
         (i32.const 1024)
         (i32.symbolic)      ;; retorna uma sym var com um valor random e a label `a`
         (sym_assert)
-        )
+      )
     )
   )
   (export "main" (func $main))

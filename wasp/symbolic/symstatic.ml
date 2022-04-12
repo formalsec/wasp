@@ -30,6 +30,18 @@ type interruption =
   | AssFail of string
   | Bug of bug * string
 
+(* TODO: extract to common module with symeval.ml *)
+let numeric_error at = function
+  | Evaluations.UnsupportedOp m ->  m ^ ": unsupported operation"
+  | Numeric_error.IntegerOverflow -> "integer overflow"
+  | Numeric_error.IntegerDivideByZero -> "integer divide by zero"
+  | Numeric_error.InvalidConversionToInteger -> "invalid conversion to integer"
+  | Eval_numeric.TypeError (i, v, t) ->
+    Crash.error at
+      ("type error, expected " ^ Types.string_of_value_type t ^ " as operand " ^
+       string_of_int i ^ ", got " ^ Types.string_of_value_type (Values.type_of v))
+  | exn -> raise exn
+
 (* Administrative Expressions & Configurations *)
 type 'a stack = 'a list
 
@@ -229,6 +241,22 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (Value v.it) :: vs, es' } ], [])
 
+      | Compare relop, v2 :: v1 :: vs' ->
+        let es' = List.tl es in
+        (try
+          let v = Static_evaluations.eval_relop v1 v2 relop in
+          Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
+        with exn ->
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn)  @@ e.at) :: es' } ], []))
+
+      | Binary binop, v2 :: v1 :: vs' ->
+        let es' = List.tl es in
+        (try
+          let v = Static_evaluations.eval_binop v1 v2 binop in
+          Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
+        with exn ->
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn)  @@ e.at) :: es' } ], []))
+
       | Dup, v :: vs' ->
         let vs'' = v :: v :: vs' in
         let es' = List.tl es in
@@ -289,7 +317,6 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
             Result.ok ([], [])
           | Some _ ->
             let c_true = { c with sym_code = vs', List.tl es ; path_cond = pc_true } in
-            print_endline "added";
             Result.ok ([ c_true ], []);
           )
         )
@@ -312,7 +339,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
       (* TODO: Assert *)
 
       | _ ->
-        failwith ("Not implemented" ^ instr_str e')
+        failwith ("Not implemented " ^ instr_str e')
       )
 
   | SLabel (n, es0, (vs', [])), vs ->

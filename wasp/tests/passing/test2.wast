@@ -1,23 +1,30 @@
 ;; Must pass
 ;; Tests assume/assert operations
-(module 
+(module
     (memory $0 1)
 
-    (func $main
-        (sym_int32 "x")
-        (sym_int32 "y")
+    (func $main (local i32) (local i32) (local i32)
+        (i32.const 1024)      ;; x
+        (i32.symbolic)
+        (local.tee 0)
+        (i32.const 1026)      ;; y
+        (i32.symbolic)
+        (local.tee 1)
         (i32.mul)
-        (sym_int32 "z")
+        (i32.const 1028)      ;; z
+        (i32.symbolic)
+        (local.tee 2)
         (i32.ne)
         (sym_assume)          ;; assume ( x*y != z )
 
-        (sym_int32 "x")
-        (sym_int32 "y")
+        (local.get 0)         ;; x
+        (local.get 1)         ;; y
         (i32.mul)
-        (sym_int32 "z")
+        (local.get 2)         ;; z
         (i32.ne)
         (sym_assert)        ;; assert ( x*y != z ) TO PROVE THE ASSUMPTION WAS MADE
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")
