@@ -420,7 +420,7 @@ let rec get_ptr (e : sym_expr) : value option =
   (* FIXME: this function can be "simplified" *)
   begin match e with
   | Ptr p   -> Some p
-  | Value _ -> None
+  | Value p -> Some p
   | I32Unop (_, e) -> get_ptr e
   | I32Binop (_, e1, e2) ->
       let p1 = get_ptr e1 in
