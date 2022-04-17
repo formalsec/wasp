@@ -7,6 +7,9 @@ open Source
 (* open Evaluations *)
 (* open Si32 *)
 
+(* TODO/FIXME: there's a lot of code at the top that
+  needs to be extracted to a common module with symeval.ml *)
+
 (* Errors *)
 
 module Link = Error.Make ()
@@ -19,6 +22,16 @@ exception Trap = Trap.Error
 exception Crash = Crash.Error (* failure that cannot happen in valid code *)
 exception Exhaustion = Exhaustion.Error
 
+let memory_error at = function
+  | Symmem2.InvalidAddress a ->
+      (Int64.to_string a) ^ ":address not found in hashtable"
+  | Symmem2.Bounds -> "out of bounds memory access"
+  (* TODO: might just remove these *)
+  | Memory.SizeOverflow -> "memory size overflow"
+  | Memory.SizeLimit -> "memory size limit reached"
+  | Memory.Type -> Crash.error at "type mismatch at memory access"
+  | exn -> raise exn
+
 type bug =
   | Overflow
   | UAF
@@ -30,7 +43,6 @@ type interruption =
   | AssFail of string
   | Bug of bug * string
 
-(* TODO: extract to common module with symeval.ml *)
 let numeric_error at = function
   | Evaluations.UnsupportedOp m ->  m ^ ": unsupported operation"
   | Numeric_error.IntegerOverflow -> "integer overflow"
@@ -115,6 +127,8 @@ let sym_config inst vs es sym_m = {
   sym_budget = 100000; (* models default recursion limit in a system *)
   var_map = Hashtbl.create 100;
 }
+
+exception BugException of bug * region * string
 
 let plain e = SPlain e.it @@ e.at
 
@@ -209,10 +223,11 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           let c_clone = clone c in
           let pc_false = add_constraint ex pc true in
           let pc_true = add_constraint ex pc false in
+          let es' = List.tl es in
           (* TODO: check if ex != 0 is sat and if so include that config *)
-          let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] ; path_cond = pc_true } in
+          let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true } in
           (* TODO: check if ex == 0 is sat and if so include that config *)
-          let c_false = { c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] ; path_cond = pc_false } in
+          let c_false = { c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false } in
           Result.ok ([ c_true; c_false ], [])
           )
         )
@@ -236,6 +251,47 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let v' = Global.load (global frame.sym_inst x) in
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (Value v') :: vs, es' } ], [])
+
+      | Load {offset; ty; sz; _}, sym_ptr :: vs' ->
+        let ptr = get_ptr (simplify sym_ptr) in
+        let low = I32Value.of_value (Option.get ptr) in
+        let low64 = Int64.of_int32 low in
+        begin try
+          (* TODO: check for UAF and overflow? *)
+          let (_, v) =
+            match sz with
+            | None           -> Symmem2.load_value mem low64 offset ty
+            | Some (sz, ext) -> Symmem2.load_packed sz ext mem low64 offset ty
+          in
+          let es' = List.tl es in
+          Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
+        with
+        | BugException (b, at, _) ->
+            (* TODO: somehow get logic_env to generate the error? *)
+            Result.ok ([ { c with sym_code = vs', [(Interrupt (Bug (b, "memory index overflow or UAF no logic_env to generate JSON"))) @@ e.at] } ], [])
+        | exn ->
+            Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
+        end
+
+      | Store {offset; sz; _}, ex :: sym_ptr :: vs' ->
+        let ptr = get_ptr (simplify sym_ptr) in
+        let low = I32Value.of_value (Option.get ptr) in
+        let low64 = Int64.of_int32 low in
+        begin try
+          (* TODO: check for UAF and overflow? *)
+          begin match sz with
+          | None    -> Symmem2.store_value mem low64 offset (I32 0l, ex)
+          | Some sz -> Symmem2.store_packed sz mem low64 offset (I32 0l, ex)
+          end;
+          let es' = List.tl es in
+          Result.ok ([ { c with sym_code = vs', es' } ], [])
+        with
+        | BugException (b, at, _) ->
+            (* TODO: somehow get logic_env to generate the error? *)
+            Result.ok ([ { c with sym_code = vs', [(Interrupt (Bug (b, "memory index overflow or UAF no logic_env to generate JSON"))) @@ e.at] } ], [])
+        | exn ->
+            Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
+        end
 
       | Const v, vs ->
         let es' = List.tl es in
@@ -335,8 +391,10 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
-      (* TODO: PrintMem *)
-      (* TODO: Assert *)
+      | PrintMemory, vs ->
+        print_endline ("MEMORY STATE:\n" ^ (Symmem2.to_string mem));
+        let es' = List.tl es in
+        Result.ok ([ { c with sym_code = vs, es' } ], [])
 
       | _ ->
         failwith ("Not implemented " ^ instr_str e')
