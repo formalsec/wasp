@@ -232,6 +232,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           )
         )
 
+      | Call x, vs ->
+          Result.ok ([ { c with sym_code = vs, [SInvoke (func frame.sym_inst x) @@ e.at] } ], [])
+
       | LocalGet x, vs ->
         let vs' = !(local frame x) :: vs in
         let es' = List.tl es in
@@ -317,6 +320,10 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let vs'' = v :: v :: vs' in
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (vs'', es') } ], [])
+
+      | GetSymInt32 x, vs' ->
+        let es' = List.tl es in
+        Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymInt32, x)) :: vs', es'} ], [])
 
       | SymAssert, (Value (I32 0l)) :: vs' ->
         (* TODO: finish this? *)
