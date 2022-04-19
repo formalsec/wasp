@@ -341,6 +341,10 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymInt32, x)) :: vs', es'} ], [])
 
+      | GetSymInt64 x, vs' ->
+        let es' = List.tl es in
+        Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymInt64, x)) :: vs', es'} ], [])
+
       | SymAssert, (Value (I32 0l)) :: vs' ->
         (* TODO: finish this? *)
         (* debug ">>> Assert FAILED! Stopping..."; *)
