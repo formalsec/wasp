@@ -10,6 +10,39 @@ open Symvalue
   of code, needs to be modularized
  *)
 
+exception UnsupportedOp of string
+
+(*  Evaluate a unary operation  *)
+let eval_unop (e : sym_expr) (op : unop) : sym_expr =
+  let f32_unop op e =
+    begin match op with
+    | F32Op.Neg     -> F32Unop (F32Neg, e)
+    | F32Op.Abs     -> F32Unop (F32Abs, e)
+    | F32Op.Sqrt    -> F32Unop (F32Sqrt, e)
+    | F32Op.Nearest -> F32Unop (F32Nearest, e)
+    | F32Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
+    | F32Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
+    | F32Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
+    end
+  in
+  let f64_unop op e =
+    begin match op with
+    | F64Op.Neg     -> F64Unop (F64Neg, e)
+    | F64Op.Abs     -> F64Unop (F64Abs, e)
+    | F64Op.Sqrt    -> F64Unop (F64Sqrt, e)
+    | F64Op.Nearest -> F64Unop (F64Nearest, e)
+    | F64Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
+    | F64Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
+    | F64Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
+    end
+  in
+  match e with
+  | Value c -> Value (Eval_numeric.eval_unop op c)
+  | _ -> match op with
+    | Values.F32 x -> f32_unop x e
+    | Values.F64 x -> f64_unop x e
+		| Values.I32 _ | Values.I64 _ -> raise (UnsupportedOp "eval_unop: ints")
+
 (*  Evaluate a binary operation *)
 let eval_binop (s1 : sym_expr) (s2 : sym_expr) (op : Ast.binop) : sym_expr =
   let i32_binop op e1 e2 =

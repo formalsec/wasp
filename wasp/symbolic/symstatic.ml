@@ -308,6 +308,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         with exn ->
           Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], []))
 
+      | Unary unop, v :: vs' ->
+        let es' = List.tl es in
+        (try
+          let v = Static_evaluations.eval_unop v unop in
+          Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
+        with exn ->
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], []))
+
       | Binary binop, v2 :: v1 :: vs' ->
         let es' = List.tl es in
         (try
