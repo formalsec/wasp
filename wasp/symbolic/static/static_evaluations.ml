@@ -118,6 +118,18 @@ let eval_binop (s1 : sym_expr) (s2 : sym_expr) (op : Ast.binop) : sym_expr =
     end
   in s
 
+(*  Evaluate a test operation  *)
+let eval_testop (e : sym_expr) (op : testop) : sym_expr =
+  begin match e with
+  | Value c | Ptr c -> Value (Values.value_of_bool (Eval_numeric.eval_testop op c))
+  | _ ->
+      begin match op with
+      | Values.I32 I32Op.Eqz -> I32Relop (I32Eq, e, Value (Values.I32 0l))
+      | Values.I64 I64Op.Eqz -> I64Relop (I64Eq, e, Value (Values.I64 0L))
+      | Values.F32 _ | Values.F64 _ -> failwith "eval_testop: floats"
+      end
+  end
+
 (*  Evaluate a relative operation  *)
 let eval_relop (s1 : sym_expr) (s2 : sym_expr) (op : Ast.relop) : sym_expr =
   let i32_relop op e1 e2 =

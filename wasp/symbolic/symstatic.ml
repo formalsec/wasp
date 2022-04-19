@@ -300,6 +300,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (Value v.it) :: vs, es' } ], [])
 
+      | Test testop, v :: vs' ->
+        let es' = List.tl es in
+        (try
+          let v' = Static_evaluations.eval_testop v testop in
+          Result.ok ([ { c with sym_code = v' :: vs', es' } ], [])
+        with exn ->
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], []))
+
       | Compare relop, v2 :: v1 :: vs' ->
         let es' = List.tl es in
         (try
