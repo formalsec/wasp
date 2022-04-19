@@ -306,7 +306,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           let v = Static_evaluations.eval_relop v1 v2 relop in
           Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
         with exn ->
-          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn)  @@ e.at) :: es' } ], []))
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], []))
 
       | Binary binop, v2 :: v1 :: vs' ->
         let es' = List.tl es in
@@ -391,6 +391,18 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Hashtbl.replace var_map x ty;
         Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
+
+      | Boolop boolop, v1 :: v2 :: vs' ->
+        (* results in i32 *)
+        let v2' = mk_relop v2 I32Type in
+        let v1' = mk_relop v1 I32Type in
+        let v3 = Static_evaluations.eval_binop v1' v2' boolop in
+        let es' = List.tl es in
+        (try
+          Result.ok ([ { c with sym_code = (v3 :: vs', es') } ], [])
+        with exn ->
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], [])
+        )
 
       | PrintStack, vs ->
         let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
