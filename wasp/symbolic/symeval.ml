@@ -433,26 +433,24 @@ let rec sym_step (c : sym_config) : sym_config =
       | SymAssert, (I32 i, ex) :: vs' -> (* != 0 on top of stack *)
         debug ">>> Assert reached. Checking satisfiability...";
         let es' =
-          if pc = [] && !assumes = [] then []
-          else
-            match simplify ex with
-            | Value (I32 v) when not (v = 0l) -> []
-            | Ptr   (I32 v) when not (v = 0l) -> []
-            | ex' ->
-              let c = Option.map negate_relop (to_constraint ex') in
-              let pc' = Option.map_default (fun a -> a :: pc) pc c in
-              let assertion = Formula.to_formula (!assumes @ pc') in
-              let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
-              match model with
-              | None   -> []
-              | Some m ->
-                let li32 = Logicenv.get_vars_by_type I32Type logic_env
-                and li64 = Logicenv.get_vars_by_type I64Type logic_env
-                and lf32 = Logicenv.get_vars_by_type F32Type logic_env
-                and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
-                let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-                Logicenv.update logic_env binds;
-                [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
+          match simplify ex with
+          | Value (I32 v) when not (v = 0l) -> []
+          | Ptr   (I32 v) when not (v = 0l) -> []
+          | ex' ->
+            let c = Option.map negate_relop (to_constraint ex') in
+            let pc' = Option.map_default (fun a -> a :: pc) pc c in
+            let assertion = Formula.to_formula (!assumes @ pc') in
+            let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+            match model with
+            | None   -> []
+            | Some m ->
+              let li32 = Logicenv.get_vars_by_type I32Type logic_env
+              and li64 = Logicenv.get_vars_by_type I64Type logic_env
+              and lf32 = Logicenv.get_vars_by_type F32Type logic_env
+              and lf64 = Logicenv.get_vars_by_type F64Type logic_env in
+              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+              Logicenv.update logic_env binds;
+              [Interrupt (AssFail Logicenv.(to_json (to_list logic_env))) @@ e.at]
         in
         if es' = [] then
           debug "\n\n###### Assertion passed ######";
