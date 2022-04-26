@@ -211,6 +211,10 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es0 = SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at in
         Result.ok ([ { c with sym_code = vs, es0 :: (List.tl es) } ], [])
 
+      | Loop (ts, es'), vs ->
+        let es0 = SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at in
+        Result.ok ([ { c with sym_code = vs, es0 :: (List.tl es) } ], [])
+
       | If (ts, es1, es2), (ex) :: vs' ->
         (match ex with
         | Value (I32 0l) ->
@@ -228,6 +232,31 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true } in
           (* TODO: check if ex == 0 is sat and if so include that config *)
           let c_false = { c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false } in
+          Result.ok ([ c_true; c_false ], [])
+          )
+        )
+
+      | Br x, vs ->
+        Result.ok ([ { c with sym_code = vs, [SBreaking (x.it, vs) @@ e.at] } ], [])
+
+      | BrIf x, ex :: vs' ->
+        (match ex with
+        | Value (I32 0l) ->
+          (* if it is 0 *)
+          let es' = List.tl es in
+          Result.ok ([ { c with sym_code = vs', es' } ], [])
+        | Value (I32 _) ->
+          (* if it is not 0 *)
+          Result.ok ([ { c with sym_code = vs', [SPlain (Br x) @@ e.at] } ], [])
+        | _ -> (
+          let c_clone = clone c in
+          let pc_false = add_constraint ex pc true in
+          let pc_true = add_constraint ex pc false in
+          let es' = List.tl es in
+          (* TODO: check if ex != 0 is sat and if so include that config *)
+          let c_true = { c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true } in
+          (* TODO: check if ex == 0 is sat and if so include that config *)
+          let c_false = { c_clone with sym_code = vs', es'; path_cond = pc_false } in
           Result.ok ([ c_true; c_false ], [])
           )
         )
