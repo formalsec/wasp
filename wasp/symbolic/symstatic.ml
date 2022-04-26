@@ -233,7 +233,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         )
 
       | Call x, vs ->
-          Result.ok ([ { c with sym_code = vs, [SInvoke (func frame.sym_inst x) @@ e.at] } ], [])
+        Result.ok ([ { c with sym_code = vs, [SInvoke (func frame.sym_inst x) @@ e.at] @ t } ], [])
 
       | LocalGet x, vs ->
         let vs' = !(local frame x) :: vs in
@@ -345,10 +345,34 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymInt64, x)) :: vs', es'} ], [])
 
+      | GetSymFloat32 x, vs' ->
+        let es' = List.tl es in
+        Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymFloat32, x)) :: vs', es'} ], [])
+
+      | GetSymFloat64 x, vs' ->
+        let es' = List.tl es in
+        Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymFloat64, x)) :: vs', es'} ], [])
+
       | SymAssert, (Value (I32 0l)) :: vs' ->
-        (* TODO: finish this? *)
         (* debug ">>> Assert FAILED! Stopping..."; *)
-        failwith "Reached SymAssert with 0"
+        (let opt_c =
+          let assertion = Formula.to_formula pc in
+          let model = Z3Encoding2.check_sat_core assertion in
+          match model with
+          | None   -> None
+          | Some m ->
+            let li32 = Varmap.get_vars_by_type I32Type var_map
+            and li64 = Varmap.get_vars_by_type I64Type var_map
+            and lf32 = Varmap.get_vars_by_type F32Type var_map
+            and lf64 = Varmap.get_vars_by_type F64Type var_map in
+            let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+            Some Logicenv.(to_json binds)
+        )
+        in
+        match opt_c with
+        | Some c -> Result.error c
+        | None -> Result.ok ([], []) (* unsat PC can be ignored, maybe unreachable? *)
+        )
 
       | SymAssert, (Value (I32 _)) :: vs' ->
         (* passed *)
@@ -385,7 +409,6 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         | Ptr   (I32 0l)
         | Value (I32 0l) ->
           (* if it is 0 *)
-          (* TODO: what to do? *)
           Result.ok ([], [])
         | Ptr   (I32 _)
         | Value (I32 _) ->
