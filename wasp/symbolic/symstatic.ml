@@ -256,7 +256,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         Result.ok ([ { c with sym_code = (Value v') :: vs, es' } ], [])
 
       | Load {offset; ty; sz; _}, sym_ptr :: vs' ->
-        let ptr = get_ptr (simplify sym_ptr) in
+        let ptr = concretize_ptr (simplify sym_ptr) in
         let low = I32Value.of_value (Option.get ptr) in
         let low64 = Int64.of_int32 low in
         begin try
@@ -277,14 +277,15 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         end
 
       | Store {offset; sz; _}, ex :: sym_ptr :: vs' ->
-        let ptr = get_ptr (simplify sym_ptr) in
+        let ptr = concretize_ptr (simplify sym_ptr) in
         let low = I32Value.of_value (Option.get ptr) in
         let low64 = Int64.of_int32 low in
         begin try
           (* TODO: check for UAF and overflow? *)
+          let stored_val = (Values.default_value (Symvalue.type_of ex), ex) in
           begin match sz with
-          | None    -> Symmem2.store_value mem low64 offset (I32 0l, ex)
-          | Some sz -> Symmem2.store_packed sz mem low64 offset (I32 0l, ex)
+          | None    -> Symmem2.store_value mem low64 offset stored_val
+          | Some sz -> Symmem2.store_packed sz mem low64 offset stored_val
           end;
           let es' = List.tl es in
           Result.ok ([ { c with sym_code = vs', es' } ], [])
@@ -367,11 +368,10 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
             and lf64 = Varmap.get_vars_by_type F64Type var_map in
             let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
             Some Logicenv.(to_json binds)
-        )
         in
         match opt_c with
         | Some c -> Result.error c
-        | None -> Result.ok ([], []) (* unsat PC can be ignored, maybe unreachable? *)
+        | None -> Result.ok ([], []) (* unsat PC can be ignored, unreachable if we optimize if *)
         )
 
       | SymAssert, (Value (I32 _)) :: vs' ->

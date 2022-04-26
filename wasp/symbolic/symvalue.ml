@@ -461,6 +461,14 @@ let rec get_ptr (e : sym_expr) : value option =
       if Option.is_some p1 then p1 else get_ptr e2
   end
 
+let concretize_ptr (e : sym_expr) : value option =
+  (* TODO: this should work with symbolic pointers *)
+  (* would probably introduce Memory Objects here *)
+  begin match e with
+  | Value p -> Some p
+  | _ -> failwith ("can't concretize '" ^ (to_string e) ^ "' to a ptr")
+  end
+
 let is_relop (e : sym_expr) : bool =
   begin match e with
   | I32Relop _ | I64Relop _ | F32Relop _ | F64Relop _ -> true
