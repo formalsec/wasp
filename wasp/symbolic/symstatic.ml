@@ -264,6 +264,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           )
         )
 
+      | Return, vs ->
+        Result.ok ([{c with sym_code = vs, [SReturning vs @@ e.at]}], [])
+
       | Call x, vs ->
         Result.ok ([ { c with sym_code = vs, [SInvoke (func frame.sym_inst x) @@ e.at] @ t } ], [])
 
@@ -553,7 +556,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
     (* FIXME: path conditions *)
     Result.map (fun (cs', outs') ->
       (List.map (fun c ->
-        let es0 = SFrame (n, c.sym_frame, c.sym_code) @@ e.at in
+        let es0 = SFrame (n, frame', c.sym_code) @@ e.at in
         { c with sym_code = vs, es0 :: (List.tl es) }
       ) (cs' @ outs'), [])
     ) (step {
