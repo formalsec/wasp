@@ -62,14 +62,17 @@ type sym_frame =
 {
   sym_inst : module_inst;
   sym_locals : sym_expr ref list; (*  Locals can be symbolic  *)
+  sym_globals: Static_globals.t
 }
 
 let clone(frame: sym_frame): sym_frame =
   let sym_inst = clone(frame.sym_inst) in
   let sym_locals = frame.sym_locals in
+  let sym_globals = frame.sym_globals in
   {
     sym_inst = sym_inst;
     sym_locals = sym_locals;
+    sym_globals = sym_globals;
   }
 
 (*  Symbolic code  *)
@@ -118,9 +121,9 @@ let clone(c: sym_config): sym_config =
   }
 
 (* Symbolic frame and configuration  *)
-let sym_frame sym_inst sym_locals = {sym_inst; sym_locals}
-let sym_config inst vs es sym_m = {
-  sym_frame  = sym_frame inst [];
+let sym_frame sym_inst sym_locals globs = {sym_inst; sym_locals; sym_globals = globs}
+let sym_config inst vs es sym_m globs = {
+  sym_frame  = sym_frame inst [] globs;
   sym_code   = vs, es;
   path_cond  = [];
   sym_mem    = sym_m;
@@ -280,9 +283,17 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
 
       | GlobalGet x, vs ->
-        let v' = Global.load (global frame.sym_inst x) in
+        let v' = Static_globals.load frame.sym_globals x.it in
         let es' = List.tl es in
-        Result.ok ([ { c with sym_code = (Value v') :: vs, es' } ], [])
+        Result.ok ([ { c with sym_code = v' :: vs, es' } ], [])
+
+      | GlobalSet x, v :: vs' ->
+        let es' = List.tl es in
+        (try
+          Static_globals.store frame.sym_globals x.it v;
+          Result.ok ([ { c with sym_code = vs', es' } ], [])
+        with  Global.NotMutable -> Crash.error e.at "write to immutable global"
+            | Global.Type -> Crash.error e.at "type mismatch at global write")
 
       | Load {offset; ty; sz; _}, sym_ptr :: vs' ->
         let ptr = concretize_ptr (simplify sym_ptr) in
@@ -578,7 +589,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let locals' = List.map (fun v -> Symvalue.Value v) (List.map default_value f.it.locals) in
         let locals'' = List.rev args @ locals' in
         let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
-        let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in
+        let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''; sym_globals = frame.sym_globals} in
         let es0 = (SFrame (List.length out, frame', code') @@ e.at) in
         Result.ok ([ { c with sym_code = vs', es0 :: (List.tl es) } ], [])
 
@@ -597,12 +608,22 @@ let rec eval (cs : sym_config list) (outs : sym_config list) :
       | Result.Ok (cs', outs') -> eval (cs' @ t) (outs' @ outs)
       | err -> err
 
+let func_to_globs (func : func_inst): Static_globals.t =
+  match Func.get_inst func with
+    | (Some inst ) -> (
+      let global_inst_list = (!inst).globals in
+      Static_globals.from_list(global_inst_list)
+    )
+    | None -> Hashtbl.create 0
+
 let invoke (func : func_inst) (vs : sym_expr list) : unit =
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
     Crash.error at ("sym_invoke: " ^ s) in
+  (* extract globals to symbolic config *)
+  let globs = func_to_globs func in
   let c = sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at]
-    !inst.sym_memory in
+    !inst.sym_memory globs in
   match (eval [c] []) with
   | Result.Ok _ -> ()
   | Result.Error str -> (
