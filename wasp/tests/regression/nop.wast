@@ -31,3 +31,4 @@
       (local.set 0))
   (memory $0 1)
   (export "main" (func $main)))
+(invoke "main")

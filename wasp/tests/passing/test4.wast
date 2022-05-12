@@ -26,5 +26,6 @@
 
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")

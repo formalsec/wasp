@@ -1,11 +1,13 @@
 ;; Must fail
 ;; Tests i64 arithmetic
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_int64 "a")
-        (sym_int64 "b")
+        (i32.const 1024)                ;; a
+        (i64.symbolic)
+        (i32.const 1026)                ;; b
+        (i64.symbolic)
         (drop)
         (i64.const 0)
         (i64.ne)
@@ -22,7 +24,7 @@
                 		(i64.const 2)
                 		(i64.mul) 			;;x = (a+b) * 2
                 		(i64.const 4)		;;y = 4
-                		(i64.sub)			;;x-y 
+                		(i64.sub)			;;x-y
                 	)
                 	(else
                 		(i64.const 3)
@@ -39,5 +41,6 @@
         (sym_assert)
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "a\00b\00c\00")
 )
 (invoke "main")

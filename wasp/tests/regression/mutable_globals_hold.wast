@@ -1,4 +1,4 @@
-;; Loads symbolic memory in various iterations 
+;; Loads symbolic memory in various iterations
 (module
   (type $0 (func))
   (type $1 (func (param i32)))
@@ -17,21 +17,24 @@
   (func $main (type $0)
         (i32.const 65568)
         (call $test_globals)
-        (sym_int32 "if@16")
+        (i32.const 1024)          ;; x
+        (i32.symbolic)
         (i32.const 0)
         (i32.eq)
-        (if 
+        (if
           (then
             (i32.const 64544)
             (call $test_globals)
-            (sym_int32 "if@22")
+            (i32.const 1026)      ;; y
+            (i32.symbolic)
             (i32.const 0)
             (i32.eq)
             (if
               (then
                 (i32.const 63520)
                 (call $test_globals)
-                (sym_int32 "if@28")
+                (i32.const 1026)  ;; z
+                (i32.symbolic)
                 (i32.const 0)
                 (i32.eq)
                 (if
@@ -43,5 +46,5 @@
   (global $1 i32 (i32.const 0))
   (global $2 i32 (i32.const 1))
   (export "main" (func $main))
-  (data $0 (i32.const 1024) "x\00y\00"))
+  (data $0 (i32.const 1024) "x\00y\00z\00"))
 (invoke "main")

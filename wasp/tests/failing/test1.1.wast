@@ -1,21 +1,23 @@
-;; Must pass
+;; Must fail
 ;; Tests if stored value in memory is still equal to x and different than z
-(module 
+(module
     (memory $0 1)
 
     (func $main (result i32)
         (i32.const 1)                   ;; address number
-        (sym_float32 "x")                 ;; value
+        (i32.const 1024)                ;; x
+        (f32.symbolic)
         (f32.const 1)
         (f32.add)
         (f32.store offset=0)            ;; store in offset
 
         (i32.const 1)                   ;; address number
-        (sym_float32 "y")                 ;; value
+        (i32.const 1026)                ;; y
+        (f32.symbolic)
         (f32.const 2)
         (f32.add)
         (f32.store offset=4)            ;; store in offset
-        
+
         (i32.const 1)
         (f32.load offset=0) ;; loads x
         (get_sym_float32 "x")
@@ -38,5 +40,6 @@
         (i32.const 0) ;;return
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")

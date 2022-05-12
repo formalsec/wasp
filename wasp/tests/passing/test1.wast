@@ -10,7 +10,7 @@
         (i32.store offset=0)            ;; store in offset
 
         (i32.const 1)                   ;; address number
-        (i32.const 1026)                ;; x
+        (i32.const 1026)                ;; y
         (i32.symbolic)
         (i32.store offset=4)            ;; store in offset
 
