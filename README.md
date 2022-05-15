@@ -13,7 +13,6 @@ tools and benchmarks required for their evaluation:
   * Collections-C
   * Test-Comp
   * AWS Amazon Encryption SDK for C
-* The artifact can be found in [wasp_image.tar.gz](https://zenodo.org/record/5773287)
 * We claim all three badges: functional, reusable, and available.
 
 ## For authors claiming a functional or reusable badge: What are claims about the artifact’s functionality to be evaluated by the committee?
