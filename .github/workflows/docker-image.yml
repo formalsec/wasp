@@ -3,16 +3,23 @@ name: Docker Image CI
 on:
   push:
     branches: [ release/* ]
-  pull_request:
-    branches: [ release/* ]
-
+    
 jobs:
-
-  build:
-
+  publish-wasp-image:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.CR_PAT }}
+
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag wasp:$(date +%s)
+      run: |
+        docker build . --tag ghcr.io/wasp-platform/wasp:latest
+        docker push ghcr.io/wasp-platform/wasp:latest
+
