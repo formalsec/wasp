@@ -97,7 +97,7 @@ version 0.1
 wasp@11194b4b99bd:~$
 ```
 
-#### Examples(#examples)
+#### Examples
 
 **WASP Example:**
 
@@ -176,26 +176,25 @@ To obtain the results from **Table 2 for WASP**, go into the
 
 ```sh
 cd /home/wasp/Collections-C
-time ./run.py
+time ./run.py --normal
 ```
 
 The script terminates after around 60s and creates a file called 
-`table.csv`, that contains the results from Table 2 for WASP.
+`results_normal.csv`, that contains the results from Table 2 for WASP.
 
 To obtain the results for only one row of the table, point 
 the script to the desired category:
 
 ```sh
-./run.py _build/for-wasp/normal/array # runs only Array
-./run.py _build/for-wasp/normal/queue # runs only Queue
+./run.py --single _build/for-wasp/normal/array # runs only Array
+./run.py --single _build/for-wasp/normal/queue # runs only Queue
 ...
 ```
 
-Note that, the script always outputs the results to the file 
-`table.csv`, meaning that consecutive runs will continuously 
-overwrite the file `table.csv`. Additionally, in order to avoid
-possible conflicts between results, delete the `output` directory
-before running the script.
+Each of these commands will, respectively, create the files 
+`results_array.csv` and `results_queue.csv`. In order to avoid
+possible conflicts between results, it is recommended to delete 
+the `output` directory before running the script.
 
 To obtain the results from **Table 2 for Gillian-C**, run EITHER:
 
@@ -236,7 +235,7 @@ commands:
 
 ```sh
 cd /home/wasp/Collections-C
-./run.py _build/for-wasp/bugs
+./run.py --bugs
 ```
 
 Note that, these tests are supposed to return false since they
@@ -254,7 +253,7 @@ Then, clean, compile, and run the benchmarks:
 ```sh
 make clean
 make
-./run.py _build/for-wasp/bugs
+./run.py --bugs
 ```
 
 Note that, since we fixed the bug in `array.c`, WASP now
@@ -303,31 +302,31 @@ compilation (`make THREADS=8`).
 Then, to run the test-suite on a category run:
 
 ```sh
-python3 -m validator <THREADS> <TYPE> <CATEGORY>
+./bin/validator [-h] [-j JOBS] [-branches] [-error] [--output OUTPUT] category
 ```
 
-Where: `THREADS` is an optional argument denoting the number
-of analysis processes to be launched, `TYPE` is the
-type of task to analyse (e.g., `branches` or `error`), and 
-`CATEGORY` is the category from Table 4 to run (e.g., `Arrays` 
+Where: `JOBS` is an optional argument denoting the number
+of analysis processes to be launched, `-branches` and `-error` are the
+type of task to analyse (e.g., `cover-branches` or `cover-error`), and 
+`category` is the category from Table 4 to run (e.g., `Arrays` 
 to execute `C1.Arrays` and `all` to run all categories).
 
 For example, since we compiled `array-fpi` from `Arrays`, 
 we can run:
 
 ```sh
-python3 -m validator 4 error Arrays # Executes Cover-Error with 4 threads on sub-category C1.Arrays
-python3 -m validator 4 branches Arrays # Executes Cover-Branches with 4 threads on sub-category C1.Arrays
-python3 -m validator 4 error all # Executes Cover-Branches with 4 threads on all compiled categories 
+./bin/validator -j 4 -error Arrays # Executes Cover-Error with 4 threads on sub-category C1.Arrays
+./bin/validator -j 4 -branches Arrays # Executes Cover-Branches with 4 threads on sub-category C1.Arrays
+./bin/validator -j 4 -error all # Executes Cover-Branches with 4 threads on all compiled categories 
 ```
 
 **IMPORTANT!** The `validator` does not repeat tasks when re-running 
 the same command. To generate new values one must delete the 
 directory `/home/wasp/Test-Comp/test-suite` before the executing 
-the `validator`. Additionally, the `branches` tasks may only 
+the `validator`. Additionally, the `-branches` tasks may only 
 output to `stdout` after 15 mins, corresponding to the default timeout. 
 For this reason, we recommend running the benchmarks that do not 
-timeout: `python3 -m validator 4 error Arrays`.
+timeout: `./bin/validator -j 4 -error Arrays`.
 
 Lastly, to obtain the results used in Table 4 for Cover-Error, in `csv` format, run:
 
@@ -361,7 +360,7 @@ MainHeap,0/0,0.0
 
 To replicate all the numbers of WASP on the table one must compile all 
 the symbolic test suite and subsequently run the `validator` with the 
-CATEGORY `all` for the TYPE `error` and `branches`. However, as we have 
+category `all` for both `-error` and `-branches`. However, as we have 
 reported in the paper this can take over 300 hours. Hence, we recommend 
 doing it one category at the time, starting with the categories that 
 take less time. 
