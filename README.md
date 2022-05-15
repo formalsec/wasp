@@ -66,7 +66,7 @@ Software requirements:
 Load the `wasp/wasp` docker image by running the following command:
 
 ```sh
-docker load --input wasp_image.tar.gz 
+docker pull ghcr.io/wasp-platform/wasp:latest 
 ```
 
 This command may take upwards of 20 minutes. Next, create a 
@@ -74,7 +74,7 @@ temporary container and gain shell access (allocate enough
 `--cpus=8` to run the bigger benchmarks):
 
 ```sh
-docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> wasp/wasp:v2
+docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> ghcr.io/wasp-platform/wasp:latest
 ```
 
 If this worked correctly your shell prompt should have 
