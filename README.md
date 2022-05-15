@@ -22,11 +22,11 @@ The artifact includes scripts for reproducing the results documented
 in Section 5 of the paper; more specifically: Tables 2-6.
 
 * All the results from Table 2 and Table 3 can be obtained 
-  through the steps described in section [EQ1](#eq1) below
+  through the steps described in section [EQ1](#eq1-collections-c) below
 * The results for WASP from Table 4 and Table 5 can be 
-  obtained through the steps described in section [EQ2](#eq2) below
+  obtained through the steps described in section [EQ2](#eq2-test-comp) below
 * All the results from Table 6 can be obtained by executing
-  the commands enumerated in section [EQ3](#eq3) below
+  the commands enumerated in section [EQ3](#eq3-aws-encryption-sdk-for-c) below
  
 ## For authors claiming a reusable badge: What are the authors' claims about the artifact's reusability to be evaluated by the committee?
 
@@ -168,7 +168,7 @@ Which are comprised of:
 * **wasp**: containing the code of WASP
 * **wasp-c**: containing the code of WASP-C
 
-### EQ1: Collections-C(#eq1)
+### EQ1: Collections-C
 
 #### Table 2
 
@@ -272,7 +272,7 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/bugs \
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-### EQ2: Test-Comp(#eq2)
+### EQ2: Test-Comp
 
 Go into the **Test-Comp** directory and compile our *glibc*
 implementation:
@@ -372,7 +372,7 @@ take less time.
 The CPU times for WASP in Table 5 are obtained from the sum of the
 `Time` column in `error.csv` and `branches.csv`.
 
-### EQ3: AWS Encryption SDK for C(#eq3)
+### EQ3: AWS Encryption SDK for C
 
 #### Table 6
 
