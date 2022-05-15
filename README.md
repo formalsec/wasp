@@ -196,7 +196,14 @@ Each of these commands will, respectively, create the files
 possible conflicts between results, it is recommended to delete 
 the `output` directory before running the script.
 
-To obtain the results from **Table 2 for Gillian-C**, run EITHER:
+To obtain the results from **Table 2 for Gillian-C**, first run:
+
+```
+sudo npm install -g esy@0.6.6 --unsafe-perm && cd /home/wasp/Gillian && \
+  git checkout 2cb5f8d73baf7f7a811b0be6044d533a62c3f50 && esy install && esy
+```
+
+Then, run EITHER:
 
 ```sh
 cd /home/wasp/Gillian
