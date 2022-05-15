@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 ENV BASE=/home/wasp
 ENV Z3_VERSION=4.8.1
 
-LABEL org.opencontainers.image.source="https://github.com/wasp-platform/wasp"
+LABEL org.opencontainers.image.source https://github.com/wasp-platform/wasp
 
 RUN apt-get update  && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     sudo ranger vim make llvm clang lld opam wabt libgmp-dev python3-pip git npm curl lcov clang-tidy gcc-multilib && \
