@@ -374,11 +374,29 @@ let rec encode_formula (a : Formula.t) : Expr.expr =
 let interrupt_z3 () =
   Tactic.interrupt ctx
 
+let formula_to_smt2_file =
+  let counter = ref 0 in
+  let file () : string =
+    let () = incr counter in
+    Printf.sprintf "query-%d.smt2" !counter
+  in fun formula status -> 
+    Params.set_print_mode ctx Z3enums.PRINT_SMTLIB2_COMPLIANT;
+    let query_out = Filename.concat !Flags.output "queries" in
+    let query_file = Filename.concat query_out (file ()) in
+    Io.safe_mkdir query_out;
+    Io.save_file query_file (
+      SMT.benchmark_to_smtstring ctx query_file "" status "" [] formula
+    )
+
 let check_sat_core (asrt : Formula.t) : Model.model option =
+  (*
   let goal = Goal.mk_goal ctx true false false in
   Goal.add goal [encode_formula asrt];
+  *)
+  let formula = encode_formula asrt in
   let solver = Solver.mk_solver ctx None in
-  List.iter (fun a -> Solver.add solver [a]) (Goal.get_formulas goal);
+  Solver.add solver [formula];
+  (*List.iter (fun a -> Solver.add solver [a]) [encode_formula asrt];*)
   (*
   let vars = Formula.get_vars asrt in
   List.iter (fun (x, t) ->
@@ -395,12 +413,15 @@ let check_sat_core (asrt : Formula.t) : Model.model option =
   let f a = Solver.add solver [a] in
   List.iter (fun a -> List.iter f (Goal.get_formulas a)) (Tactic.ApplyResult.get_subgoals ar);
   *)
-  begin match Solver.check solver [] with
-  | Solver.UNSATISFIABLE -> None
+  let status, model = match Solver.check solver [] with
+  | Solver.UNSATISFIABLE -> "unsat", None
   | Solver.UNKNOWN       ->
+      formula_to_smt2_file formula "unknown";
       failwith ("unknown: " ^ (Solver.get_reason_unknown solver)) (* fail? *)
-  | Solver.SATISFIABLE   -> Solver.get_model solver
-  end
+  | Solver.SATISFIABLE   -> "sat", Solver.get_model solver
+  in
+  if !Flags.queries then formula_to_smt2_file formula status;
+  model
 
 let lift_z3_model
     (model : Model.model)
