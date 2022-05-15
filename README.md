@@ -37,10 +37,6 @@ in Section 5 of the paper; more specifically: Tables 2-6.
   our C benchmarks can be used to evaluate other symbolic 
   execution tools for Wasm.
 
-## For authors claiming an available badge
-
-We offer to publish the artifact on [DARTS](https://drops.dagstuhl.de/opus/institut_darts.php).
-
 ## Artifact Requirements
 
 Hardware requirements:
