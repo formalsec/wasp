@@ -43,10 +43,9 @@ RUN git clone https://github.com/wasp-platform/Test-Comp.git "${BASE}/Test-Comp"
 RUN git clone https://gitlab.com/sosy-lab/software/test-suite-validator.git "${BASE}/test-suite-validator"
 RUN git clone https://github.com/wasp-platform/aws-cryptosdk-c.git "${BASE}/aws-encryption-sdk"
 
-RUN  rm -rf $(find /home/wasp/ -type d -name ".git" -not -path '*\.esy*')
-
 # Gillian
 RUN git clone https://github.com/GillianPlatform/Gillian.git "${BASE}/Gillian"
 RUN git clone https://github.com/GillianPlatform/collections-c-for-gillian.git "${BASE}/collections-c-for-gillian"
 RUN sudo npm install -g esy@0.6.6 --unsafe-perm && \
-    cd ${BASE}/Gillian && esy install && esy
+    cd ${BASE}/Gillian && git checkout 2cb5f8d73baf7f7a811b0be6044d533a62c3f50 && \
+    esy install && esy
