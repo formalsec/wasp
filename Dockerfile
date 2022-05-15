@@ -46,6 +46,6 @@ RUN git clone https://github.com/wasp-platform/aws-cryptosdk-c.git "${BASE}/aws-
 # Gillian
 RUN git clone https://github.com/GillianPlatform/Gillian.git "${BASE}/Gillian"
 RUN git clone https://github.com/GillianPlatform/collections-c-for-gillian.git "${BASE}/collections-c-for-gillian"
-RUN sudo npm install -g esy@0.6.6 --unsafe-perm && \
-    cd ${BASE}/Gillian && git checkout 2cb5f8d73baf7f7a811b0be6044d533a62c3f50 && \
-    esy install && esy
+#RUN sudo npm install -g esy@0.6.6 --unsafe-perm && \
+#    cd ${BASE}/Gillian && git checkout 2cb5f8d73baf7f7a811b0be6044d533a62c3f50 && \
+#    esy install && esy
