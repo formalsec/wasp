@@ -19,8 +19,9 @@ def execute(test, output):
                 test,
                 '-m',
                 str(-1),
-                '-r',
-                output
+                '--workspace',
+                output,
+                '--smt-assume'
             ],
             check=True,
             capture_output=True

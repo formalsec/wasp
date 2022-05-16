@@ -1,31 +1,28 @@
 # Concolic Execution for WebAssembly
 
-Title of the submitted paper: Concolic Execution for WebAssembly
-ECOOP submission number for the paper: 25
-
-## Overview: What does the artifact comprise?
-
-The artifact includes the tools presented in the paper and the 
-tools and benchmarks required for their evaluation:
+The artifact includes:
 
 * The source code of Gillian, WASP, and WASP-C
 * The benchmarks on which we evaluate our tools:
   * Collections-C
   * Test-Comp
   * AWS Amazon Encryption SDK for C
-* We claim all three badges: functional, reusable, and available.
 
 ## For authors claiming a functional or reusable badge: What are claims about the artifact’s functionality to be evaluated by the committee?
 
 The artifact includes scripts for reproducing the results documented
-in Section 5 of the paper; more specifically: Tables 2-6.
+in Section 4 of the paper; more specifically: Tables 1-6.
 
+* All the results from Table 1 can be obtained through the 
+  steps described in section [EQ1](#eq1-comparison-with-manticore) below
 * All the results from Table 2 and Table 3 can be obtained 
-  through the steps described in section [EQ1](#eq1-collections-c) below
-* The results for WASP from Table 4 and Table 5 can be 
-  obtained through the steps described in section [EQ2](#eq2-test-comp) below
+  through the steps described in section [EQ2](#eq2-collections-c) below
+* All the results from Table 4 can be obtained through the 
+  steps described in section [EQ3](#eq3-test-comp) below
+* All the results from Table 5 can be obtained through the 
+  steps described in section [EQ4](#eq4-optimisations)
 * All the results from Table 6 can be obtained by executing
-  the commands enumerated in section [EQ3](#eq3-aws-encryption-sdk-for-c) below
+  the commands enumerated in section [EQ5](#eq5-aws-encryption-sdk-for-c) below
  
 ## For authors claiming a reusable badge: What are the authors' claims about the artifact's reusability to be evaluated by the committee?
 
@@ -38,14 +35,6 @@ in Section 5 of the paper; more specifically: Tables 2-6.
 
 ## Artifact Requirements
 
-Hardware requirements:
-
-* Minimum:
-  * 4GiB Ram
-  * 10GiB disk space
-  * These requirements will not be able to reproduce all the 
-    results but can be used to test individual categories for
-    each evaluation question (EQ)
 * Recommended: 
   * 33GiB Ram
   * 60GiB disk space
@@ -53,11 +42,6 @@ Hardware requirements:
     * at least 8 cores
   * These requirements can reproduce all the results in our 
     paper
-
-Software requirements:
-
-* `docker` 
-
 
 ## Getting Started
 
@@ -136,7 +120,7 @@ rm -rf output
 wasp-c wasp-c/tests/test01.c
 ```
 
-#### Layout(#layout)
+#### Layout
 
 The artifact has the following directories:
 
@@ -167,7 +151,27 @@ Which are comprised of:
 * **wasp**: containing the code of WASP
 * **wasp-c**: containing the code of WASP-C
 
-### EQ1: Collections-C
+
+### EQ1: Comparison with Manticore
+
+To obtain the results from **Table 1**, first install manticore:
+
+```sh
+sudo pip install manticore 
+```
+
+then run:
+
+```sh
+cd /home/wasp/wasp && ./tests/run.py
+```
+
+When it is finished, the results for WASP will be in the table
+`/home/wasp/wasp/wasp_output/results-btree-wasp.csv`, and the
+results for Manticore will be in the table 
+`/home/wasp/wasp/mcore_output/results-btree-mcore.csv`.
+
+### EQ2: Collections-C
 
 #### Table 2
 
@@ -277,7 +281,7 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/bugs \
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-### EQ2: Test-Comp
+### EQ3: Test-Comp
 
 Go into the **Test-Comp** directory and compile our *glibc*
 implementation:
@@ -377,7 +381,20 @@ take less time.
 The CPU times for WASP in Table 5 are obtained from the sum of the
 `Time` column in `error.csv` and `branches.csv`.
 
-### EQ3: AWS Encryption SDK for C
+### EQ4: Optimisations
+
+First, make sure the benchmarks of Test-Comp were all compiled as 
+described in the previous evaluation question [EQ3](#eq3-test-comp). Then, 
+to obtain the results from **Table 5**, simply run:
+
+```sh
+cd /home/wasp/Test-Comp && ./scripts/run_lists.sh
+```
+
+When, the script is finished the results will be in the table 
+`/home/wasp/Test-Comp/results/table3.csv`.
+
+### EQ5: AWS Encryption SDK for C
 
 #### Table 6
 
