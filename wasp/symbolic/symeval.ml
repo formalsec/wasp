@@ -344,7 +344,9 @@ let rec sym_step (c : sym_config) : sym_config =
             match sz with
             | None           -> Symmem2.load_value mem base offset ty
             | Some (sz, ext) -> Symmem2.load_packed sz ext mem base offset ty
-          in (v, e) :: vs', [], logic_env, pc, mem
+          in 
+          (*print_endline ("after load: " ^ (Symvalue.to_string e));*)
+          (v, e) :: vs', [], logic_env, pc, mem
         with
         | BugException (b, at, _) ->
           vs', [(Interrupt (Bug (b, Logicenv.(to_json (to_list logic_env))))) @@ e.at], logic_env, pc, mem

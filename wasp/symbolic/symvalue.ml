@@ -474,6 +474,81 @@ let to_constraint (e : sym_expr) : sym_expr option =
                              else Some e
   end
 
+let i32binop_to_astop (op : Si32.binop) =
+  match op with
+	| I32Add  -> Ast.I32Op.Add
+	| I32And  -> Ast.I32Op.And
+	| I32Or   -> Ast.I32Op.Or
+	| I32Sub  -> Ast.I32Op.Sub
+	| I32DivS -> Ast.I32Op.DivS
+  | I32DivU -> Ast.I32Op.DivU
+	| I32Xor  -> Ast.I32Op.Xor
+	| I32Mul  -> Ast.I32Op.Mul
+  | I32Shl  -> Ast.I32Op.Shl
+  | I32ShrS -> Ast.I32Op.ShrS
+  | I32ShrU -> Ast.I32Op.ShrU
+  | I32RemS -> Ast.I32Op.RemS
+  | I32RemU -> Ast.I32Op.RemU
+
+let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
+  begin match e with
+  | Value v -> Value v
+  | Ptr v   -> Ptr v
+  | I32Binop (op, e1, e2) ->
+      let e1' = new_simplify e1
+      and e2' = new_simplify e2 in
+      begin match e1', e2' with
+      | Value (I32 0l), _ ->
+        begin match op with
+        | I32Add | I32Or   | I32Sub 
+        | I32Shl | I32ShrS | I32ShrU -> e2' 
+        | I32And | I32DivS | I32DivU 
+        | I32Mul | I32RemS | I32RemU -> Value (I32 0l)
+        | I32Xor -> I32Binop (op, e1', e2')
+        end
+
+      | Value v1, Value v2 ->
+        Value (Eval_numeric.eval_binop (I32 (i32binop_to_astop op)) v1 v2)
+
+      | I32Binop (op2, x, Value v1), Value v2 ->
+        begin match op, op2 with
+        | I32Add, I32Add ->
+          let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
+          I32Binop (I32Add, x, Value v)
+        | I32Add, I32Sub 
+        | I32Sub, I32Add ->
+          let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Sub) v1 v2 in
+          I32Binop (I32Add, x, Value v)
+        | I32Sub, I32Sub ->
+          let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
+          I32Binop (I32Sub, x, Value v)
+        | _, _ -> I32Binop (op, e1', e2')
+        end
+
+      | _ -> I32Binop (op, e1', e2')
+      end
+
+  | Extract (s, h, l) ->
+      if not extract then e
+      else begin
+        if (h - l) = (Types.size (type_of s)) then s
+        else Extract (s, h, l)
+      end
+
+  | Concat (e1, e2) ->
+    let e1' = new_simplify ~extract:false e1
+    and e2' = new_simplify ~extract:false e2 in
+    begin match e1', e2' with
+    | Extract (s1, h, m1), Extract (s2, m2, l) when (s1 = s2) && (m1 = m2) ->
+        new_simplify ~extract:true (Extract (s1, h, l))
+    | _ -> Concat (e1', e2')
+    end
+  | _ -> e
+  end
+
+
+
+
 let rec rec_simplify (e : sym_expr) : sym_expr =
   match e with
   | Value v -> Value v

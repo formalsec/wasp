@@ -144,21 +144,32 @@ let load_value (mem : memory) (a : address) (o : offset)
   (* Concat symbolic byte list *)
   let se = List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se) in
   (* Cast to `t` *)
-  let n' , se' = match t with
-    | I32Type -> I32 (Int64.to_int32 n), se
-    | I64Type -> I64 n, se
-    | F32Type -> 
-        F32 (F32.of_bits (Int64.to_int32 n)), 
-        F32Cvtop (Sf32.F32ReinterpretInt, se)
-    | F64Type -> 
-        F64 (F64.of_bits n), 
-        F64Cvtop (Sf64.F64ReinterpretInt, se) in
-  let se' = simplify se' in
-  let se' = match se' with 
-    | F32Cvtop (Sf32.F32ReinterpretInt, Extract (Value _, _, _))
-    | F64Cvtop (Sf64.F64ReinterpretInt, Extract (Value _, _, _))
-    | Extract (Value (I64 _), _, _) -> Symvalue.Value n'
-    | _ -> se' 
+  let n' = match t with
+    | I32Type -> I32 (Int64.to_int32 n)
+    | I64Type -> I64 n
+    | F32Type -> F32 (F32.of_bits (Int64.to_int32 n))
+    | F64Type -> F64 (F64.of_bits n) in
+  let se' = new_simplify se in
+  let se' = begin match t with
+    | I32Type -> 
+        begin match se' with
+        | Extract (Value (I64 v), 4, 0) ->
+            Symvalue.Value (I32 (Int64.to_int32 v))
+        | _ -> se'
+        end
+    | I64Type -> se'
+    | F32Type ->
+        begin match se' with
+        | Extract (Value (I64 v), 4, 0) ->
+            Symvalue.Value (F32 (F32.of_bits (Int64.to_int32 v)))
+        | _ -> F32Cvtop (Sf32.F32ReinterpretInt, se')
+        end
+    | F64Type ->
+        begin match se' with
+        | Value (I64 v) -> Symvalue.Value (F64 (F64.of_bits v))
+        | _ -> F64Cvtop (Sf64.F64ReinterpretInt, se')
+        end
+    end
   in (n', se')
 
 let store_value (mem : memory) (a : address) (o : offset) 
