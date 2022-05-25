@@ -376,6 +376,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         with exn ->
           Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn)  @@ e.at) :: es' } ], []))
 
+      | Convert cvtop, v :: vs' ->
+        let es' = List.tl es in
+        (try
+          let v' = Static_evaluations.eval_cvtop cvtop v in
+          Result.ok ([ { c with sym_code = v' :: vs', es' } ], [])
+        with exn ->
+          Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn)  @@ e.at) :: es' } ], []))
+
       | Dup, v :: vs' ->
         let vs'' = v :: v :: vs' in
         let es' = List.tl es in

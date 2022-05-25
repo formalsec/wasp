@@ -192,3 +192,67 @@ let eval_relop (s1 : sym_expr) (s2 : sym_expr) (op : Ast.relop) : sym_expr =
         end
     end
   in s
+
+let eval_cvtop (op : Ast.cvtop) (s : sym_expr) : sym_expr =
+  (* TODO: sign bit *)
+  let i32_cvtop op s =
+    match op with
+    (* 64bit integer is taken modulo 2^32 i.e., top 32 bits are lost *)
+    | I32Op.WrapI64 -> Extract (s, 4, 0)
+    | I32Op.TruncSF32 -> I32Cvtop (I32TruncSF32, s)
+    | I32Op.TruncUF32 -> I32Cvtop (I32TruncUF32, s)
+    | I32Op.TruncSF64 -> I32Cvtop (I32TruncSF64, s)
+    | I32Op.TruncUF64 -> I32Cvtop (I32TruncUF64, s)
+    | I32Op.ReinterpretFloat -> I32Cvtop (I32ReinterpretFloat, s)
+    (* | I32Op.ExtendSI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type)) *)
+    | I32Op.ExtendSI32 -> failwith "don't have a c for TypeError"
+    (* | I32Op.ExtendUI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type)) *)
+    | I32Op.ExtendUI32 -> failwith "don't have a c for TypeError"
+  in
+  let i64_cvtop op s =
+    match op with
+    | I64Op.ExtendSI32 -> I64Cvtop (I64ExtendSI32, s)
+    | I64Op.ExtendUI32 -> I64Cvtop (I64ExtendUI32, s)
+    | I64Op.TruncSF32  -> I64Cvtop (I64TruncSF32, s)
+    | I64Op.TruncUF32  -> I64Cvtop (I64TruncUF32, s)
+    | I64Op.TruncSF64  -> I64Cvtop (I64TruncSF64, s)
+    | I64Op.TruncUF64  -> I64Cvtop (I64TruncUF64, s)
+    | I64Op.ReinterpretFloat -> I64Cvtop (I64ReinterpretFloat, s)
+    (* | I64Op.WrapI64 -> raise (Eval_numeric.TypeError (1, c, Types.I64Type)) *)
+    | I64Op.WrapI64 -> failwith "don't have a c for TypeError"
+  in
+  let f32_cvtop op s =
+    match op with
+    | F32Op.DemoteF64   -> F32Cvtop (F32DemoteF64, s)
+    | F32Op.ConvertSI32 -> F32Cvtop (F32ConvertSI32, s)
+    | F32Op.ConvertUI32 -> F32Cvtop (F32ConvertUI32, s)
+    | F32Op.ConvertSI64 -> F32Cvtop (F32ConvertSI64, s)
+    | F32Op.ConvertUI64 -> F32Cvtop (F32ConvertUI64, s)
+    | F32Op.ReinterpretInt -> F32Cvtop (F32ReinterpretInt, s)
+    (* | F32Op.PromoteF32 -> raise (Eval_numeric.TypeError (1, c, Types.F32Type)) *)
+    | F32Op.PromoteF32 -> failwith "don't have a c for TypeError"
+  in
+  let f64_cvtop op s =
+    match op with
+    | F64Op.PromoteF32  -> F64Cvtop (F64PromoteF32, s)
+    | F64Op.ConvertSI32 -> F64Cvtop (F64ConvertSI32, s)
+    | F64Op.ConvertUI32 -> F64Cvtop (F64ConvertUI32, s)
+    | F64Op.ConvertSI64 -> F64Cvtop (F64ConvertSI64, s)
+    | F64Op.ConvertUI64 -> F64Cvtop (F64ConvertUI64, s)
+    | F64Op.ReinterpretInt -> F64Cvtop (F64ReinterpretInt, s)
+    (* | F64Op.DemoteF64 -> raise (Eval_numeric.TypeError (1, c, Types.F64Type)) *)
+    | F64Op.DemoteF64 -> failwith "don't have a c for TypeError"
+  in
+  let s =
+    begin match s with
+    | Value c -> Value (Eval_numeric.eval_cvtop op c)
+    | _ ->
+        (* dispatch cvtop func *)
+        begin match op with
+        | Values.I32 x -> i32_cvtop x s
+        | Values.I64 x -> i64_cvtop x s
+        | Values.F32 x -> f32_cvtop x s
+        | Values.F64 x -> f64_cvtop x s
+        end
+    end
+  in s
