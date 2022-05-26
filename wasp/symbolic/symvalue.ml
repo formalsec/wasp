@@ -703,7 +703,7 @@ let rec rec_simplify (e : sym_expr) : sym_expr =
   | _ -> e
 
 let simplify (e : sym_expr) : sym_expr =
-  if !Flags.simplify then rec_simplify e else e
+  if !Flags.simplify then new_simplify e else e
 
 (* not working properly *)
 let rewrite (cond : sym_expr) asgn : sym_expr =

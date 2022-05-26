@@ -123,50 +123,37 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
     if n > i then begin 
       let (cv, se) = x in
       let b = Int64.to_int cv land 0xff in
-      let se' = match se with 
-        | Symvalue.Value v -> 
-          let v' = match v with
-          | I32 x -> I64 (Int64.of_int32 x)
-          | I64 x -> I64 x
-          | F32 x -> I64 (Int64.of_int32 (F32.to_bits x))
-          | F64 x -> I64 (F64.to_bits x)
-          in Symvalue.Value v'
-        | _ -> se 
-      in store_byte mem a (b, Extract (se', i+1, i));
+      store_byte mem a (b, Extract (se, i+1, i));
       loop (Int64.add a 1L) (i + 1) n ((Int64.shift_right cv 8), se)
     end 
   in loop (effective_address a o) 0 n x
 
 let load_value (mem : memory) (a : address) (o : offset) 
     (t : value_type) : sym_value  =
-  (* FIXME: messy code *)
   let (n, se) = loadn mem a o (Types.size t) in
   (* Concat symbolic byte list *)
-  let se = List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se) in
+  let se = List.(fold_right (fun a b ->
+    Concat (a, b)
+  ) (rev (tl se)) (hd se)) in
   (* Cast to `t` *)
   let n' = match t with
     | I32Type -> I32 (Int64.to_int32 n)
     | I64Type -> I64 n
     | F32Type -> F32 (F32.of_bits (Int64.to_int32 n))
     | F64Type -> F64 (F64.of_bits n) in
-  let se' = new_simplify se in
+  let se' = simplify se in
   let se' = begin match t with
-    | I32Type -> 
-        begin match se' with
-        | Extract (Value (I64 v), 4, 0) ->
-            Symvalue.Value (I32 (Int64.to_int32 v))
-        | _ -> se'
-        end
-    | I64Type -> se'
+    | I32Type | I64Type -> se'
     | F32Type ->
         begin match se' with
-        | Extract (Value (I64 v), 4, 0) ->
-            Symvalue.Value (F32 (F32.of_bits (Int64.to_int32 v)))
+        | Value (I32 v) -> Symvalue.Value (F32 (F32.of_bits v))
+        | I32Cvtop (Si32.I32ReinterpretFloat, v) -> v
         | _ -> F32Cvtop (Sf32.F32ReinterpretInt, se')
         end
     | F64Type ->
         begin match se' with
         | Value (I64 v) -> Symvalue.Value (F64 (F64.of_bits v))
+        | I64Cvtop (Si64.I64ReinterpretFloat, v) -> v
         | _ -> F64Cvtop (Sf64.F64ReinterpretInt, se')
         end
     end
@@ -175,19 +162,24 @@ let load_value (mem : memory) (a : address) (o : offset)
 let store_value (mem : memory) (a : address) (o : offset) 
     (v : sym_value) : unit =
   let (cv, sv) = v in
-  let x, sv = match cv with
-    | I32 x -> Int64.of_int32 x, sv
-    | I64 x -> x, sv
-    | F32 x -> 
-        let sv' = match sv with
-          | Value (F32 x) -> Symvalue.Value (I32 (F32.to_bits x))
-          | _ -> I32Cvtop (Si32.I32ReinterpretFloat, sv)
-        in Int64.of_int32 (F32.to_bits x), sv'
-    | F64 x -> 
-        let sv' = match sv with
-          | Value (F64 x) -> Symvalue.Value (I64 (F64.to_bits x))
-          | _ -> I64Cvtop (Si64.I64ReinterpretFloat, sv)
-        in F64.to_bits x, sv'
+  let x = match cv with
+  | I32 x -> Int64.of_int32 x
+  | I64 x -> x
+  | F32 x -> Int64.of_int32 (F32.to_bits x)
+  | F64 x -> F64.to_bits x
+  in 
+  let sv = match Values.type_of cv with
+  | I32Type | I64Type -> sv
+  | F32Type ->
+    begin match sv with
+    | Value (F32 x) -> Value (I32 (F32.to_bits x))
+    | _ -> I32Cvtop (Si32.I32ReinterpretFloat, sv)
+    end
+  | F64Type ->
+    begin match sv with
+    | Value (F64 x) -> Value (I64 (F64.to_bits x))
+    | _ -> I64Cvtop (Si64.I64ReinterpretFloat, sv)
+    end
   in storen mem a o (Types.size (Values.type_of cv)) (x, sv)
 
 let extend x n = function
