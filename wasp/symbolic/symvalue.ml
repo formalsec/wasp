@@ -490,6 +490,12 @@ let i32binop_to_astop (op : Si32.binop) =
   | I32RemS -> Ast.I32Op.RemS
   | I32RemU -> Ast.I32Op.RemU
 
+let nland x n =
+  let rec loop x' n' acc =
+    if n' = 0 then Int64.logand x' acc
+    else loop x' (n' - 1) Int64.(logor (shift_left acc 8) 0xffL)
+  in loop x n 0L
+
 let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
   begin match e with
   | Value v -> Value v
@@ -527,6 +533,10 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
 
       | _ -> I32Binop (op, e1', e2')
       end
+  | I32Relop (op, e1, e2) ->
+    let e1' = new_simplify e1
+    and e2' = new_simplify e2 in
+    I32Relop (op, e1', e2')
 
   | Extract (s, h, l) ->
       if not extract then e
@@ -540,7 +550,17 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     and e2' = new_simplify ~extract:false e2 in
     begin match e1', e2' with
     | Extract (s1, h, m1), Extract (s2, m2, l) when (s1 = s2) && (m1 = m2) ->
-        new_simplify ~extract:true (Extract (s1, h, l))
+      new_simplify ~extract:true (Extract (s1, h, l))
+
+    | Extract (Value (I64 x2), h2, l2), Extract (Value (I64 x1), h1, l1) when
+      l2 <= h1 ->
+      let d1 = (h1 - l1) and d2 = (h2 - l2) in
+      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x = Int64.(logor (shift_left x2' (h1 * 8)) x1') in
+      new_simplify ~extract:true (Extract (Value (I64 x), d1 + d2, l1))
+
+
     | _ -> Concat (e1', e2')
     end
   | _ -> e

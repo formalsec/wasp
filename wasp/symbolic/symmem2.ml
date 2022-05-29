@@ -142,20 +142,31 @@ let load_value (mem : memory) (a : address) (o : offset)
     | F32Type -> F32 (F32.of_bits (Int64.to_int32 n))
     | F64Type -> F64 (F64.of_bits n) in
   let se' = simplify se in
-  let se' = begin match t with
-    | I32Type | I64Type -> se'
+  let se' : sym_expr = begin match t with
+    | I32Type ->
+      begin match se' with
+      | Value (I64 v) -> Value (I32 (Int64.to_int32 v))
+      | Extract (Value (I64 v), h, l) ->
+          let x = Symvalue.nland (Int64.shift_right v (l * 8)) (h - l) in
+          Value (I32 (Int64.to_int32 x))
+      | _ -> se'
+      end
+    | I64Type -> se'
     | F32Type ->
-        begin match se' with
-        | Value (I32 v) -> Symvalue.Value (F32 (F32.of_bits v))
-        | I32Cvtop (Si32.I32ReinterpretFloat, v) -> v
-        | _ -> F32Cvtop (Sf32.F32ReinterpretInt, se')
-        end
+      begin match se' with
+      | Value (I64 v) -> Value (F32 (F32.of_bits (Int64.to_int32 v)))
+      | Extract (Value (I64 x), h, l) -> 
+        let x' = Symvalue.nland (Int64.shift_right x (l * 8)) (h - l) in
+        Value (F32 (F32.of_bits (Int64.to_int32 x')))
+      | I32Cvtop (Si32.I32ReinterpretFloat, v) -> v
+      | _ -> F32Cvtop (Sf32.F32ReinterpretInt, se')
+      end
     | F64Type ->
-        begin match se' with
-        | Value (I64 v) -> Symvalue.Value (F64 (F64.of_bits v))
-        | I64Cvtop (Si64.I64ReinterpretFloat, v) -> v
-        | _ -> F64Cvtop (Sf64.F64ReinterpretInt, se')
-        end
+      begin match se' with
+      | Value (I64 v) -> Value (F64 (F64.of_bits v))
+      | I64Cvtop (Si64.I64ReinterpretFloat, v) -> v
+      | _ -> F64Cvtop (Sf64.F64ReinterpretInt, se')
+      end
     end
   in (n', se')
 
@@ -167,12 +178,17 @@ let store_value (mem : memory) (a : address) (o : offset)
   | I64 x -> x
   | F32 x -> Int64.of_int32 (F32.to_bits x)
   | F64 x -> F64.to_bits x
-  in 
-  let sv = match Values.type_of cv with
-  | I32Type | I64Type -> sv
+  in
+  let sv : sym_expr = match Values.type_of cv with
+  | I32Type ->
+    begin match sv with
+    | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
+    | _ -> sv
+    end
+  | I64Type -> sv
   | F32Type ->
     begin match sv with
-    | Value (F32 x) -> Value (I32 (F32.to_bits x))
+    | Value (F32 x) -> Value (I64 (Int64.of_int32 (F32.to_bits x)))
     | _ -> I32Cvtop (Si32.I32ReinterpretFloat, sv)
     end
   | F64Type ->
@@ -198,18 +214,24 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension)
     | _ -> raise Memory.Type
     end
   in
-  let sv' = 
-    let rec loop acc i =
-      if i >= (Types.size t) then acc
-      else loop (acc @ [Extract (Value (I64 0L), i+1, i)]) (i + 1)
-    in loop sv (List.length sv)
+  let sv' = simplify
+    (List.fold_left (fun a b -> Concat (b, a)) (List.hd sv) (List.tl sv))
   in
-  let sv'' = simplify
-    (List.fold_left (fun a b -> Concat (b, a)) (List.hd sv') (List.tl sv')) in
-  let se = match sv'' with 
-    | Extract (Value (I64 _), _, _) -> Symvalue.Value x'
-    | _ -> sv''
-  in (x', se)
+  let sv'' : sym_expr = 
+    match sv' with
+    | Extract (Value (I64 x), h, l) ->
+      let x' = Symvalue.nland (Int64.shift_right x (l * 8)) (h - l) in
+      if t = I32Type then Value (I32 (Int64.to_int32 x'))
+                     else Value (I64 x')
+    | _ ->
+      let zero = if t = I32Type then (I32 0l) else (I64 0L) in
+      let rec loop acc i =
+        if i >= (Types.size t) then acc
+        else loop (acc @ [Extract (Value zero, 1, 0)]) (i + 1)
+      in 
+      let lst = loop sv (List.length sv) in
+      List.(fold_left (fun a b -> Concat (b, a)) (hd lst) (tl lst))
+  in (x', sv'')
 
 let store_packed (sz : Memory.pack_size) (mem : memory) (a : address) 
     (o : offset) (v : sym_value) : unit =
@@ -219,8 +241,12 @@ let store_packed (sz : Memory.pack_size) (mem : memory) (a : address)
     match cv with
     | I32 x -> Int64.of_int32 x
     | I64 x -> x
-    | _     -> raise Memory.Type
-  in storen mem a o n (x, sv)
+    | _     -> raise Memory.Type in
+  let sx : sym_expr =
+    match sv with
+    | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
+    | _ -> sv
+  in storen mem a o n (x, sx)
 
 let update (mem : memory) (env : Logicenv.t) : unit =
   iter (fun a s ->
