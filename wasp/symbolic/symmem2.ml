@@ -66,7 +66,7 @@ let to_string (mem : memory) : string =
 
 let load_byte (mem : memory) (a : address) : store =
   try Hashtbl.find mem a with Not_found -> 
-    (0, Extract (Value (I64 0L), 8, 0))
+    (0, Extract (Value (I64 0L), 1, 0))
     (* raise (InvalidAddress a) *)
 
 let store_byte (mem : memory) (a : address) (b : store) : unit =
@@ -74,17 +74,18 @@ let store_byte (mem : memory) (a : address) (b : store) : unit =
 
 let load_bytes (mem : memory) (a : address) (n : int) : string * sym_expr =
   let buf = Buffer.create n in
-  let rec loop i acc =
+  let rec rec_loop i acc =
     if i = (n - 1) then acc else begin
       let (chr, schr) = load_byte mem Int64.(add a (of_int i)) in
       Buffer.add_char buf (Char.chr chr);
-      loop (i + 1) (schr :: acc)
+      rec_loop (i + 1) (schr :: acc)
     end
   in
-  let lst = List.rev (loop 0 []) in
-  let se = simplify 
-    (List.fold_left (fun a b -> Concat (b, a)) (List.hd lst) (List.tl lst))
-  in (Buffer.contents buf, se)
+  let schrs = rec_loop 0 [] in
+  let schrs' = simplify (
+    List.(fold_left (fun acc e -> Concat (e, acc)) (hd schrs) (tl schrs))
+  )
+  in (Buffer.contents buf, schrs')
     
 let load_string (mem : memory) (a : address) : string =
   let rec loop a acc =
@@ -130,45 +131,39 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
 
 let load_value (mem : memory) (a : address) (o : offset) 
     (t : value_type) : sym_value  =
-  let (n, se) = loadn mem a o (Types.size t) in
+  let (n, exprs) = loadn mem a o (Types.size t) in
   (* Concat symbolic byte list *)
-  let se = List.(fold_right (fun a b ->
-    Concat (a, b)
-  ) (rev (tl se)) (hd se)) in
+  let expr = simplify List.(
+    fold_left (fun acc e -> Concat (e, acc)) (hd exprs) (tl exprs)
+  ) in
   (* Cast to `t` *)
   let n' = match t with
     | I32Type -> I32 (Int64.to_int32 n)
     | I64Type -> I64 n
     | F32Type -> F32 (F32.of_bits (Int64.to_int32 n))
     | F64Type -> F64 (F64.of_bits n) in
-  let se' = simplify se in
-  let se' : sym_expr = begin match t with
+  let expr' = simplify ~extract:true expr in
+  let expr' : sym_expr = begin match t with
     | I32Type ->
-      begin match se' with
+      begin match expr' with
       | Value (I64 v) -> Value (I32 (Int64.to_int32 v))
-      | Extract (Value (I64 v), h, l) ->
-          let x = Symvalue.nland (Int64.shift_right v (l * 8)) (h - l) in
-          Value (I32 (Int64.to_int32 x))
-      | _ -> se'
+      | _ -> expr'
       end
-    | I64Type -> se'
+    | I64Type -> expr'
     | F32Type ->
-      begin match se' with
+      begin match expr' with
       | Value (I64 v) -> Value (F32 (F32.of_bits (Int64.to_int32 v)))
-      | Extract (Value (I64 x), h, l) -> 
-        let x' = Symvalue.nland (Int64.shift_right x (l * 8)) (h - l) in
-        Value (F32 (F32.of_bits (Int64.to_int32 x')))
       | I32Cvtop (Si32.I32ReinterpretFloat, v) -> v
-      | _ -> F32Cvtop (Sf32.F32ReinterpretInt, se')
+      | _ -> F32Cvtop (Sf32.F32ReinterpretInt, expr')
       end
     | F64Type ->
-      begin match se' with
+      begin match expr' with
       | Value (I64 v) -> Value (F64 (F64.of_bits v))
       | I64Cvtop (Si64.I64ReinterpretFloat, v) -> v
-      | _ -> F64Cvtop (Sf64.F64ReinterpretInt, se')
+      | _ -> F64Cvtop (Sf64.F64ReinterpretInt, expr')
       end
     end
-  in (n', se')
+  in (n', expr')
 
 let store_value (mem : memory) (a : address) (o : offset) 
     (v : sym_value) : unit =
@@ -208,29 +203,22 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension)
   let (cv, sv) = loadn mem a o n in
   let cv = extend cv n ext in
   let x' =
-    begin match t with
+    match t with
     | I32Type -> I32 (Int64.to_int32 cv)
     | I64Type -> I64 cv
-    | _ -> raise Memory.Type
-    end
-  in
-  let sv' = simplify
-    (List.fold_left (fun a b -> Concat (b, a)) (List.hd sv) (List.tl sv))
-  in
+    | _ -> raise Memory.Type in
+  let sv' = simplify List.(
+    fold_left (fun acc e -> Concat (e, acc)) (hd sv) (tl sv)
+  ) in
   let sv'' : sym_expr = 
-    match sv' with
-    | Extract (Value (I64 x), h, l) ->
-      let x' = Symvalue.nland (Int64.shift_right x (l * 8)) (h - l) in
-      if t = I32Type then Value (I32 (Int64.to_int32 x'))
-                     else Value (I64 x')
+    match simplify ~extract:true sv' with
+    | Value v -> Value v
     | _ ->
-      let zero = if t = I32Type then (I32 0l) else (I64 0L) in
       let rec loop acc i =
         if i >= (Types.size t) then acc
-        else loop (acc @ [Extract (Value zero, 1, 0)]) (i + 1)
-      in 
-      let lst = loop sv (List.length sv) in
-      List.(fold_left (fun a b -> Concat (b, a)) (hd lst) (tl lst))
+        else loop (acc @ [Extract (Value (I64 0L), 1, 0)]) (i + 1) in
+      let exprs = loop sv (List.length sv) in
+      List.(fold_left (fun acc e -> Concat (e, acc)) (hd exprs) (tl exprs))
   in (x', sv'')
 
 let store_packed (sz : Memory.pack_size) (mem : memory) (a : address) 
@@ -245,7 +233,8 @@ let store_packed (sz : Memory.pack_size) (mem : memory) (a : address)
   let sx : sym_expr =
     match sv with
     | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
-    | _ -> sv
+    | Value (I64 x) -> Value (I64 x)
+    | _             -> sv
   in storen mem a o n (x, sx)
 
 let update (mem : memory) (env : Logicenv.t) : unit =
