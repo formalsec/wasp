@@ -1,32 +1,28 @@
 # Concolic Execution for WebAssembly
 
-Title of the submitted paper: Concolic Execution for WebAssembly
-ECOOP submission number for the paper: 25
-
-## Overview: What does the artifact comprise?
-
-The artifact includes the tools presented in the paper and the 
-tools and benchmarks required for their evaluation:
+The artifact includes:
 
 * The source code of Gillian, WASP, and WASP-C
 * The benchmarks on which we evaluate our tools:
   * Collections-C
   * Test-Comp
   * AWS Amazon Encryption SDK for C
-* The artifact can be found in [wasp_image.tar.gz](https://zenodo.org/record/5773287)
-* We claim all three badges: functional, reusable, and available.
 
 ## For authors claiming a functional or reusable badge: What are claims about the artifact’s functionality to be evaluated by the committee?
 
 The artifact includes scripts for reproducing the results documented
-in Section 5 of the paper; more specifically: Tables 2-6.
+in Section 4 of the paper; more specifically: Tables 1-6.
 
+* All the results from Table 1 can be obtained through the 
+  steps described in section [EQ1](#eq1-comparison-with-manticore) below
 * All the results from Table 2 and Table 3 can be obtained 
-  through the steps described in section [EQ1](#eq1) below
-* The results for WASP from Table 4 and Table 5 can be 
-  obtained through the steps described in section [EQ2](#eq2) below
+  through the steps described in section [EQ2](#eq2-collections-c) below
+* All the results from Table 4 can be obtained through the 
+  steps described in section [EQ3](#eq3-test-comp) below
+* All the results from Table 5 can be obtained through the 
+  steps described in section [EQ4](#eq4-optimisations)
 * All the results from Table 6 can be obtained by executing
-  the commands enumerated in section [EQ3](#eq3) below
+  the commands enumerated in section [EQ5](#eq5-aws-encryption-sdk-for-c) below
  
 ## For authors claiming a reusable badge: What are the authors' claims about the artifact's reusability to be evaluated by the committee?
 
@@ -37,20 +33,8 @@ in Section 5 of the paper; more specifically: Tables 2-6.
   our C benchmarks can be used to evaluate other symbolic 
   execution tools for Wasm.
 
-## For authors claiming an available badge
-
-We offer to publish the artifact on [DARTS](https://drops.dagstuhl.de/opus/institut_darts.php).
-
 ## Artifact Requirements
 
-Hardware requirements:
-
-* Minimum:
-  * 4GiB Ram
-  * 10GiB disk space
-  * These requirements will not be able to reproduce all the 
-    results but can be used to test individual categories for
-    each evaluation question (EQ)
 * Recommended: 
   * 33GiB Ram
   * 60GiB disk space
@@ -59,11 +43,6 @@ Hardware requirements:
   * These requirements can reproduce all the results in our 
     paper
 
-Software requirements:
-
-* `docker` 
-
-
 ## Getting Started
 
 ### Setup Docker
@@ -71,7 +50,7 @@ Software requirements:
 Load the `wasp/wasp` docker image by running the following command:
 
 ```sh
-docker load --input wasp_image.tar.gz 
+docker pull ghcr.io/wasp-platform/wasp:latest 
 ```
 
 This command may take upwards of 20 minutes. Next, create a 
@@ -79,7 +58,7 @@ temporary container and gain shell access (allocate enough
 `--cpus=8` to run the bigger benchmarks):
 
 ```sh
-docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> wasp/wasp:v2
+docker run --rm -ti --ulimit='stack=-1:-1' --cpus=<value> ghcr.io/wasp-platform/wasp:latest
 ```
 
 If this worked correctly your shell prompt should have 
@@ -102,7 +81,7 @@ version 0.1
 wasp@11194b4b99bd:~$
 ```
 
-#### Examples(#examples)
+#### Examples
 
 **WASP Example:**
 
@@ -141,7 +120,7 @@ rm -rf output
 wasp-c wasp-c/tests/test01.c
 ```
 
-#### Layout(#layout)
+#### Layout
 
 The artifact has the following directories:
 
@@ -172,7 +151,27 @@ Which are comprised of:
 * **wasp**: containing the code of WASP
 * **wasp-c**: containing the code of WASP-C
 
-### EQ1: Collections-C(#eq1)
+
+### EQ1: Comparison with Manticore
+
+To obtain the results from **Table 1**, first install manticore:
+
+```sh
+sudo pip install manticore 
+```
+
+then run:
+
+```sh
+cd /home/wasp/wasp && ./tests/run.py
+```
+
+When it is finished, the results for WASP will be in the table
+`/home/wasp/wasp/wasp_output/results-btree-wasp.csv`, and the
+results for Manticore will be in the table 
+`/home/wasp/wasp/mcore_output/results-btree-mcore.csv`.
+
+### EQ2: Collections-C
 
 #### Table 2
 
@@ -181,28 +180,34 @@ To obtain the results from **Table 2 for WASP**, go into the
 
 ```sh
 cd /home/wasp/Collections-C
-time ./run.py
+time ./run.py --normal
 ```
 
 The script terminates after around 60s and creates a file called 
-`table.csv`, that contains the results from Table 2 for WASP.
+`results_normal.csv`, that contains the results from Table 2 for WASP.
 
 To obtain the results for only one row of the table, point 
 the script to the desired category:
 
 ```sh
-./run.py _build/for-wasp/normal/array # runs only Array
-./run.py _build/for-wasp/normal/queue # runs only Queue
+./run.py --single _build/for-wasp/normal/array # runs only Array
+./run.py --single _build/for-wasp/normal/queue # runs only Queue
 ...
 ```
 
-Note that, the script always outputs the results to the file 
-`table.csv`, meaning that consecutive runs will continuously 
-overwrite the file `table.csv`. Additionally, in order to avoid
-possible conflicts between results, delete the `output` directory
-before running the script.
+Each of these commands will, respectively, create the files 
+`results_array.csv` and `results_queue.csv`. In order to avoid
+possible conflicts between results, it is recommended to delete 
+the `output` directory before running the script.
 
-To obtain the results from **Table 2 for Gillian-C**, run EITHER:
+To obtain the results from **Table 2 for Gillian-C**, first run:
+
+```
+sudo npm install -g esy@0.6.6 --unsafe-perm && cd /home/wasp/Gillian && \
+  git checkout 2cb5f8d73baf7f7a811b0be6044d533a62c3f50 && esy install && esy
+```
+
+Then, run EITHER:
 
 ```sh
 cd /home/wasp/Gillian
@@ -241,7 +246,7 @@ commands:
 
 ```sh
 cd /home/wasp/Collections-C
-./run.py _build/for-wasp/bugs
+./run.py --bugs
 ```
 
 Note that, these tests are supposed to return false since they
@@ -259,7 +264,7 @@ Then, clean, compile, and run the benchmarks:
 ```sh
 make clean
 make
-./run.py _build/for-wasp/bugs
+./run.py --bugs
 ```
 
 Note that, since we fixed the bug in `array.c`, WASP now
@@ -276,7 +281,7 @@ time esy x gillian-c bulk-wpst ../collections-c-for-gillian/for-gillian/bugs \
   -S ../collections-c-for-gillian/for-gillian/test-utils/ --ignore-undef
 ```
 
-### EQ2: Test-Comp(#eq2)
+### EQ3: Test-Comp
 
 Go into the **Test-Comp** directory and compile our *glibc*
 implementation:
@@ -308,31 +313,31 @@ compilation (`make THREADS=8`).
 Then, to run the test-suite on a category run:
 
 ```sh
-python3 -m validator <THREADS> <TYPE> <CATEGORY>
+./bin/validator [-h] [-j JOBS] [-branches] [-error] [--output OUTPUT] category
 ```
 
-Where: `THREADS` is an optional argument denoting the number
-of analysis processes to be launched, `TYPE` is the
-type of task to analyse (e.g., `branches` or `error`), and 
-`CATEGORY` is the category from Table 4 to run (e.g., `Arrays` 
+Where: `JOBS` is an optional argument denoting the number
+of analysis processes to be launched, `-branches` and `-error` are the
+type of task to analyse (e.g., `cover-branches` or `cover-error`), and 
+`category` is the category from Table 4 to run (e.g., `Arrays` 
 to execute `C1.Arrays` and `all` to run all categories).
 
 For example, since we compiled `array-fpi` from `Arrays`, 
 we can run:
 
 ```sh
-python3 -m validator 4 error Arrays # Executes Cover-Error with 4 threads on sub-category C1.Arrays
-python3 -m validator 4 branches Arrays # Executes Cover-Branches with 4 threads on sub-category C1.Arrays
-python3 -m validator 4 error all # Executes Cover-Branches with 4 threads on all compiled categories 
+./bin/validator -j 4 -error Arrays # Executes Cover-Error with 4 threads on sub-category C1.Arrays
+./bin/validator -j 4 -branches Arrays # Executes Cover-Branches with 4 threads on sub-category C1.Arrays
+./bin/validator -j 4 -error all # Executes Cover-Branches with 4 threads on all compiled categories 
 ```
 
 **IMPORTANT!** The `validator` does not repeat tasks when re-running 
 the same command. To generate new values one must delete the 
 directory `/home/wasp/Test-Comp/test-suite` before the executing 
-the `validator`. Additionally, the `branches` tasks may only 
+the `validator`. Additionally, the `-branches` tasks may only 
 output to `stdout` after 15 mins, corresponding to the default timeout. 
 For this reason, we recommend running the benchmarks that do not 
-timeout: `python3 -m validator 4 error Arrays`.
+timeout: `./bin/validator -j 4 -error Arrays`.
 
 Lastly, to obtain the results used in Table 4 for Cover-Error, in `csv` format, run:
 
@@ -366,7 +371,7 @@ MainHeap,0/0,0.0
 
 To replicate all the numbers of WASP on the table one must compile all 
 the symbolic test suite and subsequently run the `validator` with the 
-CATEGORY `all` for the TYPE `error` and `branches`. However, as we have 
+category `all` for both `-error` and `-branches`. However, as we have 
 reported in the paper this can take over 300 hours. Hence, we recommend 
 doing it one category at the time, starting with the categories that 
 take less time. 
@@ -376,7 +381,20 @@ take less time.
 The CPU times for WASP in Table 5 are obtained from the sum of the
 `Time` column in `error.csv` and `branches.csv`.
 
-### EQ3: AWS Encryption SDK for C(#eq3)
+### EQ4: Optimisations
+
+First, make sure the benchmarks of Test-Comp were all compiled as 
+described in the previous evaluation question [EQ3](#eq3-test-comp). Then, 
+to obtain the results from **Table 5**, simply run:
+
+```sh
+cd /home/wasp/Test-Comp && ./scripts/run_lists.sh
+```
+
+When, the script is finished the results will be in the table 
+`/home/wasp/Test-Comp/results/table3.csv`.
+
+### EQ5: AWS Encryption SDK for C
 
 #### Table 6
 

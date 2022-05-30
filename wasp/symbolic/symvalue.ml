@@ -469,19 +469,161 @@ let concretize_ptr (e : sym_expr) : value option =
   | _ -> failwith ("can't concretize '" ^ (to_string e) ^ "' to a ptr")
   end
 
+let is_value (e : sym_expr) : bool =
+  match e with Value _ -> true | _ -> false
+
 let is_relop (e : sym_expr) : bool =
-  begin match e with
+  match e with
   | I32Relop _ | I64Relop _ | F32Relop _ | F64Relop _ -> true
   | _ -> false
-  end
 
 let to_constraint (e : sym_expr) : sym_expr option =
-  begin match e with
+  match e with
   | Value _ | Ptr _ -> None
   | _ -> if not (is_relop e) then Some (I32Relop (I32Ne, e, Value (I32 0l)))
                              else Some e
+
+let i32binop_to_astop (op : Si32.binop) =
+  match op with
+	| I32Add  -> Ast.I32Op.Add
+	| I32And  -> Ast.I32Op.And
+	| I32Or   -> Ast.I32Op.Or
+	| I32Sub  -> Ast.I32Op.Sub
+	| I32DivS -> Ast.I32Op.DivS
+  | I32DivU -> Ast.I32Op.DivU
+	| I32Xor  -> Ast.I32Op.Xor
+	| I32Mul  -> Ast.I32Op.Mul
+  | I32Shl  -> Ast.I32Op.Shl
+  | I32ShrS -> Ast.I32Op.ShrS
+  | I32ShrU -> Ast.I32Op.ShrU
+  | I32RemS -> Ast.I32Op.RemS
+  | I32RemU -> Ast.I32Op.RemU
+
+let i32relop_to_astop (op : Si32.relop) =
+  match op with
+  | I32Eq  -> Ast.I32Op.Eq
+  | I32Ne  -> Ast.I32Op.Ne
+  | I32LtU -> Ast.I32Op.LtU
+  | I32GtU -> Ast.I32Op.GtU
+  | I32LtS -> Ast.I32Op.LtS
+  | I32GtS -> Ast.I32Op.GtS
+  | I32LeU -> Ast.I32Op.LeU
+  | I32GeU -> Ast.I32Op.GeU
+  | I32LeS -> Ast.I32Op.LeS
+  | I32GeS -> Ast.I32Op.GeS
+
+let nland x n =
+  let rec loop x' n' acc =
+    if n' = 0 then Int64.logand x' acc
+    else loop x' (n' - 1) Int64.(logor (shift_left acc 8) 0xffL)
+  in loop x n 0L
+
+let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
+  begin match e with
+  | Value v -> Value v
+  | Ptr v   -> Ptr v
+  | I32Binop (op, e1, e2) ->
+      let e1' = new_simplify e1
+      and e2' = new_simplify e2 in
+      begin match e1', e2' with
+      | Value (I32 0l), _ ->
+        begin match op with
+        | I32Add | I32Or   | I32Sub  -> e2'
+        | I32And | I32DivS | I32DivU 
+        | I32Mul | I32RemS | I32RemU -> Value (I32 0l)
+        | _ -> I32Binop (op, e1', e2')
+        end
+      | _, Value (I32 0l) ->
+        begin match op with
+        | I32Add | I32Or | I32Sub -> e1'
+        | I32And | I32Mul -> Value (I32 0l)
+        | _ -> I32Binop (op, e1', e2')
+        end
+
+      | Value v1, Value v2 ->
+        Value (Eval_numeric.eval_binop (I32 (i32binop_to_astop op)) v1 v2)
+
+      | I32Binop (op2, x, Value v1), Value v2 when not (is_value x) ->
+        begin match op, op2 with
+        | I32Add, I32Add ->
+          let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
+          I32Binop (I32Add, x, Value v)
+        | I32Add, I32Sub 
+        | I32Sub, I32Add ->
+          let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Sub) v1 v2 in
+          I32Binop (I32Add, x, Value v)
+        | I32Sub, I32Sub ->
+          let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
+          I32Binop (I32Sub, x, Value v)
+        | _, _ -> I32Binop (op, e1', e2')
+        end
+
+      | _ -> I32Binop (op, e1', e2')
+      end
+
+  | I32Relop (op, e1, e2) ->
+    let e1' = new_simplify e1
+    and e2' = new_simplify e2 in
+    begin match e1', e2' with
+    | Value v1, Value v2 | Ptr   v1, Value v2
+    | Value v1, Ptr   v2 | Ptr   v1, Ptr   v2 ->
+      let op' = I32 (i32relop_to_astop op) in
+      let ret = Eval_numeric.eval_relop op' v1 v2 in
+      Value (Values.value_of_bool ret)
+
+    | _ -> I32Relop (op, e1', e2')
+    end
+
+  | Extract (s, h, l) when extract = false -> e
+
+  | Extract (s, h, l) when extract = true ->
+    begin match s with
+    | Ptr (I32 p) ->
+      let x' = nland Int64.(shift_right (of_int32 p) (l * 8)) (h - l) in
+      Ptr (I32 (Int64.to_int32 x'))
+    | Value (I64 x) -> 
+      let x' = nland (Int64.shift_right x (l * 8)) (h - l) in
+      Value (I64 x')
+    | _ when (h - l) = (Types.size (type_of s)) -> s
+    | _ -> e
+    end
+
+  | Concat (e1, e2) ->
+    let e1' = new_simplify ~extract:false e1
+    and e2' = new_simplify ~extract:false e2 in
+    begin match e1', e2' with
+    | Extract (Ptr (I32 p2), h2, l2), Extract (Ptr (I32 p1), h1, l1) ->
+      let x1 = Int64.of_int32 p1 and x2 = Int64.of_int32 p2 in
+      let d1 = (h1 - l1) and d2 = (h2 - l2) in
+      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
+      Extract (Ptr (I32 (Int64.to_int32 x)), d1 + d2, 0)
+
+    | Extract (Value (I64 x2), h2, l2), Extract (Value (I64 x1), h1, l1) ->
+      let d1 = (h1 - l1) and d2 = (h2 - l2) in
+      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
+      Extract (Value (I64 x), d1 + d2, 0)
+
+    | Extract (s1, h, m1), Extract (s2, m2, l) when (s1 = s2) && (m1 = m2) ->
+      Extract (s1, h, l)
+
+    | Extract (Value (I64 x2), h2, l2), 
+    Concat (Extract (Value (I64 x1), h1, l1), se) when not (is_value se) ->
+      let d1 = (h1 - l1) and d2 = (h2 - l2) in
+      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
+      Concat (Extract (Value (I64 x), d1 + d2, 0), se)
+
+    | _ -> Concat (e1', e2')
+    end
+  | _ -> e
   end
 
+(*
 let rec rec_simplify (e : sym_expr) : sym_expr =
   match e with
   | Value v -> Value v
@@ -493,14 +635,18 @@ let rec rec_simplify (e : sym_expr) : sym_expr =
         begin match e1', e2' with
         | Value v1, Value v2 ->
             Value (Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2)
+
         | I32Binop (I32Add, e1'', Value (I32 v1)), Value (I32 v2) ->
             I32Binop (I32Add, e1'', Value (I32 (Int32.add v1 v2)))
+
         | I32Binop (I32Add, Symbolic (t, x), Value v1), Value v2 ->
             let v : sym_expr = Value (Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2) in
             I32Binop (I32Add, Symbolic (t, x), v)
+
         | I32Binop (I32Sub, Symbolic (t, x), Value v1), Value v2 ->
             let v : sym_expr = Value (Eval_numeric.eval_binop (I32 Ast.I32Op.Sub) v1 v2) in
             I32Binop (I32Add, Symbolic (t, x), v)
+
         | _ -> I32Binop (I32Add, e1', e2')
         end
       | I32Sub  ->
@@ -634,9 +780,10 @@ let rec rec_simplify (e : sym_expr) : sym_expr =
       | _ -> Concat (e1', e2')
       end
   | _ -> e
+*)
 
-let simplify (e : sym_expr) : sym_expr =
-  if !Flags.simplify then rec_simplify e else e
+let simplify ?(extract=false) (e : sym_expr) : sym_expr =
+  if !Flags.simplify then new_simplify ~extract:extract e else e
 
 (* not working properly *)
 let rewrite (cond : sym_expr) asgn : sym_expr =

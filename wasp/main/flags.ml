@@ -13,3 +13,4 @@ let simplify = ref true
 let timeout = ref 895
 let concrete = ref false
 let static = ref false
+let queries = ref true
