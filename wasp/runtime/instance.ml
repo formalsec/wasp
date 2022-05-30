@@ -29,7 +29,7 @@ type Table.elem += FuncElem of func_inst
 
 (* Auxiliary functions *)
 
-let clone(m: module_inst): module_inst =
+let clone (m: module_inst): module_inst =
   let types = m.types in
   let funcs = m.funcs in
   let tables = m.tables in

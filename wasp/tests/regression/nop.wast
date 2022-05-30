@@ -27,7 +27,6 @@
       (nop)
       (i32.const 2048)
       (i32.const 1024)
-      (print_stack)
       (local.set 0))
   (memory $0 1)
   (export "main" (func $main)))

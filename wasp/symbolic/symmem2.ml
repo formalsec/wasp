@@ -215,7 +215,11 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension)
   ) in
   let sv'' : sym_expr = 
     match simplify ~extract:true sv' with
-    | Value v -> Value v
+    | Value (I64 x) ->
+      begin match t with
+      | I32Type -> Value (I32 (Int64.to_int32 x)) 
+      | _       -> Value (I64 x)
+      end
     | Ptr   p -> Ptr   p 
     | _ ->
       let rec loop acc i =

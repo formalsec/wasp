@@ -65,8 +65,8 @@ type sym_frame =
   sym_globals: Static_globals.t
 }
 
-let clone(frame: sym_frame): sym_frame =
-  let sym_inst = clone(frame.sym_inst) in
+let clone (frame: sym_frame) : sym_frame =
+  let sym_inst = clone frame.sym_inst in
   let sym_locals = frame.sym_locals in
   let sym_globals = frame.sym_globals in
   {
@@ -133,6 +133,8 @@ let sym_config inst vs es sym_m globs = {
 
 exception BugException of bug * region * string
 
+let debug str = if !Flags.trace then print_endline str
+
 let plain e = SPlain e.it @@ e.at
 
 let lookup category list x =
@@ -145,6 +147,19 @@ let table (inst : module_inst) x = lookup "table" inst.tables x
 let memory (inst : module_inst) x = lookup "memory" inst.memories x
 let global (inst : module_inst) x = lookup "global" inst.globals x
 let local (frame : sym_frame) x = lookup "local" frame.sym_locals x
+
+let elem inst x i at =
+  match Table.load (table inst x) i with
+  | Table.Uninitialized ->
+    Trap.error at ("uninitialized element " ^ Int32.to_string i)
+  | f -> f
+  | exception Table.Bounds ->
+    Trap.error at ("undefined element " ^ Int32.to_string i)
+
+let func_elem inst x i at =
+  match elem inst x i at with
+  | FuncElem f -> f
+  | _ -> Crash.error at ("type mismatch for element " ^ Int32.to_string i)
 
 let take n (vs : 'a stack) at =
   try Lib.List.take n vs with Failure _ -> Crash.error at "stack underflow"
@@ -202,13 +217,28 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
   | e :: t ->
   (match e.it, vs with
     | SPlain e', vs ->
-      print_endline((instr_str e'));
+      (*print_endline((instr_str e'));*)
       (match e', vs with
       | Nop, vs ->
         Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
 
       | Drop, v :: vs' ->
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
+
+      | Select, Value (I32 0l) :: v2 :: v1 :: vs' ->
+        Result.ok ([ { c with sym_code = v2 :: vs', List.tl es } ], [])
+
+      | Select, Value (I32 i) :: v2 :: v1 :: vs' ->
+        Result.ok ([ { c with sym_code = v1 :: vs', List.tl es } ], [])
+
+      | Select, sexpr :: v2 :: v1 :: vs' ->
+        let c'  = clone c 
+        and es' = List.tl es
+        and pc_true  = add_constraint sexpr pc
+        and pc_false = add_constraint ~neg:true sexpr pc in
+        let c_true = { c with sym_code = v1 :: vs', es'; path_cond = pc_true }
+        and c_false = { c' with sym_code = v2 :: vs', es'; path_cond = pc_false }
+        in Result.ok ([c_true; c_false], [])
 
       | Block (ts, es'), vs ->
         let es0 = SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at in
@@ -218,7 +248,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es0 = SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at in
         Result.ok ([ { c with sym_code = vs, es0 :: (List.tl es) } ], [])
 
-      | If (ts, es1, es2), (ex) :: vs' ->
+      | If (ts, es1, es2), ex :: vs' ->
         (match ex with
         | Value (I32 0l) ->
           (* if it is 0 *)
@@ -228,8 +258,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], [])
         | _ -> (
           let c_clone = clone c in
-          let pc_false = add_constraint ex pc true in
-          let pc_true = add_constraint ex pc false in
+          let pc_false = add_constraint ~neg:true ex pc in
+          let pc_true = add_constraint ex pc in
           let es' = List.tl es in
           (* TODO: check if ex != 0 is sat and if so include that config *)
           let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true } in
@@ -253,8 +283,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           Result.ok ([ { c with sym_code = vs', [SPlain (Br x) @@ e.at] } ], [])
         | _ -> (
           let c_clone = clone c in
-          let pc_false = add_constraint ex pc true in
-          let pc_true = add_constraint ex pc false in
+          let pc_false = add_constraint ~neg:true ex pc in
+          let pc_true = add_constraint ex pc in
           let es' = List.tl es in
           (* TODO: check if ex != 0 is sat and if so include that config *)
           let c_true = { c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true } in
@@ -265,10 +295,19 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         )
 
       | Return, vs ->
-        Result.ok ([{c with sym_code = vs, [SReturning vs @@ e.at]}], [])
+        let es' = [SReturning vs @@ e.at] @ List.tl es in
+        Result.ok ([{c with sym_code = [], es'}], [])
 
       | Call x, vs ->
         Result.ok ([ { c with sym_code = vs, [SInvoke (func frame.sym_inst x) @@ e.at] @ t } ], [])
+
+      | CallIndirect x, Value (I32 i) :: vs ->
+        let func = func_elem frame.sym_inst (0l @@ e.at) i e.at in
+        let es' = if type_ frame.sym_inst x <> Func.type_of func then
+          [STrapping "indirect call type mismatch" @@ e.at]
+        else
+          [SInvoke func @@ e.at] in
+        Result.ok ([{c with sym_code = vs, es' @ List.tl es}], [])
 
       | LocalGet x, vs ->
         let vs' = !(local frame x) :: vs in
@@ -405,9 +444,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymFloat64, x)) :: vs', es'} ], [])
 
-      | SymAssert, (Value (I32 0l)) :: vs' ->
-        (* debug ">>> Assert FAILED! Stopping..."; *)
-        (let opt_c =
+      | SymAssert, Value (I32 0l) :: vs' ->
+        debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
+        let opt_c =
           let assertion = Formula.to_formula pc in
           let model = Z3Encoding2.check_sat_core assertion in
           match model with
@@ -418,27 +457,22 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
             and lf32 = Varmap.get_vars_by_type F32Type var_map
             and lf64 = Varmap.get_vars_by_type F64Type var_map in
             let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-            Some Logicenv.(to_json binds)
+            Some (Logicenv.to_json binds)
         in
-        match opt_c with
+        (match opt_c with
         | Some c -> Result.error c
-        | None -> Result.ok ([], []) (* unsat PC can be ignored, unreachable if we optimize if *)
-        )
+        | None -> Result.ok ([], [])) (* unsat PC can be ignored, unreachable if we optimize if *)
 
-      | SymAssert, (Value (I32 _)) :: vs' ->
+      | SymAssert, Value (I32 i) :: vs' ->
         (* passed *)
+        debug (Source.string_of_pos e.at.left ^ ":Assert PASSED!");
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | SymAssert, v :: vs' ->
-        (let opt_c =
-        (match simplify v with
-        | Value (I32 v) when not (v = 0l) -> None
-        | Ptr   (I32 v) when not (v = 0l) -> None
-        | ex' ->
-          let c = Option.map negate_relop (to_constraint ex') in
+        let opt_c =
+          let c = Option.map negate_relop (to_constraint (simplify v)) in
           let pc' = Option.map_default (fun a -> a :: pc) pc c in
-          let assertion = Formula.to_formula pc' in
-          let model = Z3Encoding2.check_sat_core assertion in
+          let model = Z3Encoding2.check_sat_core (Formula.to_formula pc') in
           match model with
           | None   -> None
           | Some m ->
@@ -447,10 +481,13 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
             and lf32 = Varmap.get_vars_by_type F32Type var_map
             and lf64 = Varmap.get_vars_by_type F64Type var_map in
             let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-            Some Logicenv.(to_json binds)
-        )
+            Some (Logicenv.to_json binds)
         in
-        match opt_c with
+        if Option.is_some opt_c then
+          debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...")
+        else
+          debug (Source.string_of_pos e.at.left ^ ":Assert PASSED!");
+        (match opt_c with
         | Some c -> Result.error c
         | None -> Result.ok ([ { c with sym_code = (vs', List.tl es) } ], [])
         )
@@ -466,7 +503,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
         | ex' -> (
-          let pc_true = add_constraint ex' pc false in
+          let pc_true = add_constraint ex' pc in
           let assertion = Formula.to_formula pc_true in
           let model = Z3Encoding2.check_sat_core assertion in
           match model with
@@ -498,6 +535,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], [])
         )
 
+      | Alloc, sz :: base :: vs' ->
+        (* TODO: chunk_table: Hashtbl.add chunk_table b a;*)
+        Result.ok ([{c with sym_code = base :: vs', List.tl es}], [])
+
+      | Free, base :: vs' ->
+        (* TODO: chunk_tbl: free *)
+        Result.ok ([{c with sym_code = vs', List.tl es}], [])
+
       | PrintStack, vs ->
         let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
         print_endline ("Stack:" ^ "\n" ^ (String.concat "\n" vs'));
@@ -505,12 +550,12 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
       | PrintMemory, vs ->
-        print_endline ("MEMORY STATE:\n" ^ (Symmem2.to_string mem));
+        print_endline ("Memory State:\n" ^ (Symmem2.to_string mem));
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
       | _ ->
-        failwith ("Not implemented " ^ instr_str e')
+        Result.error ((Source.string_of_region e.at) ^ ":Not implemented " ^ instr_str e')
       )
 
   | SLabel (n, es0, (vs', [])), vs ->

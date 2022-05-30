@@ -124,6 +124,7 @@ let chunk_table = Hashtbl.create 512
 
 (* Helpers *)
 let debug str = if !Flags.trace then print_endline str
+
 let time_call f args acc =
   let start = Sys.time () in
   let ret = f args in
@@ -250,12 +251,12 @@ let rec sym_step (c : sym_config) : sym_config =
         vs, [SLabel (0, [e' @@ e.at], ([], List.map plain es')) @@ e.at], logic_env, pc, mem
 
       | If (ts, es1, es2), (I32 0l, ex) :: vs' ->
-        let pc = add_constraint ex pc true in
+        let pc = add_constraint ~neg:true ex pc in
         (*Printf.printf ("\n\n###### Entered IF, with 0 on top of stack. ######\nPath conditions are now:\n %s\n#################################################\n\n")   (Symvalue.str_pc ([v'] @ pc));*)
         vs', [SPlain (Block (ts, es2)) @@ e.at], logic_env, pc, mem
 
       | If (ts, es1, es2), (I32 i, ex) :: vs' ->
-        let pc = add_constraint ex pc false in
+        let pc = add_constraint ex pc in
         (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack. ######\nPath conditions are now:\n %s\n##################################################\n\n")   (Symvalue.str_pc ([v'] @ pc));*)
         vs', [SPlain (Block (ts, es1)) @@ e.at], logic_env, pc, mem
 
@@ -264,13 +265,13 @@ let rec sym_step (c : sym_config) : sym_config =
 
       | BrIf x, (I32 0l, ex) :: vs' ->
         (* Negate expression because it is false *)
-        let pc = add_constraint ex pc true in
+        let pc = add_constraint ~neg:true ex pc in
         (*Printf.printf ("\n\n###### Entered BRIF, with 0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n#################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc
          (to_add @ pc));*)
         vs', [], logic_env, pc, mem
 
       | BrIf x, (I32 i, ex) :: vs' ->
-        let pc = add_constraint ex pc false in
+        let pc = add_constraint ex pc in
         (*Printf.printf ("\n\n###### Entered IF, with !=0 on top of stack @ (%s) ######\nPath conditions are now:\n %s\n##################################################\n\n") (Source.string_of_region e.at) (Symvalue.pp_string_of_pc (to_add @ pc));*)
         vs', [SPlain (Br x) @@ e.at], logic_env, pc, mem
 
@@ -297,11 +298,11 @@ let rec sym_step (c : sym_config) : sym_config =
         vs', [], logic_env, pc, mem
 
       | Select, (I32 0l, ex) :: v2 :: v1 :: vs' ->
-        let pc = add_constraint ex pc true in
+        let pc = add_constraint ~neg:true ex pc in
         v2 :: vs', [], logic_env, pc, mem
 
       | Select, (I32 i, ex) :: v2 :: v1 :: vs' ->
-        let pc = add_constraint ex pc false in
+        let pc = add_constraint ex pc in
         v1 :: vs', [], logic_env, pc , mem
 
       | LocalGet x, vs ->

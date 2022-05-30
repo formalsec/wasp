@@ -108,6 +108,10 @@ let input_from get_script run =
   | Symeval.Trap (at, msg) -> error at "runtime trap" msg
   | Symeval.Exhaustion (at, msg) -> error at "resource exhaustion" msg
   | Symeval.Crash (at, msg) -> error at "runtime crash" msg
+  | Symstatic.Link (at, msg) -> error at "link failure" msg
+  | Symstatic.Trap (at, msg) -> error at "runtime trap" msg
+  | Symstatic.Exhaustion (at, msg) -> error at "resource exhaustion" msg
+  | Symstatic.Crash (at, msg) -> error at "runtime crash" msg
   | Encode.Code (at, msg) -> error at "encoding error" msg
   | IO (at, msg) -> error at "i/o error" msg
   | Assert (at, msg) -> error at "assertion failure" msg

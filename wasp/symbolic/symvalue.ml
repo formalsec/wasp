@@ -832,9 +832,9 @@ let mk_relop (e : sym_expr) (t : value_type) : sym_expr =
   )
 
 let add_constraint
+    ?(neg : bool = false) 
     (e : sym_expr)
-    (pc : path_conditions)
-    (neg : bool) : path_conditions =
+    (pc : path_conditions) : path_conditions =
   let cond =
     let c = to_constraint (simplify e) in
     if neg then Option.map negate_relop c else c
