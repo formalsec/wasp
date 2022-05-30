@@ -520,11 +520,16 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       begin match e1', e2' with
       | Value (I32 0l), _ ->
         begin match op with
-        | I32Add | I32Or   | I32Sub 
-        | I32Shl | I32ShrS | I32ShrU -> e2' 
+        | I32Add | I32Or   | I32Sub  -> e2'
         | I32And | I32DivS | I32DivU 
         | I32Mul | I32RemS | I32RemU -> Value (I32 0l)
-        | I32Xor -> I32Binop (op, e1', e2')
+        | _ -> I32Binop (op, e1', e2')
+        end
+      | _, Value (I32 0l) ->
+        begin match op with
+        | I32Add | I32Or | I32Sub -> e1'
+        | I32And | I32Mul -> Value (I32 0l)
+        | _ -> I32Binop (op, e1', e2')
         end
 
       | Value v1, Value v2 ->
@@ -565,6 +570,9 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
 
   | Extract (s, h, l) when extract = true ->
     begin match s with
+    | Ptr (I32 p) ->
+      let x' = nland Int64.(shift_right (of_int32 p) (l * 8)) (h - l) in
+      Ptr (I32 (Int64.to_int32 x'))
     | Value (I64 x) -> 
       let x' = nland (Int64.shift_right x (l * 8)) (h - l) in
       Value (I64 x')
@@ -576,6 +584,14 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     let e1' = new_simplify ~extract:false e1
     and e2' = new_simplify ~extract:false e2 in
     begin match e1', e2' with
+    | Extract (Ptr (I32 p2), h2, l2), Extract (Ptr (I32 p1), h1, l1) ->
+      let x1 = Int64.of_int32 p1 and x2 = Int64.of_int32 p2 in
+      let d1 = (h1 - l1) and d2 = (h2 - l2) in
+      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
+      Extract (Ptr (I32 (Int64.to_int32 x)), d1 + d2, 0)
+
     | Extract (Value (I64 x2), h2, l2), Extract (Value (I64 x1), h1, l1) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
       let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1

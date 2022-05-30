@@ -213,12 +213,15 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension)
   let sv'' : sym_expr = 
     match simplify ~extract:true sv' with
     | Value v -> Value v
+    | Ptr   p -> Ptr   p 
     | _ ->
       let rec loop acc i =
         if i >= (Types.size t) then acc
         else loop (acc @ [Extract (Value (I64 0L), 1, 0)]) (i + 1) in
       let exprs = loop sv (List.length sv) in
-      List.(fold_left (fun acc e -> Concat (e, acc)) (hd exprs) (tl exprs))
+      List.(
+        fold_left (fun acc e -> Concat (e, acc)) (hd exprs) (tl exprs)
+      )
   in (x', sv'')
 
 let store_packed (sz : Memory.pack_size) (mem : memory) (a : address) 
