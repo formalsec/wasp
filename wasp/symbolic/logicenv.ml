@@ -282,6 +282,6 @@ let rec eval (env : t) (e : sym_expr) : value =
       | I64 x -> x
       | F32 x -> Int64.of_int32 (F32.to_bits x)
       | F64 x -> F64.to_bits x
-    in I64 Int64.(logand (shift_right v (l * 8)) 0xffL)
+    in I64 (nland (Int64.shift_right v (l * 8)) (h - l))
   | Concat (e1, e2) ->
       eval env (simplify (Concat (e1, e2)))
