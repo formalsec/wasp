@@ -103,6 +103,14 @@ def get_parser():
         help='compile the source file without running WASP'
     )
 
+    parser.add_argument(
+      '--postprocess',
+      dest='postprocess',
+      action='store',
+      default=None,
+      help='prepare file for WASP analysis using post-processing'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -170,15 +178,18 @@ def compile_sources(sources):
     log.debug(f'Compilation done.')
     return 0
 
-def postprocess_file(file):
-    log.debug(f'Processing Wasm module \'{file}\'...')
+def postprocess_file(infile, outfile=None):
+    log.debug(f'Processing Wasm module \'{infile}\'...')
 
-    with open(file, 'r') as f:
+    with open(infile, 'r') as f:
         text = f.read()
 
     n_text = post.process(text)
 
-    with open(file, 'w') as f:
+    if outfile is None:
+      outfile = infile
+
+    with open(outfile, 'w') as f:
         f.write(n_text)
     return 0
 
@@ -192,13 +203,21 @@ def main(root_dir, argv=None):
     else:
         logger.init(log, logging.INFO)
 
+    if not os.path.exists(args.file):
+        log.error(f'Input file \'{args.file}\' not found!')
+        return -1
+
+    if args.postprocess is not None:
+        if len(args.postprocess) == 0:
+          log.error('Output file cannot be empty!')
+          return -1
+
+        return postprocess_file(args.file, args.postprocess)
+
     if not os.path.exists(args.output_dir):
         log.debug(f'Creating directory \'{args.output_dir}\'...')
         os.makedirs(args.output_dir)
 
-    if not os.path.exists(args.file):
-        log.error(f'Input file \'{args.file}\' not found!')
-        return -1
 
     log.info('Setting up analysis files...')
 
