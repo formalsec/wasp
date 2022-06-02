@@ -95,6 +95,14 @@ def get_parser():
         help='disable algebraic simplifications of symbolic expressions'
     )
 
+    parser.add_argument(
+        '--compile-only',
+        dest='compile_only',
+        action='store_true',
+        default=False,
+        help='compile the source file without running WASP'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -164,7 +172,7 @@ def compile_sources(sources):
 
 def postprocess_file(file):
     log.debug(f'Processing Wasm module \'{file}\'...')
-    
+
     with open(file, 'r') as f:
         text = f.read()
 
@@ -180,7 +188,7 @@ def main(root_dir, argv=None):
     args = parse(argv)
 
     if args.verbose:
-        logger.init(log, logging.DEBUG) 
+        logger.init(log, logging.DEBUG)
     else:
         logger.init(log, logging.INFO)
 
@@ -207,25 +215,27 @@ def main(root_dir, argv=None):
         log.error(f'Failed to compile project sources!')
         return -1
 
-    wasm_harness = os.path.splitext(harness)[0] + '.wat'
-    if postprocess_file(wasm_harness) != 0:
-        log.error(f'Failed to annotate Wasm module!')
-        return -1
+    if not args.compile_only:
+      wasm_harness = os.path.splitext(harness)[0] + '.wat'
+      if postprocess_file(wasm_harness) != 0:
+          log.error(f'Failed to annotate Wasm module!')
+          return -1
 
-    # run WASP
-    analyser = WASP(args.smt_assume, args.no_simplify)
-    #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
-    log.info('Starting WASP...')
-    res = analyser.run(wasm_harness, args.entry_func, args.output_dir)
-    with open(wasm_harness + '.out', 'w') as out, \
-            open(wasm_harness + '.err', 'w') as err:
-        out.write(res.stdout)
-        err.write(res.stderr)
-    if res.crashed:
-        log.error(f'WASP crashed')
-        return -1
-    elif res.timeout:
-        log.error(f'WASP timed out')
-        return -1
-    log.info('Analysis done.')
+      # run WASP
+      analyser = WASP(args.smt_assume, args.no_simplify)
+      #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
+      log.info('Starting WASP...')
+      res = analyser.run(wasm_harness, args.entry_func, args.output_dir)
+      with open(wasm_harness + '.out', 'w') as out, \
+              open(wasm_harness + '.err', 'w') as err:
+          out.write(res.stdout)
+          err.write(res.stderr)
+      if res.crashed:
+          log.error(f'WASP crashed')
+          return -1
+      elif res.timeout:
+          log.error(f'WASP timed out')
+          return -1
+      log.info('Analysis done.')
+
     return 0
