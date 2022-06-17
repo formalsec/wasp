@@ -10,12 +10,14 @@ class WASP:
             self,
             smt_assume,
             no_simplify,
+            static,
             instr_limit=-1,
             time_limit=900,                  # default 15mins
             memory_limit=15*1024*1024*1024   # default 15Gib
         ):
         self.smt_assume = smt_assume
         self.no_simplify = no_simplify
+        self.static = static
         self.instr_limit = instr_limit
         self.time_limit = time_limit
         self.memory_limit = memory_limit
@@ -30,6 +32,8 @@ class WASP:
             args.append('--smt-assume')
         if self.no_simplify:
             args.append('--no-simplify')
+        if self.static:
+            args.append('-static')
         return [
             'wasp', test_prog,
             '-t',

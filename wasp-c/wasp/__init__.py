@@ -95,6 +95,14 @@ def get_parser():
         help='disable algebraic simplifications of symbolic expressions'
     )
 
+    parser.add_argument(
+        '--static',
+        dest='static',
+        action='store_true',
+        default=False,
+        help='use static symbolic execution rather than concolic'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -213,7 +221,7 @@ def main(root_dir, argv=None):
         return -1
 
     # run WASP
-    analyser = WASP(args.smt_assume, args.no_simplify)
+    analyser = WASP(args.smt_assume, args.no_simplify, args.static)
     #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
     log.info('Starting WASP...')
     res = analyser.run(wasm_harness, args.entry_func, args.output_dir)
