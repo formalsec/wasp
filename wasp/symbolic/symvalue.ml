@@ -529,7 +529,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       | Value (I32 0l), _ ->
         begin match op with
         | I32Add | I32Or   | I32Sub  -> e2'
-        | I32And | I32DivS | I32DivU 
+        | I32And | I32DivS | I32DivU
         | I32Mul | I32RemS | I32RemU -> Value (I32 0l)
         | _ -> I32Binop (op, e1', e2')
         end
@@ -548,7 +548,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
         | I32Add, I32Add ->
           let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
           I32Binop (I32Add, x, Value v)
-        | I32Add, I32Sub 
+        | I32Add, I32Sub
         | I32Sub, I32Add ->
           let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Sub) v1 v2 in
           I32Binop (I32Add, x, Value v)
@@ -581,7 +581,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     | Ptr (I32 p) ->
       let x' = nland Int64.(shift_right (of_int32 p) (l * 8)) (h - l) in
       Ptr (I32 (Int64.to_int32 x'))
-    | Value (I64 x) -> 
+    | Value (I64 x) ->
       let x' = nland (Int64.shift_right x (l * 8)) (h - l) in
       Value (I64 x')
     | _ when (h - l) = (Types.size (type_of s)) -> s
@@ -610,7 +610,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     | Extract (s1, h, m1), Extract (s2, m2, l) when (s1 = s2) && (m1 = m2) ->
       Extract (s1, h, l)
 
-    | Extract (Value (I64 x2), h2, l2), 
+    | Extract (Value (I64 x2), h2, l2),
     Concat (Extract (Value (I64 x1), h1, l1), se) when not (is_value se) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
       let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
@@ -832,7 +832,7 @@ let mk_relop (e : sym_expr) (t : value_type) : sym_expr =
   )
 
 let add_constraint
-    ?(neg : bool = false) 
+    ?(neg : bool = false)
     (e : sym_expr)
     (pc : path_conditions) : path_conditions =
   let cond =
