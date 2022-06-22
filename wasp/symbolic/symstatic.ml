@@ -232,7 +232,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         Result.ok ([ { c with sym_code = v1 :: vs', List.tl es } ], [])
 
       | Select, sexpr :: v2 :: v1 :: vs' ->
-        let c'  = clone c 
+        let c'  = clone c
         and es' = List.tl es
         and pc_true  = add_constraint sexpr pc
         and pc_false = add_constraint ~neg:true sexpr pc in
@@ -343,10 +343,13 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let low64 = Int64.of_int32 low in
         begin try
           (* TODO: check for UAF and overflow? *)
-          let (_, v) =
+          let v =
             match sz with
-            | None           -> Symmem2.load_value mem low64 offset ty
-            | Some (sz, ext) -> Symmem2.load_packed sz ext mem low64 offset ty
+            | None           -> Symmem2.load_value_static mem low64 offset ty
+            | Some (sz, ext) -> (
+              let (_, v) = Symmem2.load_packed sz ext mem low64 offset ty in
+              v
+            )
           in
           let es' = List.tl es in
           Result.ok ([ { c with sym_code = v :: vs', es' } ], [])

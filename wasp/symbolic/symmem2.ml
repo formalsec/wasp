@@ -1,6 +1,7 @@
 open Types
 open Values
 open Symvalue
+open Sf32
 
 type size = int32
 type address = int64
@@ -68,7 +69,7 @@ let to_string (mem : memory) : string =
   ) lst ""
 
 let load_byte (mem : memory) (a : address) : store =
-  try Hashtbl.find mem a with Not_found -> 
+  try Hashtbl.find mem a with Not_found ->
     (0, Extract (Value (I64 0L), 1, 0))
     (* raise (InvalidAddress a) *)
 
@@ -168,6 +169,47 @@ let load_value (mem : memory) (a : address) (o : offset)
     end
   in (n', expr')
 
+let load_value_static (mem : memory) (a : address) (o : offset)
+    (t : value_type) : sym_expr  =
+  let (_, se) = loadn mem a o (Types.size t) in
+  (* Concat symbolic byte list *)
+  let se = List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se) in
+  (* Cast to `t` *)
+  let se = simplify ~extract:true se in
+  let se' = match t with
+    | I32Type -> se
+    | I64Type -> se
+    | F32Type -> F32Cvtop (Sf32.F32ReinterpretInt, se)
+    | F64Type -> F64Cvtop (Sf64.F64ReinterpretInt, se) in
+  match se' with
+  | Value _ -> se'
+  | Extract ((Value I64 i), h, l) ->
+    let len = h - l in
+    begin match len with
+    | 8 -> Value (I64                 (nland (Int64.shift_right i (l * 8)) (h - l)))
+    | 4 -> Value (I32 (Int64.to_int32 (nland (Int64.shift_right i (l * 8)) (h - l))))
+    | _ -> failwith "we assume to be reading i32 or i64 for now"
+    end
+  | Extract (Symbolic (SymInt32, x), 4, 0) ->
+      Symbolic (SymInt32, x)
+  | Extract (Symbolic (SymInt64, x), 8, 0) ->
+      Symbolic (SymInt64, x)
+  | Extract (I32Binop (op, a, b), 4, 0) ->
+      I32Binop (op, a, b)
+  | Extract (I64Binop (op, a, b), 8, 0) ->
+      I64Binop (op, a, b)
+  | F32Cvtop (F32ReinterpretInt, (Extract ((Value I64 i), h, l))) ->
+    let len = h - l in
+    let ix = match len with
+    | 4 -> (Int64.to_int32 (nland (Int64.shift_right i (l * 8)) (h - l)))
+    | _ -> failwith "we assume to be reading i32 or i64 for now"
+    in
+    Value (F32 (F32.of_bits ix))
+  | _ -> se'
+  (* | _ -> ( *)
+  (*   Printf.eprintf "%s" ("gonna die" ^ Symvalue.to_string se'); *)
+  (*   failwith "needed?") *)
+
 let store_value (mem : memory) (a : address) (o : offset)
     (v : sym_value) : unit =
   let (cv, sv) = v in
@@ -213,14 +255,14 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension)
   let sv' = simplify List.(
     fold_left (fun acc e -> Concat (e, acc)) (hd sv) (tl sv)
   ) in
-  let sv'' : sym_expr = 
+  let sv'' : sym_expr =
     match simplify ~extract:true sv' with
     | Value (I64 x) ->
       begin match t with
-      | I32Type -> Value (I32 (Int64.to_int32 x)) 
+      | I32Type -> Value (I32 (Int64.to_int32 x))
       | _       -> Value (I64 x)
       end
-    | Ptr   p -> Ptr   p 
+    | Ptr   p -> Ptr   p
     | _ ->
       let rec loop acc i =
         if i >= (Types.size t) then acc

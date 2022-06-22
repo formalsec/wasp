@@ -31,6 +31,8 @@ val load_string : memory -> address -> string
 val load_bytes : memory -> address -> int -> string * sym_expr
 val store_bytes : memory -> address -> string -> unit
 
+val load_value_static:
+  memory -> address -> offset -> value_type -> sym_expr
 val load_value :
   memory -> address -> offset -> value_type -> sym_value
 val store_value :
