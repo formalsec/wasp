@@ -133,7 +133,18 @@ let sym_config inst vs es sym_m globs = {
 
 exception BugException of bug * region * string
 
+let solver_time = ref 0.
+let solver_counter = ref 0
+let loop_start = ref 0.
+let paths = ref (-1)
+
 let debug str = if !Flags.trace then print_endline str
+
+let time_call f args acc =
+  let start = Sys.time () in
+  let ret = f args in
+  acc := !acc +. ((Sys.time ()) -. start);
+  ret
 
 let plain e = SPlain e.it @@ e.at
 
@@ -261,11 +272,21 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           let pc_false = add_constraint ~neg:true ex pc in
           let pc_true = add_constraint ex pc in
           let es' = List.tl es in
-          (* TODO: check if ex != 0 is sat and if so include that config *)
-          let c_true = { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true } in
-          (* TODO: check if ex == 0 is sat and if so include that config *)
-          let c_false = { c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false } in
-          Result.ok ([ c_true; c_false ], [])
+          let l_true = (
+            solver_counter := !solver_counter +1;
+            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
+            (match model with
+            | None -> []
+            | Some _ -> [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }])
+          ) in
+          let l_false = (
+            solver_counter := !solver_counter +1;
+            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
+            (match model with
+            | None -> []
+            | Some _ -> [{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }])
+          ) in
+          Result.ok (l_true @ l_false, [])
           )
         )
 
@@ -286,11 +307,21 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
           let pc_false = add_constraint ~neg:true ex pc in
           let pc_true = add_constraint ex pc in
           let es' = List.tl es in
-          (* TODO: check if ex != 0 is sat and if so include that config *)
-          let c_true = { c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true } in
-          (* TODO: check if ex == 0 is sat and if so include that config *)
-          let c_false = { c_clone with sym_code = vs', es'; path_cond = pc_false } in
-          Result.ok ([ c_true; c_false ], [])
+          let l_true = (
+            solver_counter := !solver_counter +1;
+            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
+            (match model with
+            | None -> []
+            | Some _ -> [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }])
+          ) in
+          let l_false = (
+            solver_counter := !solver_counter +1;
+            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
+            (match model with
+            | None -> []
+            | Some _ -> [{ c_clone with sym_code = vs', es'; path_cond = pc_false }])
+          ) in
+          Result.ok (l_true @ l_false, [])
           )
         )
 
@@ -451,7 +482,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
         let opt_c =
           let assertion = Formula.to_formula pc in
-          let model = Z3Encoding2.check_sat_core assertion in
+          solver_counter := !solver_counter +1;
+          let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
           match model with
           | None   -> None
           | Some m ->
@@ -472,10 +504,12 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | SymAssert, v :: vs' ->
+        debug ("Asserting: " ^ Symvalue.to_string (simplify v));
         let opt_c =
           let c = Option.map negate_relop (to_constraint (simplify v)) in
           let pc' = Option.map_default (fun a -> a :: pc) pc c in
-          let model = Z3Encoding2.check_sat_core (Formula.to_formula pc') in
+          solver_counter := !solver_counter +1;
+          let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc') solver_time in
           match model with
           | None   -> None
           | Some m ->
@@ -508,7 +542,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         | ex' -> (
           let pc_true = add_constraint ex' pc in
           let assertion = Formula.to_formula pc_true in
-          let model = Z3Encoding2.check_sat_core assertion in
+          solver_counter := !solver_counter +1;
+          let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
           match model with
           | None   ->
             Result.ok ([], [])
@@ -683,9 +718,37 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
   let globs = func_to_globs func in
   let c = sym_config empty_module_inst (List.rev vs) [SInvoke func @@ at]
     !inst.sym_memory globs in
-  match (eval [c] []) with
-  | Result.Ok _ -> ()
-  | Result.Error str -> (
-    print_endline str
+
+  loop_start := Sys.time ();
+
+  let spec = match (eval [c] []) with
+  | Result.Ok (_, outs) -> (
+    paths := List.length outs;
+    true
   )
+  | Result.Error str -> (
+    print_endline str;
+    false
+  )
+  in
+
+  let loop_time = (Sys.time()) -. !loop_start in
+
+  Io.safe_mkdir !Flags.output;
+
+  (* TODO: we can probably get witness and reason *)
+  (* Execution report *)
+  let fmt_str = "{" ^
+    "\"specification\": "        ^ (string_of_bool spec)          ^ ", " ^
+    (* "\"reason\" : "              ^ reason                         ^ ", " ^ *)
+    (* "\"witness\" : "             ^ wit                            ^ ", " ^ *)
+    (* "\"coverage\" : \""          ^ (string_of_float coverage)     ^ "\", " ^ *)
+    "\"loop_time\" : \""         ^ (string_of_float loop_time)    ^ "\", " ^
+    "\"solver_time\" : \""       ^ (string_of_float !solver_time) ^ "\", " ^
+    "\"paths_explored\" : "      ^ (string_of_int !paths)    ^ ", " ^
+    "\"solver_counter\" : "      ^ (string_of_int !solver_counter)    ^ (*", " ^*)
+    (* "\"instruction_counter\" : " ^ (string_of_int !step_cnt)      ^ ", " ^ *)
+    (* "\"incomplete\" : "          ^ (string_of_bool !incomplete)   ^ *)
+  "}"
+  in Io.save_file (Filename.concat !Flags.output "report.json") fmt_str;
 
