@@ -721,14 +721,13 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   loop_start := Sys.time ();
 
-  let spec = match (eval [c] []) with
+  let (spec, witness) = match (eval [c] []) with
   | Result.Ok (_, outs) -> (
     paths := List.length outs;
-    true
+    (true, "")
   )
-  | Result.Error str -> (
-    print_endline str;
-    false
+  | Result.Error witness -> (
+    (false, witness)
   )
   in
 
@@ -736,12 +735,12 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   Io.safe_mkdir !Flags.output;
 
-  (* TODO: we can probably get witness and reason *)
+  (* TODO: we can probably get reason *)
   (* Execution report *)
   let fmt_str = "{" ^
     "\"specification\": "        ^ (string_of_bool spec)          ^ ", " ^
     (* "\"reason\" : "              ^ reason                         ^ ", " ^ *)
-    (* "\"witness\" : "             ^ wit                            ^ ", " ^ *)
+    "\"witness\" : "             ^ witness                        ^ ", " ^
     (* "\"coverage\" : \""          ^ (string_of_float coverage)     ^ "\", " ^ *)
     "\"loop_time\" : \""         ^ (string_of_float loop_time)    ^ "\", " ^
     "\"solver_time\" : \""       ^ (string_of_float !solver_time) ^ "\", " ^
