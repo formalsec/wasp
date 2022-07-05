@@ -215,7 +215,7 @@ let instr_str e =
     | Symbolic _ -> "symbolic"
     | _ -> "not support"
 
-let rec step (c : sym_config) : ((sym_config list * sym_config list), string) result =
+let rec step (c : sym_config) : ((sym_config list * sym_config list), string * string) result =
   let {
     sym_frame = frame;
     sym_code = vs, es;
@@ -495,7 +495,15 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
             Some (Logicenv.to_json binds)
         in
         (match opt_c with
-        | Some c -> Result.error c
+        | Some c -> (
+          let reason = "{" ^
+          "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
+          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+          "}"
+          in
+          Result.error (reason, c)
+          )
         | None -> Result.ok ([], [])) (* unsat PC can be ignored, unreachable if we optimize if *)
 
       | SymAssert, Value (I32 i) :: vs' ->
@@ -525,7 +533,15 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         else
           debug (Source.string_of_pos e.at.left ^ ":Assert PASSED!");
         (match opt_c with
-        | Some c -> Result.error c
+        | Some c -> (
+          let reason = "{" ^
+          "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
+          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+          "}"
+          in
+          Result.error (reason, c)
+          )
         | None -> Result.ok ([ { c with sym_code = (vs', List.tl es) } ], [])
         )
 
@@ -592,8 +608,16 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
-      | _ ->
-        Result.error ((Source.string_of_region e.at) ^ ":Not implemented " ^ instr_str e')
+      | _ -> (
+        print_endline ((Source.string_of_region e.at) ^ ":Not implemented " ^ instr_str e');
+        let reason = "{" ^
+        "\"type\" : \"" ^ "Not implemented" ^ "\", " ^
+        "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+            (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+        "}"
+        in
+        Result.error (reason, "[]")
+        )
       )
 
   | SLabel (n, es0, (vs', [])), vs ->
@@ -693,7 +717,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string) re
   )
 
 let rec eval (cs : sym_config list) (outs : sym_config list) :
-    ((sym_config list * sym_config list), string) result =
+    ((sym_config list * sym_config list), string * string) result =
   match cs with
   | [] -> Result.ok ([], outs)
 
@@ -721,13 +745,13 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   loop_start := Sys.time ();
 
-  let (spec, witness) = match (eval [c] []) with
+  let (spec, reason, witness) = match (eval [c] []) with
   | Result.Ok (_, outs) -> (
     paths := List.length outs;
-    (true, "")
+    (true, "{}", "[]")
   )
-  | Result.Error witness -> (
-    (false, witness)
+  | Result.Error (reason, witness) -> (
+    (false, reason, witness)
   )
   in
 
@@ -735,11 +759,10 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   Io.safe_mkdir !Flags.output;
 
-  (* TODO: we can probably get reason *)
   (* Execution report *)
   let fmt_str = "{" ^
     "\"specification\": "        ^ (string_of_bool spec)          ^ ", " ^
-    (* "\"reason\" : "              ^ reason                         ^ ", " ^ *)
+    "\"reason\" : "              ^ reason                         ^ ", " ^
     "\"witness\" : "             ^ witness                        ^ ", " ^
     (* "\"coverage\" : \""          ^ (string_of_float coverage)     ^ "\", " ^ *)
     "\"loop_time\" : \""         ^ (string_of_float loop_time)    ^ "\", " ^
