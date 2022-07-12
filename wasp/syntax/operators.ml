@@ -40,6 +40,8 @@ let get_sym_float64 x = GetSymFloat64 x
 let print_stack = PrintStack
 let print_memory = PrintMemory
 let print_btree = PrintBtree
+let print_pc = PrintPC
+let print_value = PrintValue
 let compare_expr = CompareExpr
 
 (*  SYMBOLIC EXECUTION  *)

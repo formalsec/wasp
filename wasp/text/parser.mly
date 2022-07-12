@@ -186,6 +186,7 @@ let inline_type_explicit (c : context) x ft at =
 %token SYM_INT32 SYM_INT64 SYM_FLOAT32 SYM_FLOAT64
 
 %token PRINT_STACK PRINT_MEMORY PRINT_BTREE COMPARE_EXPR
+%token PRINT_PC PRINT_VALUE
 
 
 %token<string> NAT
@@ -377,6 +378,8 @@ plain_instr :
   | SYM_FLOAT32 STRING { fun c -> sym_float32 $2 }
   | SYM_FLOAT64 STRING { fun c -> sym_float64 $2 }
   | PRINT_STACK { fun c -> print_stack }
+  | PRINT_PC { fun c -> print_pc }
+  | PRINT_VALUE { fun c -> print_value }
   | PRINT_MEMORY { fun c -> print_memory }
   | PRINT_BTREE { fun c -> print_btree }
   | COMPARE_EXPR { fun c -> compare_expr }

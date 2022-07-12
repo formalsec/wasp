@@ -608,6 +608,17 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
+      | PrintPC, vs ->
+        let assertion = Formula.to_formula pc in
+        debug ("pc: " ^ (Formula.pp_to_string assertion));
+        let es' = List.tl es in
+        Result.ok ([ { c with sym_code = vs, es' } ], [])
+
+      | PrintValue, v:: vs' ->
+        let es' = List.tl es in
+        debug ((Printf.sprintf "%d" e.at.left.line) ^ ":val: " ^ Symvalue.pp_to_string v);
+        Result.ok ([ { c with sym_code = vs, es' } ], [])
+
       | _ -> (
         print_endline ((Source.string_of_region e.at) ^ ":Not implemented " ^ instr_str e');
         let reason = "{" ^

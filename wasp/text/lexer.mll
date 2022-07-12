@@ -380,6 +380,8 @@ rule token = parse
   | "print_stack" { PRINT_STACK }
   | "print_memory" { PRINT_MEMORY }
   | "print_btree" { PRINT_BTREE }
+  | "print_pc" { PRINT_PC }
+  | "print_value" { PRINT_VALUE }
   | "compare_expr" { COMPARE_EXPR }
 
   | name as s { VAR s }

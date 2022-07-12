@@ -120,6 +120,8 @@ and instr' =
   | PrintStack
   | PrintMemory
   | PrintBtree
+  | PrintPC
+  | PrintValue
   | CompareExpr
 
 (* Globals & Functions *)

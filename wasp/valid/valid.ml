@@ -324,6 +324,10 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
 
   | PrintBtree -> [] --> []
 
+  | PrintPC -> [] --> []
+
+  | PrintValue -> [] --> []
+
   | CompareExpr -> [I32Type; I32Type] --> [I32Type]
 
   | IsSymbolic -> [I32Type; I32Type] --> [I32Type]
