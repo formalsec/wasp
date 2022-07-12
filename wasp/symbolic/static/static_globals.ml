@@ -6,6 +6,9 @@ type global = {mutable content : sym_expr; mut : mutability}
 type global_map = (int32, global) Hashtbl.t
 type t = global_map
 
+let clone (map: t): t =
+  Hashtbl.copy(map)
+
 exception Type
 exception NotMutable
 
@@ -55,4 +58,3 @@ let store (map : global_map) (x : int32) (ex : sym_expr): unit =
     (* TODO: fix mutability/initialization *)
     let g = { content = ex; mut = Mutable } in
     Hashtbl.replace map x g;
-

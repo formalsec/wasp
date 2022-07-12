@@ -67,8 +67,8 @@ type sym_frame =
 
 let clone (frame: sym_frame) : sym_frame =
   let sym_inst = clone frame.sym_inst in
-  let sym_locals = frame.sym_locals in
-  let sym_globals = frame.sym_globals in
+  let sym_locals = List.map (fun r -> ref !r) frame.sym_locals in
+  let sym_globals = Static_globals.clone frame.sym_globals in
   {
     sym_inst = sym_inst;
     sym_locals = sym_locals;
