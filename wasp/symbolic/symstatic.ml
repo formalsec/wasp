@@ -260,33 +260,40 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = vs, es0 :: (List.tl es) } ], [])
 
       | If (ts, es1, es2), ex :: vs' ->
-        (match ex with
+        (match simplify ex with
         | Value (I32 0l) ->
           (* if it is 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at]} ], [])
         | Value (I32 _) ->
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], [])
-        | _ -> (
-          let c_clone = clone c in
+        | ex -> (
           let pc_false = add_constraint ~neg:true ex pc in
           let pc_true = add_constraint ex pc in
           let es' = List.tl es in
-          let l_true = (
-            solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
-            (match model with
-            | None -> []
-            | Some _ -> [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }])
-          ) in
-          let l_false = (
-            solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
-            (match model with
-            | None -> []
-            | Some _ -> [{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }])
-          ) in
-          Result.ok (l_true @ l_false, [])
+
+          solver_counter := !solver_counter + 2;
+          let model_true = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
+          let model_false = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
+
+          let l  = (match (model_true, model_false) with
+          | (Some _, Some _) -> (
+            let c_clone = clone c in
+            [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }
+            ;{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }]
+            )
+          | (Some _, None) -> [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }]
+          | (None, Some _) -> [{ c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }]
+          | (None, None) -> failwith "Unreachable BrIf"
+          )
+          in
+
+          if List.length l = 2 then begin
+            debug ("split : " ^ (Source.string_of_pos e.at.left ^
+              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)));
+            debug ("on: " ^ (Symvalue.pp_to_string ex) );
+          end;
+          Result.ok (l, [])
           )
         )
 
@@ -294,7 +301,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = vs, [SBreaking (x.it, vs) @@ e.at] } ], [])
 
       | BrIf x, ex :: vs' ->
-        (match ex with
+        (match simplify ex with
         | Value (I32 0l) ->
           (* if it is 0 *)
           let es' = List.tl es in
@@ -302,26 +309,34 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | Value (I32 _) ->
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Br x) @@ e.at] } ], [])
-        | _ -> (
-          let c_clone = clone c in
+        | ex -> (
           let pc_false = add_constraint ~neg:true ex pc in
           let pc_true = add_constraint ex pc in
           let es' = List.tl es in
-          let l_true = (
-            solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
-            (match model with
-            | None -> []
-            | Some _ -> [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }])
-          ) in
-          let l_false = (
-            solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
-            (match model with
-            | None -> []
-            | Some _ -> [{ c_clone with sym_code = vs', es'; path_cond = pc_false }])
-          ) in
-          Result.ok (l_true @ l_false, [])
+
+          solver_counter := !solver_counter + 2;
+          let model_true = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
+          let model_false = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
+
+          let l  = (match (model_true, model_false) with
+          | (Some _, Some _) -> (
+            let c_clone = clone c in
+            [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }
+            ;{ c_clone with sym_code = vs', es'; path_cond = pc_false }]
+            )
+          | (Some _, None) -> [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }]
+          | (None, Some _) -> [{ c with sym_code = vs', es'; path_cond = pc_false }]
+          | (None, None) -> failwith "Unreachable BrIf"
+          )
+          in
+          if List.length l = 2 then begin
+            debug ("split : " ^ (Source.string_of_pos e.at.left ^
+              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)));
+            debug ("on: " ^ (Symvalue.pp_to_string ex) );
+            debug ("generating pc: " ^ (Formula.pp_to_string (Formula.to_formula pc_true)));
+            debug ("generating pc: " ^ (Formula.pp_to_string (Formula.to_formula pc_false)));
+          end;
+          Result.ok (l, [])
           )
         )
 
