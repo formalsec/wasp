@@ -6,7 +6,7 @@ type global = {mutable content : sym_expr; mut : mutability}
 type global_map = (int32, global) Hashtbl.t
 type t = global_map
 
-let clone (map: t): t =
+let clone_globals (map: t): t =
   Hashtbl.copy(map)
 
 exception Type

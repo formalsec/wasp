@@ -466,7 +466,7 @@ let concretize_ptr (e : sym_expr) : value option =
   (* would probably introduce Memory Objects here *)
   begin match e with
   | Value p -> Some p
-  | _ -> failwith ("can't concretize '" ^ (to_string e) ^ "' to a ptr")
+  | _ -> None
   end
 
 let is_value (e : sym_expr) : bool =

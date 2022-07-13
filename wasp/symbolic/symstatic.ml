@@ -62,17 +62,14 @@ type sym_frame =
 {
   sym_inst : module_inst;
   sym_locals : sym_expr ref list; (*  Locals can be symbolic  *)
-  sym_globals: Static_globals.t
 }
 
-let clone (frame: sym_frame) : sym_frame =
+let clone_frame (frame: sym_frame) : sym_frame =
   let sym_inst = clone frame.sym_inst in
   let sym_locals = List.map (fun r -> ref !r) frame.sym_locals in
-  let sym_globals = Static_globals.clone frame.sym_globals in
   {
     sym_inst = sym_inst;
     sym_locals = sym_locals;
-    sym_globals = sym_globals;
   }
 
 (*  Symbolic code  *)
@@ -102,15 +99,17 @@ type sym_config =
   sym_mem    : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
   var_map    : Varmap.t;
+  sym_globals: Static_globals.t
 }
 
 let clone(c: sym_config): sym_config =
-  let sym_frame = clone(c.sym_frame) in
+  let sym_frame = clone_frame(c.sym_frame) in
   let sym_code = c.sym_code in
   let path_cond = c.path_cond in
   let sym_mem = (Symmem2.clone c.sym_mem) in
   let sym_budget = c.sym_budget in
   let var_map = Hashtbl.copy(c.var_map) in
+  let sym_globals = Static_globals.clone_globals c.sym_globals in
   {
     sym_frame = sym_frame;
     sym_code = sym_code;
@@ -118,17 +117,19 @@ let clone(c: sym_config): sym_config =
     sym_mem = sym_mem;
     sym_budget = sym_budget;
     var_map = var_map;
+    sym_globals = sym_globals;
   }
 
 (* Symbolic frame and configuration  *)
-let sym_frame sym_inst sym_locals globs = {sym_inst; sym_locals; sym_globals = globs}
+let sym_frame sym_inst sym_locals = {sym_inst; sym_locals; }
 let sym_config inst vs es sym_m globs = {
-  sym_frame  = sym_frame inst [] globs;
+  sym_frame  = sym_frame inst [];
   sym_code   = vs, es;
   path_cond  = [];
   sym_mem    = sym_m;
   sym_budget = 100000; (* models default recursion limit in a system *)
   var_map = Hashtbl.create 100;
+  sym_globals = globs
 }
 
 exception BugException of bug * region * string
@@ -284,7 +285,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
             )
           | (Some _, None) -> [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }]
           | (None, Some _) -> [{ c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }]
-          | (None, None) -> failwith "Unreachable BrIf"
+          | (None, None) -> failwith "Unreachable If"
           )
           in
 
@@ -371,21 +372,25 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
 
       | GlobalGet x, vs ->
-        let v' = Static_globals.load frame.sym_globals x.it in
+        let v' = Static_globals.load c.sym_globals x.it in
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = v' :: vs, es' } ], [])
 
       | GlobalSet x, v :: vs' ->
         let es' = List.tl es in
         (try
-          Static_globals.store frame.sym_globals x.it v;
+          Static_globals.store c.sym_globals x.it v;
           Result.ok ([ { c with sym_code = vs', es' } ], [])
         with  Global.NotMutable -> Crash.error e.at "write to immutable global"
             | Global.Type -> Crash.error e.at "type mismatch at global write")
 
       | Load {offset; ty; sz; _}, sym_ptr :: vs' ->
-        let ptr = concretize_ptr (simplify sym_ptr) in
-        let low = I32Value.of_value (Option.get ptr) in
+        let sym_ptr = simplify sym_ptr in
+        let ptr = match concretize_ptr sym_ptr with
+        | Some ptr -> ptr
+        | None -> failwith (Printf.sprintf "%d" e.at.left.line ^": can't concretize '" ^ (to_string sym_ptr) ^ "' to a ptr")
+        in
+        let low = I32Value.of_value ptr in
         let low64 = Int64.of_int32 low in
         begin try
           (* TODO: check for UAF and overflow? *)
@@ -408,8 +413,12 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         end
 
       | Store {offset; sz; _}, ex :: sym_ptr :: vs' ->
-        let ptr = concretize_ptr (simplify sym_ptr) in
-        let low = I32Value.of_value (Option.get ptr) in
+        let sym_ptr = simplify sym_ptr in
+        let ptr = match concretize_ptr sym_ptr with
+        | Some ptr -> ptr
+        | None -> failwith (Printf.sprintf "%d" e.at.left.line ^": can't concretize '" ^ (to_string sym_ptr) ^ "' to a ptr")
+        in
+        let low = I32Value.of_value ptr in
         let low64 = Int64.of_int32 low in
         begin try
           (* TODO: check for UAF and overflow? *)
@@ -625,7 +634,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | PrintPC, vs ->
         let assertion = Formula.to_formula pc in
-        debug ("pc: " ^ (Formula.pp_to_string assertion));
+        debug ((Printf.sprintf "%d" e.at.left.line) ^ " pc: " ^ (Formula.pp_to_string assertion));
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
@@ -676,7 +685,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       (List.map (fun c ->
         let es0' = SLabel (n, es0, c.sym_code) @@ e.at in
         { c with sym_code = vs, es0' :: (List.tl es) })
-      (cs' @ outs'), [])) (step {c with sym_code = code'})
+      cs', outs')) (step {c with sym_code = code'})
 
   | SFrame (n, frame', (vs', [])), vs ->
     Result.ok ([ { c with sym_code = vs' @ vs, List.tl es } ], [])
@@ -696,10 +705,10 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
   | SFrame (n, frame', code'), vs ->
     (* FIXME: path conditions *)
     Result.map (fun (cs', outs') ->
-      (List.map (fun c ->
-        let es0 = SFrame (n, frame', c.sym_code) @@ e.at in
-        { c with sym_code = vs, es0 :: (List.tl es) }
-      ) (cs' @ outs'), [])
+      (List.map (fun (c' : sym_config) ->
+        let es0 = SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at in
+        { c' with sym_code = vs, es0 :: (List.tl es); sym_frame = (clone_frame frame) }
+      ) cs', outs')
     ) (step {
       sym_frame = frame';
       sym_code = code';
@@ -707,6 +716,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       sym_mem = c.sym_mem;
       sym_budget = c.sym_budget - 1;
       var_map = c.var_map;
+      sym_globals = c.sym_globals
     })
 
   | STrapping msg, vs ->
@@ -733,7 +743,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         let locals' = List.map (fun v -> Symvalue.Value v) (List.map default_value f.it.locals) in
         let locals'' = List.rev args @ locals' in
         let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
-        let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''; sym_globals = frame.sym_globals} in
+        let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in
         let es0 = (SFrame (List.length out, frame', code') @@ e.at) in
         Result.ok ([ { c with sym_code = vs', es0 :: (List.tl es) } ], [])
 
