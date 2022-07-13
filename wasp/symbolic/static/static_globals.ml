@@ -2,7 +2,7 @@ open Types
 open Symvalue
 open Instance
 
-type global = {mutable content : sym_expr; mut : mutability}
+type global = {content : sym_expr; mut : mutability}
 type global_map = (int32, global) Hashtbl.t
 type t = global_map
 
@@ -31,18 +31,6 @@ let from_list (global_inst_list : global_inst list) : t =
 let type_of glob =
   GlobalType (type_of glob.content, glob.mut)
 
-let safe_store glob v =
-  if glob.mut = Mutable then glob.content <- v
-
-let globcpy (glob : global) : global =
-  alloc (type_of glob) glob.content
-
-(* let contents (globs : global list) : sym_expr list = *)
-(*   let rec loop acc = function *)
-(*     | []     -> acc *)
-(*     | h :: t -> loop ((load h) :: acc) t *)
-(*   in List.rev (loop [] globs) *)
-
 let load (map: global_map) (x: int32): sym_expr =
   let g = Hashtbl.find map x in
   g.content
@@ -52,7 +40,7 @@ let store (map : global_map) (x : int32) (ex : sym_expr): unit =
   | Some(g) -> begin
     if g.mut <> Mutable then raise NotMutable;
     if Symvalue.type_of ex <> Symvalue.type_of g.content then raise Type;
-    g.content <- ex
+    Hashtbl.replace map x {g with content = ex}
   end
   | None ->
     (* TODO: fix mutability/initialization *)
