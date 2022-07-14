@@ -528,7 +528,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           in
           Result.error (reason, c)
           )
-        | None -> Result.ok ([], [])) (* unsat PC can be ignored, unreachable if we optimize if *)
+        | None -> failwith "unreachable, pc is unsat"
+        )
 
       | SymAssert, Value (I32 i) :: vs' ->
         (* passed *)
@@ -703,7 +704,6 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
     Result.ok ([ { c with sym_code = vs'', List.tl es } ], [])
 
   | SFrame (n, frame', code'), vs ->
-    (* FIXME: path conditions *)
     Result.map (fun (cs', outs') ->
       (List.map (fun (c' : sym_config) ->
         let es0 = SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at in
