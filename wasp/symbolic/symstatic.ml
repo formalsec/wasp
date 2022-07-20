@@ -141,7 +141,7 @@ exception BugException of bug * region * string
 let solver_time = ref 0.
 let solver_counter = ref 0
 let loop_start = ref 0.
-let paths = ref (-1)
+let paths = ref (1)
 
 let debug str = if !Flags.trace then print_endline str
 
