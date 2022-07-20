@@ -75,37 +75,37 @@ let rec length (e : sym_expr) : int =
   | Value v -> 1
   | Ptr p   -> 1
   | SymPtr _ -> 1
-	(* I32 *)
-	| I32Unop  (op, e)      -> 1 + (length e)
-	| I32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
-	| I32Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  (* I32 *)
+  | I32Unop  (op, e)      -> 1 + (length e)
+  | I32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | I32Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
   | I32Cvtop (op, e)      -> 1 + (length e)
-	(* I64 *)
-	| I64Unop  (op, e)      -> 1 + (length e)
-	| I64Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
-	| I64Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  (* I64 *)
+  | I64Unop  (op, e)      -> 1 + (length e)
+  | I64Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | I64Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
   | I64Cvtop (op, e)      -> 1 + (length e)
-	(* F32 *)
-	| F32Unop  (op, e)      -> 1 + (length e)
-	| F32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
-	| F32Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  (* F32 *)
+  | F32Unop  (op, e)      -> 1 + (length e)
+  | F32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | F32Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
   | F32Cvtop (op, e)      -> 1 + (length e)
-	(* F64 *)
-	| F64Unop  (op, e)      -> 1 + (length e)
-	| F64Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
-	| F64Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  (* F64 *)
+  | F64Unop  (op, e)      -> 1 + (length e)
+  | F64Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
+  | F64Relop (op, e1, e2) -> 1 + (length e1) + (length e2)
   | F64Cvtop (op, e)      -> 1 + (length e)
   (* Symbol *)
-	| Symbolic (s, x)       -> 1
+  | Symbolic (s, x)       -> 1
   | Extract  (e, _, _)    -> 1 + (length e)
   | Concat   (e1, e2)     -> 1 + (length e1) + (length e2)
   end
 
 (*  Retrieves the symbolic variables  *)
 let rec get_symbols (e : sym_expr) : (string * symbolic) list =
-	begin match e with
+  begin match e with
   (* Value - holds no symbols *)
-	| Value _ -> []
+  | Value _ -> []
   | Ptr _   -> []
   | SymPtr (_, offset)   -> (get_symbols offset)
   (* I32 *)
@@ -139,15 +139,15 @@ let string_of_symbolic (op : symbolic) : string =
   begin match op with
   | SymInt8    -> "SymInt8"
   | SymInt16   -> "SymInt16"
-	| SymInt32   -> "SymInt32"
-	| SymInt64   -> "SymInt64"
-	| SymFloat32 -> "SymFloat32"
-	| SymFloat64 -> "SymFloat64"
+  | SymInt32   -> "SymInt32"
+  | SymInt64   -> "SymInt64"
+  | SymFloat32 -> "SymFloat32"
+  | SymFloat64 -> "SymFloat64"
   end
 
 (*  String representation of a sym_expr  *)
 let rec to_string (e : sym_expr) : string =
-	begin match e with
+  begin match e with
   | Value v ->
       string_of_value v
   | Ptr p ->
@@ -156,7 +156,7 @@ let rec to_string (e : sym_expr) : string =
   | SymPtr (base, offset) ->
       let str_o = to_string offset in
       "(SymPtr " ^ Int32.to_string base ^ " + " ^ str_o ^ ")"
-	(* I32 *)
+  (* I32 *)
   | I32Unop  (op, e) ->
       let str_e = to_string e
       and str_op = Si32.string_of_unop op in
@@ -175,7 +175,7 @@ let rec to_string (e : sym_expr) : string =
       let str_e = to_string e
       and str_op = Si32.string_of_cvtop op in
       "(" ^ str_op ^ " " ^ str_e ^ ")"
-	(* I64 *)
+  (* I64 *)
   | I64Unop  (op, e) ->
       let str_e = to_string e
       and str_op = Si64.string_of_unop op in
@@ -194,7 +194,7 @@ let rec to_string (e : sym_expr) : string =
       let str_e = to_string e
       and str_op = Si64.string_of_cvtop op in
       "(" ^ str_op ^ " " ^ str_e ^ ")"
-	(* F32 *)
+  (* F32 *)
   | F32Unop  (op, e) ->
       let str_e = to_string e
       and str_op = Sf32.string_of_unop op in
@@ -232,7 +232,7 @@ let rec to_string (e : sym_expr) : string =
       let str_e = to_string e
       and str_op = Sf64.string_of_cvtop op in
       "(" ^ str_op ^ " " ^ str_e ^ ")"
-	(* Symbolic *)
+  (* Symbolic *)
   | Symbolic (s, x) ->
       let str_s = string_of_symbolic s in
       "(" ^ str_s ^ " #" ^ x ^ ")"
@@ -248,7 +248,7 @@ let rec to_string (e : sym_expr) : string =
   end
 
 let rec pp_to_string (e : sym_expr) : string =
-	begin match e with
+  begin match e with
   | Value v ->
       Values.string_of_value v
   | Ptr p ->
@@ -505,14 +505,14 @@ let to_constraint (e : sym_expr) : sym_expr option =
 
 let i32binop_to_astop (op : Si32.binop) =
   match op with
-	| I32Add  -> Ast.I32Op.Add
-	| I32And  -> Ast.I32Op.And
-	| I32Or   -> Ast.I32Op.Or
-	| I32Sub  -> Ast.I32Op.Sub
-	| I32DivS -> Ast.I32Op.DivS
+  | I32Add  -> Ast.I32Op.Add
+  | I32And  -> Ast.I32Op.And
+  | I32Or   -> Ast.I32Op.Or
+  | I32Sub  -> Ast.I32Op.Sub
+  | I32DivS -> Ast.I32Op.DivS
   | I32DivU -> Ast.I32Op.DivU
-	| I32Xor  -> Ast.I32Op.Xor
-	| I32Mul  -> Ast.I32Op.Mul
+  | I32Xor  -> Ast.I32Op.Xor
+  | I32Mul  -> Ast.I32Op.Mul
   | I32Shl  -> Ast.I32Op.Shl
   | I32ShrS -> Ast.I32Op.ShrS
   | I32ShrU -> Ast.I32Op.ShrU
