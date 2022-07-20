@@ -99,7 +99,8 @@ type sym_config =
   sym_mem    : Symmem2.t;
   sym_budget : int;  (* to model stack overflow *)
   var_map    : Varmap.t;
-  sym_globals: Static_globals.t
+  sym_globals: Static_globals.t;
+  chunk_table: (int32, int32) Hashtbl.t;
 }
 
 let clone(c: sym_config): sym_config =
@@ -110,6 +111,7 @@ let clone(c: sym_config): sym_config =
   let sym_budget = c.sym_budget in
   let var_map = Hashtbl.copy(c.var_map) in
   let sym_globals = Static_globals.clone_globals c.sym_globals in
+  let chunk_table = Hashtbl.copy(c.chunk_table) in
   {
     sym_frame = sym_frame;
     sym_code = sym_code;
@@ -118,6 +120,7 @@ let clone(c: sym_config): sym_config =
     sym_budget = sym_budget;
     var_map = var_map;
     sym_globals = sym_globals;
+    chunk_table = chunk_table;
   }
 
 (* Symbolic frame and configuration  *)
@@ -129,7 +132,8 @@ let sym_config inst vs es sym_m globs = {
   sym_mem    = sym_m;
   sym_budget = 100000; (* models default recursion limit in a system *)
   var_map = Hashtbl.create 100;
-  sym_globals = globs
+  sym_globals = globs;
+  chunk_table = Hashtbl.create 512;
 }
 
 exception BugException of bug * region * string
@@ -223,6 +227,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
     path_cond = pc;
     sym_mem = mem;
     var_map = var_map;
+    chunk_table = chunk_table;
     _} = c in
   match es with
   | [] -> Result.ok ([], [c])
@@ -390,15 +395,26 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | Some ptr -> ptr
         | None -> failwith (Printf.sprintf "%d" e.at.left.line ^": can't concretize '" ^ (to_string sym_ptr) ^ "' to a ptr")
         in
-        let low = I32Value.of_value ptr in
-        let low64 = Int64.of_int32 low in
+        let ptr64 = Int64.of_int32 (I32Value.of_value ptr) in
+        let base_ptr = concretize_base_ptr sym_ptr in
         begin try
-          (* TODO: check for UAF and overflow? *)
+          if Option.is_some base_ptr then begin
+            let low = Option.get base_ptr in
+            let chunk_size =
+              try Hashtbl.find chunk_table low
+              with Not_found -> raise (BugException (UAF, e.at, "")) in
+            let high = Int64.(add (of_int32 low) (of_int32 chunk_size)) in
+            let ptr_i64 = Int64.of_int32 (I32Value.of_value ptr) in
+            let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
+            (* ptr_val \notin [low, high[ => overflow *)
+            if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
+              raise (BugException (Overflow, e.at, ""))
+          end;
           let v =
             match sz with
-            | None           -> Symmem2.load_value_static mem low64 offset ty
+            | None           -> Symmem2.load_value_static mem ptr64 offset ty
             | Some (sz, ext) -> (
-              let (_, v) = Symmem2.load_packed sz ext mem low64 offset ty in
+              let (_, v) = Symmem2.load_packed sz ext mem ptr64 offset ty in
               v
             )
           in
@@ -406,8 +422,37 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
         with
         | BugException (b, at, _) ->
-            (* TODO: somehow get logic_env to generate the error? *)
-            Result.ok ([ { c with sym_code = vs', [(Interrupt (Bug (b, "memory index overflow or UAF no logic_env to generate JSON"))) @@ e.at] } ], [])
+          let opt_c =
+            let assertion = Formula.to_formula pc in
+            solver_counter := !solver_counter +1;
+            let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+            match model with
+            | None   -> None
+            | Some m ->
+              let li32 = Varmap.get_vars_by_type I32Type var_map
+              and li64 = Varmap.get_vars_by_type I64Type var_map
+              and lf32 = Varmap.get_vars_by_type F32Type var_map
+              and lf64 = Varmap.get_vars_by_type F64Type var_map in
+              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+              Some (Logicenv.to_json binds)
+          in
+          (match opt_c with
+          | None -> failwith "unreachable, pc is unsat"
+          | Some c -> (
+            let bug_type = match b with
+            | Overflow -> "Out of Bounds access"
+            | UAF -> "Use After Free"
+            | _ -> failwith "unreachable, other bugs shouldn't be here"
+            in
+            let reason = "{" ^
+            "\"type\" : \"" ^ bug_type ^ "\", " ^
+            "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+                (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+            "}"
+            in
+            Result.error (reason, c)
+            )
+          )
         | exn ->
             Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
         end
@@ -418,21 +463,61 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | Some ptr -> ptr
         | None -> failwith (Printf.sprintf "%d" e.at.left.line ^": can't concretize '" ^ (to_string sym_ptr) ^ "' to a ptr")
         in
-        let low = I32Value.of_value ptr in
-        let low64 = Int64.of_int32 low in
+        let ptr64 = Int64.of_int32 (I32Value.of_value ptr) in
+        let base_ptr = concretize_base_ptr sym_ptr in
         begin try
-          (* TODO: check for UAF and overflow? *)
+          if Option.is_some base_ptr then begin
+            let low = Option.get base_ptr in
+            let chunk_size =
+              try Hashtbl.find chunk_table low
+              with Not_found -> raise (BugException (UAF, e.at, "")) in
+            let high = Int64.(add (of_int32 low) (of_int32 chunk_size)) in
+            let ptr_i64 = Int64.of_int32 (I32Value.of_value ptr) in
+            let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
+            (* ptr_val \notin [low, high[ => overflow *)
+            if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
+              raise (BugException (Overflow, e.at, ""))
+          end;
           let stored_val = (Values.default_value (Symvalue.type_of ex), ex) in
           begin match sz with
-          | None    -> Symmem2.store_value mem low64 offset stored_val
-          | Some sz -> Symmem2.store_packed sz mem low64 offset stored_val
+          | None    -> Symmem2.store_value mem ptr64 offset stored_val
+          | Some sz -> Symmem2.store_packed sz mem ptr64 offset stored_val
           end;
           let es' = List.tl es in
           Result.ok ([ { c with sym_code = vs', es' } ], [])
         with
         | BugException (b, at, _) ->
-            (* TODO: somehow get logic_env to generate the error? *)
-            Result.ok ([ { c with sym_code = vs', [(Interrupt (Bug (b, "memory index overflow or UAF no logic_env to generate JSON"))) @@ e.at] } ], [])
+          let opt_c =
+            let assertion = Formula.to_formula pc in
+            solver_counter := !solver_counter +1;
+            let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+            match model with
+            | None   -> None
+            | Some m ->
+              let li32 = Varmap.get_vars_by_type I32Type var_map
+              and li64 = Varmap.get_vars_by_type I64Type var_map
+              and lf32 = Varmap.get_vars_by_type F32Type var_map
+              and lf64 = Varmap.get_vars_by_type F64Type var_map in
+              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+              Some (Logicenv.to_json binds)
+          in
+          (match opt_c with
+          | None -> failwith "unreachable, pc is unsat"
+          | Some c -> (
+            let bug_type = match b with
+            | Overflow -> "Out of Bounds access"
+            | UAF -> "Use After Free"
+            | _ -> failwith "unreachable, other bugs shouldn't be here"
+            in
+            let reason = "{" ^
+            "\"type\" : \"" ^ bug_type ^ "\", " ^
+            "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+                (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+            "}"
+            in
+            Result.error (reason, c)
+            )
+          )
         | exn ->
             Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
         end
@@ -614,13 +699,39 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], [])
         )
 
-      | Alloc, sz :: base :: vs' ->
-        (* TODO: chunk_table: Hashtbl.add chunk_table b a;*)
-        Result.ok ([{c with sym_code = base :: vs', List.tl es}], [])
+      | Alloc, Value (I32 sz) :: Value (I32 base) :: vs' ->
+        Hashtbl.add chunk_table base sz;
+        Result.ok ([{c with sym_code = SymPtr (base, (Value (I32 0l))) :: vs', List.tl es}], [])
 
-      | Free, base :: vs' ->
-        (* TODO: chunk_tbl: free *)
-        Result.ok ([{c with sym_code = vs', List.tl es}], [])
+      | Alloc, _ ->
+        failwith "Alloc with symbolic arguments"
+
+      | Free, ptr :: vs' -> (
+        match simplify ptr with
+        | SymPtr (base, (Value (I32 0l))) ->
+          let es' =
+            if not (Hashtbl.mem chunk_table base) then (
+              let assertion = Formula.to_formula pc in
+              let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+              match model with
+              | None   -> failwith "unreachable, pc became unsat"
+              | Some m ->
+                let li32 = Varmap.get_vars_by_type I32Type var_map
+                and li64 = Varmap.get_vars_by_type I64Type var_map
+                and lf32 = Varmap.get_vars_by_type F32Type var_map
+                and lf64 = Varmap.get_vars_by_type F64Type var_map in
+                let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+                let witness = Logicenv.to_json binds in
+                [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
+            ) else (
+              Hashtbl.remove chunk_table base;
+              List.tl es
+            )
+          in
+          Result.ok ([{c with sym_code = vs', es'}], [])
+        | value ->
+          failwith ("Free with invalid argument" ^ (Symvalue.pp_to_string value))
+      )
 
       | PrintStack, vs ->
         let vs' = List.map (fun v -> (Symvalue.pp_to_string v)) vs in
@@ -716,7 +827,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       sym_mem = c.sym_mem;
       sym_budget = c.sym_budget - 1;
       var_map = c.var_map;
-      sym_globals = c.sym_globals
+      sym_globals = c.sym_globals;
+      chunk_table = c.chunk_table;
     })
 
   | STrapping msg, vs ->

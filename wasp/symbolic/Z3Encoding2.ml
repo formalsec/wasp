@@ -290,6 +290,10 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : sym_expr) : Expr.expr =
   match e with
   | Value v -> encode_value v
   | Ptr p   -> encode_value p
+  | SymPtr (base, offset) ->
+      let base' = encode_value (I32 base) in
+      let offset' = encode_sym_expr offset in
+      Zi32.encode_binop Si32.I32Add base' offset'
   | I32Unop  (op, e) ->
       let e' = encode_sym_expr e in
       Zi32.encode_unop op e'
@@ -379,7 +383,7 @@ let formula_to_smt2_file =
   let file () : string =
     let () = incr counter in
     Printf.sprintf "query-%d.smt2" !counter
-  in fun formula status -> 
+  in fun formula status ->
     Params.set_print_mode ctx Z3enums.PRINT_SMTLIB2_COMPLIANT;
     let query_out = Filename.concat !Flags.output "queries" in
     let query_file = Filename.concat query_out (file ()) in

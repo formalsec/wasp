@@ -9,6 +9,8 @@ type sym_expr =
   (* Value *)
   | Value    of value
   | Ptr      of value
+  (* SymStatic *)
+  | SymPtr   of int32 * sym_expr
   (* I32 operations *)
   | I32Binop of Si32.binop * sym_expr * sym_expr
   | I32Unop  of Si32.unop  * sym_expr
@@ -72,6 +74,7 @@ let rec length (e : sym_expr) : int =
   begin match e with
   | Value v -> 1
   | Ptr p   -> 1
+  | SymPtr _ -> 1
 	(* I32 *)
 	| I32Unop  (op, e)      -> 1 + (length e)
 	| I32Binop (op, e1, e2) -> 1 + (length e1) + (length e2)
@@ -104,6 +107,7 @@ let rec get_symbols (e : sym_expr) : (string * symbolic) list =
   (* Value - holds no symbols *)
 	| Value _ -> []
   | Ptr _   -> []
+  | SymPtr (_, offset)   -> (get_symbols offset)
   (* I32 *)
   | I32Unop  (op, e1)     -> (get_symbols e1)
   | I32Binop (op, e1, e2) -> (get_symbols e1) @ (get_symbols e2)
@@ -149,6 +153,9 @@ let rec to_string (e : sym_expr) : string =
   | Ptr p ->
       let str_p = string_of_value p in
       "(Ptr " ^ str_p ^ ")"
+  | SymPtr (base, offset) ->
+      let str_o = to_string offset in
+      "(SymPtr " ^ Int32.to_string base ^ " + " ^ str_o ^ ")"
 	(* I32 *)
   | I32Unop  (op, e) ->
       let str_e = to_string e
@@ -247,6 +254,9 @@ let rec pp_to_string (e : sym_expr) : string =
   | Ptr p ->
       let str_p = string_of_value p in
       "(Ptr " ^ str_p ^ ")"
+  | SymPtr (base, offset) ->
+      let str_o = pp_to_string offset in
+      "(SymPtr " ^ Int32.to_string base ^ " + " ^ str_o ^ ")"
   (* I32 *)
   | I32Unop  (op, e) ->
       let str_e = pp_to_string e
@@ -353,6 +363,7 @@ let rec type_of (e : sym_expr) : value_type  =
     begin match e' with
     | Value v    -> Types.size (Values.type_of v)
     | Ptr _      -> 4
+    | SymPtr _   -> 4
     | I32Unop  _ -> 4
     | I32Binop _ -> 4
     | I32Relop _ -> 4
@@ -384,6 +395,7 @@ let rec type_of (e : sym_expr) : value_type  =
   begin match e with
   | Value v    -> Values.type_of v
   | Ptr _      -> I32Type
+  | SymPtr _   -> I32Type
   | I32Unop  _ -> I32Type
   | I32Binop _ -> I32Type
   | I32Relop _ -> I32Type
@@ -421,6 +433,7 @@ let rec get_ptr (e : sym_expr) : value option =
   begin match e with
   | Ptr p   -> Some p
   | Value _ -> None
+  | SymPtr (base, _) -> Some (I32 base)
   | I32Unop (_, e) -> get_ptr e
   | I32Binop (_, e1, e2) ->
       let p1 = get_ptr e1 in
@@ -466,6 +479,13 @@ let concretize_ptr (e : sym_expr) : value option =
   (* would probably introduce Memory Objects here *)
   begin match e with
   | Value p -> Some p
+  | SymPtr (base, Value (I32 offset)) -> Some (I32 (Int32.add base offset))
+  | _ -> None
+  end
+
+let concretize_base_ptr (e : sym_expr) : int32 option =
+  begin match e with
+  | SymPtr (base, _) -> Some base
   | _ -> None
   end
 
@@ -522,10 +542,29 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
   begin match e with
   | Value v -> Value v
   | Ptr v   -> Ptr v
+  | SymPtr (base, offset) -> SymPtr (base, new_simplify offset)
   | I32Binop (op, e1, e2) ->
       let e1' = new_simplify e1
       and e2' = new_simplify e2 in
       begin match e1', e2' with
+      | SymPtr (base, offset), _ ->
+        begin match op with
+        | I32Add ->
+          let new_offset = new_simplify (I32Binop (I32Add, offset, e2')) in
+          new_simplify (SymPtr (base, new_offset))
+        | I32Sub ->
+          let new_offset = new_simplify (I32Binop (I32Sub, offset, e2')) in
+          new_simplify (SymPtr (base, new_offset))
+        | _ -> I32Binop (op, e1', e2')
+        end
+      | _, SymPtr (base, offset) ->
+        begin match op with
+        | I32Add ->
+          let new_offset = new_simplify (I32Binop (I32Add, offset, e1')) in
+          new_simplify (SymPtr (base, new_offset))
+        | _ -> I32Binop (op, e1', e2')
+        end
+
       | Value (I32 0l), _ ->
         begin match op with
         | I32Add | I32Or   | I32Sub  -> e2'
@@ -792,6 +831,7 @@ let rewrite (cond : sym_expr) asgn : sym_expr =
   let rec loop e =  match e with
     | Ptr p   -> Ptr p
     | Value v -> Value v
+    | SymPtr (base, offset) -> SymPtr (base, offset)
     | I32Unop  (op, e')     -> I32Unop  (op, loop e')
     | I32Binop (op, e1, e2) -> I32Binop (op, loop e1, loop e2)
     | I32Relop (op, e1, e2) ->

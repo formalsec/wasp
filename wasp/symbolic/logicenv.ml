@@ -99,6 +99,7 @@ let rec eval (env : t) (e : sym_expr) : value =
   match e with
   | Ptr p   -> p
   | Value v -> v
+  | SymPtr _ -> failwith "Unreachable"
   | I32Binop (op, e1, e2) ->
     let v1 = eval env e1
     and v2 = eval env e2
