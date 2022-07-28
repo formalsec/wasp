@@ -273,6 +273,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | Value (I32 _) ->
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], [])
+        | ex when Symvalue.contains_symptr ex -> (
+            let es' = List.tl es in
+            let c_clone = clone c in
+            let l = [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' }
+                    ;{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' }]
+            in
+            Result.ok (l, [])
+          )
         | ex -> (
           let pc_false = add_constraint ~neg:true ex pc in
           let pc_true = add_constraint ex pc in
@@ -315,6 +323,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | Value (I32 _) ->
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Br x) @@ e.at] } ], [])
+        | ex when Symvalue.contains_symptr ex -> (
+            let es' = List.tl es in
+            let c_clone = clone c in
+            let l = [{ c with sym_code = vs', [SPlain (Br x) @@ e.at] }
+                    ;{ c_clone with sym_code = vs', es' }]
+            in
+            Result.ok (l, [])
+          )
         | ex -> (
           let pc_false = add_constraint ~neg:true ex pc in
           let pc_true = add_constraint ex pc in
