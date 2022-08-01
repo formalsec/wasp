@@ -904,18 +904,3 @@ let add_constraint
   let pc = List.filter (fun a -> is_relop a) pc in
   *)
   Option.map_default (fun a -> a :: pc) pc cond
-
-let rec contains_symptr (e: sym_expr): bool =
-  begin match e with
-  | Value v -> false
-  | Ptr p -> false
-  | SymPtr _ -> true
-  | I32Unop (_, e) -> contains_symptr e
-  | I32Binop (_, e1, e2) -> (contains_symptr e1) || (contains_symptr e2)
-  | I32Relop (_, e1, e2) -> (contains_symptr e1) || (contains_symptr e2)
-  | I32Cvtop (_, e) -> contains_symptr e
-  | Symbolic _ -> false
-  | Extract (e, _, _) -> contains_symptr e
-  | Concat (e1, e2) -> (contains_symptr e1) || (contains_symptr e2)
-  | _ -> false
-  end
