@@ -600,6 +600,12 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       | _ -> I32Binop (op, e1', e2')
       end
 
+  | I32Relop (I32Eq, SymPtr (_, Value (I32 0l)), Value (I32 0l)) ->
+    Value (I32 0l)
+
+  | I32Relop (I32Ne, SymPtr (_, Value (I32 0l)), Value (I32 0l)) ->
+    Value (I32 1l)
+
   | I32Relop (op, e1, e2) ->
     let e1' = new_simplify e1
     and e2' = new_simplify e2 in
