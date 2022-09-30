@@ -19,6 +19,7 @@
             python27Full
             python39Full
             python39Packages.pycparser
+            python39Packages.lxml
             libcxx
             gmp
             clang_10
