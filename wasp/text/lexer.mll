@@ -381,6 +381,8 @@ rule token = parse
   | "print_memory" { PRINT_MEMORY }
   | "print_btree" { PRINT_BTREE }
   | "compare_expr" { COMPARE_EXPR }
+  | "set_priority" { SET_PRIORITY }
+  | "pop_priority" { POP_PRIORITY }
 
   | name as s { VAR s }
 

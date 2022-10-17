@@ -41,6 +41,8 @@ let print_stack = PrintStack
 let print_memory = PrintMemory
 let print_btree = PrintBtree
 let compare_expr = CompareExpr
+let set_priority = SetPriority
+let pop_priority = PopPriority
 
 (*  SYMBOLIC EXECUTION  *)
 let sym_assert = SymAssert

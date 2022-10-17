@@ -464,16 +464,18 @@ let rec get_ptr (e : sym_expr) : value option =
 let is_value (e : sym_expr) : bool =
   match e with Value _ -> true | _ -> false
 
+let is_concrete (e : sym_expr) : bool =
+  match e with Value _ | Ptr _ -> true | _ -> false
+
 let is_relop (e : sym_expr) : bool =
   match e with
   | I32Relop _ | I64Relop _ | F32Relop _ | F64Relop _ -> true
   | _ -> false
 
 let to_constraint (e : sym_expr) : sym_expr option =
-  match e with
-  | Value _ | Ptr _ -> None
-  | _ -> if not (is_relop e) then Some (I32Relop (I32Ne, e, Value (I32 0l)))
-                             else Some e
+  if is_concrete e then None
+  else if is_relop e then Some e
+  else Some (I32Relop (I32Ne, e, Value (I32 0l)))
 
 let i32binop_to_astop (op : Si32.binop) =
   match op with
@@ -525,6 +527,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
         | I32Mul | I32RemS | I32RemU -> Value (I32 0l)
         | _ -> I32Binop (op, e1', e2')
         end
+
       | _, Value (I32 0l) ->
         begin match op with
         | I32Add | I32Or | I32Sub -> e1'
@@ -540,7 +543,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
         | I32Add, I32Add ->
           let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Add) v1 v2 in
           I32Binop (I32Add, x, Value v)
-        | I32Add, I32Sub 
+        | I32Add, I32Sub
         | I32Sub, I32Add ->
           let v = Eval_numeric.eval_binop (I32 Ast.I32Op.Sub) v1 v2 in
           I32Binop (I32Add, x, Value v)
@@ -549,6 +552,9 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
           I32Binop (I32Sub, x, Value v)
         | _, _ -> I32Binop (op, e1', e2')
         end
+
+      | bop, Value (I32 1l)
+      | Value (I32 1l), bop when (is_relop bop) && (op = I32And) -> bop
 
       | _ -> I32Binop (op, e1', e2')
       end
@@ -570,9 +576,9 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
 
   | Extract (s, h, l) when extract = true ->
     begin match s with
-    | Ptr (I32 p) ->
-      let x' = nland Int64.(shift_right (of_int32 p) (l * 8)) (h - l) in
-      Ptr (I32 (Int64.to_int32 x'))
+    | Ptr (I64 p) ->
+      let p' = nland Int64.(shift_right p (l * 8)) (h - l) in
+      Ptr (I64  p')
     | Value (I64 x) -> 
       let x' = nland (Int64.shift_right x (l * 8)) (h - l) in
       Value (I64 x')
@@ -584,13 +590,12 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     let e1' = new_simplify ~extract:false e1
     and e2' = new_simplify ~extract:false e2 in
     begin match e1', e2' with
-    | Extract (Ptr (I32 p2), h2, l2), Extract (Ptr (I32 p1), h1, l1) ->
-      let x1 = Int64.of_int32 p1 and x2 = Int64.of_int32 p2 in
+    | Extract (Ptr (I64 p2), h2, l2), Extract (Ptr (I64 p1), h1, l1) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
-      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
-      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
-      let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
-      Extract (Ptr (I32 (Int64.to_int32 x)), d1 + d2, 0)
+      let p1' = nland (Int64.shift_right p1 (l1 * 8)) d1
+      and p2' = nland (Int64.shift_right p2 (l2 * 8)) d2 in
+      let p = Int64.(logor (shift_left p2' (d1 * 8)) p1') in
+      Extract (Ptr (I64 p), d1 + d2, 0)
 
     | Extract (Value (I64 x2), h2, l2), Extract (Value (I64 x1), h1, l1) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
@@ -614,9 +619,6 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     end
   | _ -> e
   end
-
-
-
 
 let rec rec_simplify (e : sym_expr) : sym_expr =
   match e with
@@ -825,35 +827,10 @@ let mk_relop (e : sym_expr) (t : value_type) : sym_expr =
   )
 
 let add_constraint
+    ?(neg : bool = false)
     (e : sym_expr) 
-    (pc : path_conditions) 
-    (neg : bool) : path_conditions =
-  let cond = 
+    (pc : path_conditions) : path_conditions =
+  let cond =
     let c = to_constraint (simplify e) in
     if neg then Option.map negate_relop c else c
-  in
-  (*
-  let asgn = match cond with
-    | Some (I32Relop (Si32.I32Eq, Symbolic (t, x), Value v))
-    | Some (I64Relop (Si64.I64Eq, Symbolic (t, x), Value v))
-    | Some (F32Relop (Sf32.F32Eq, Symbolic (t, x), Value v))
-    | Some (F64Relop (Sf64.F64Eq, Symbolic (t, x), Value v))
-    | Some (I32Relop (Si32.I32Ne, 
-                      I32Relop (Si32.I32Eq, Symbolic (t, x), Value v),
-                      Value (I32 0l)))
-    | Some (I32Relop (Si32.I32Ne, 
-                      I64Relop (Si64.I64Eq, Symbolic (t, x), Value v),
-                      Value (I32 0l)))
-    | Some (I32Relop (Si32.I32Ne, 
-                      F32Relop (Sf32.F32Eq, Symbolic (t, x), Value v),
-                      Value (I32 0l)))
-    | Some (I32Relop (Si32.I32Ne, 
-                      F64Relop (Sf64.F64Eq, Symbolic (t, x), Value v),
-                      Value (I32 0l))) -> Some ((t, x), v)
-    | _ -> None
-  in 
-  let opt_rewrite e = Option.map_default (fun a -> rewrite e a) e asgn in
-  let pc = List.map simplify (List.map (fun e -> opt_rewrite e) pc) in
-  let pc = List.filter (fun a -> is_relop a) pc in
-  *)
-  Option.map_default (fun a -> a :: pc) pc cond
+  in Option.map_default (fun a -> a :: pc) pc cond

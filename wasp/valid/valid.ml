@@ -328,6 +328,10 @@ let rec check_instr (c : context) (e : instr) (s : infer_stack_type) : op_type =
 
   | IsSymbolic -> [I32Type; I32Type] --> [I32Type]
 
+  | SetPriority -> [I32Type; I32Type; I32Type] --> []
+
+  | PopPriority -> [I32Type] --> []
+
 
 and check_seq (c : context) (es : instr list) : infer_stack_type =
   match es with

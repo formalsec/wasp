@@ -24,7 +24,7 @@ class WASP:
     def limit_ram(limit):
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
-    def cmd(self, test_prog, entry_func, output_dir):
+    def cmd(self, test_prog, entry_func, output_dir, policy):
         args = []
         if self.smt_assume:
             args.append('--smt-assume')
@@ -36,12 +36,14 @@ class WASP:
             '-e', f'(invoke \"{entry_func}\")',
             '-m', str(self.instr_limit),
             '--workspace', output_dir,
+            '--policy', policy
         ] + args
 
     def run(self, 
             test_file, 
             entry_func,
             output_dir="output",
+            policy="random",
             instr_limit=None, 
             time_limit=None
         ):
@@ -57,7 +59,7 @@ class WASP:
         timeout = False
         stdout = None
         stderr = None
-        cmd = self.cmd(test_file, entry_func, output_dir)
+        cmd = self.cmd(test_file, entry_func, output_dir, policy)
         log.debug(f'WASP command: \'{" ".join(cmd)}\'')
         try: 
             result = subprocess.run(

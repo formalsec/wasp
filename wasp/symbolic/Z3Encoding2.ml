@@ -356,48 +356,50 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : sym_expr) : Expr.expr =
       and e2' = encode_sym_expr e2 in
       BitVector.mk_concat ctx e1' e2'
 
+let enc_cache : (Formula.t, Expr.expr) Hashtbl.t = Hashtbl.create 128
+
 let rec encode_formula (a : Formula.t) : Expr.expr =
-  match a with
-  | True    -> Boolean.mk_true ctx
-  | False   -> Boolean.mk_false ctx
-  | Relop e -> encode_sym_expr e
-  | Not c   -> Boolean.mk_not ctx (encode_formula c)
-  | And (c1, c2) ->
-      let c1' = encode_formula c1
-      and c2' = encode_formula c2 in
-      Boolean.mk_and ctx [c1'; c2']
-  | Or (c1, c2) ->
-      let c1' = encode_formula c1
-      and c2' = encode_formula c2 in
-      Boolean.mk_or ctx [c1'; c2']
+  try Hashtbl.find enc_cache a with Not_found ->
+    let enc =
+      match a with
+      | True    -> Boolean.mk_true ctx
+      | False   -> Boolean.mk_false ctx
+      | Relop e -> encode_sym_expr e
+      | Not c   -> Boolean.mk_not ctx (encode_formula c)
+      | And (c1, c2) ->
+          let c1' = encode_formula c1
+          and c2' = encode_formula c2 in
+          Boolean.mk_and ctx [c1'; c2']
+      | Or (c1, c2) ->
+          let c1' = encode_formula c1
+          and c2' = encode_formula c2 in
+          Boolean.mk_or ctx [c1'; c2']
+    in Hashtbl.replace enc_cache a enc;
+    enc
 
 let interrupt_z3 () =
   Tactic.interrupt ctx
 
-let formula_to_smt2_file =
+let formulas_to_smt2_file =
   let counter = ref 0 in
   let file () : string =
     let () = incr counter in
     Printf.sprintf "query-%d.smt2" !counter
-  in fun formula status -> 
+  in fun f status -> 
     Params.set_print_mode ctx Z3enums.PRINT_SMTLIB2_COMPLIANT;
     let query_out = Filename.concat !Flags.output "queries" in
     let query_file = Filename.concat query_out (file ()) in
     Io.safe_mkdir query_out;
     Io.save_file query_file (
-      SMT.benchmark_to_smtstring ctx query_file "" status "" [] formula
+      SMT.benchmark_to_smtstring ctx query_file "" status "" (List.tl f) (List.hd f)
     )
 
-let check_sat_core (asrt : Formula.t) : Model.model option =
+let check_sat_core (formulas : Formula.t list) : Model.model option =
   (*
+  (* ignore *)
   let goal = Goal.mk_goal ctx true false false in
   Goal.add goal [encode_formula asrt];
-  *)
-  let formula = encode_formula asrt in
-  let solver = Solver.mk_solver ctx None in
-  Solver.add solver [formula];
-  (*List.iter (fun a -> Solver.add solver [a]) [encode_formula asrt];*)
-  (*
+  List.iter (fun a -> Solver.add solver [a]) [encode_formula asrt];
   let vars = Formula.get_vars asrt in
   List.iter (fun (x, t) ->
     if (x = "n") || (x = "N") then (
@@ -405,22 +407,23 @@ let check_sat_core (asrt : Formula.t) : Model.model option =
       ignore (Optimize.minimize solver (encode_sym_expr symb))
     )
   ) vars;
-  *)
-  (*
   let ar = Tactic.(apply (par_or ctx [(and_then ctx
       (mk_tactic ctx "solve-eqs") (mk_tactic ctx "simplify")
   [(mk_tactic ctx "qffpbv")]); (mk_tactic ctx "smt")]) goal None) in
   let f a = Solver.add solver [a] in
   List.iter (fun a -> List.iter f (Goal.get_formulas a)) (Tactic.ApplyResult.get_subgoals ar);
   *)
+  let formulas' = List.map encode_formula formulas in
+  let solver = Solver.mk_solver ctx None in
+  let _ = Solver.add solver formulas' in
   let status, model = match Solver.check solver [] with
   | Solver.UNSATISFIABLE -> "unsat", None
   | Solver.UNKNOWN       ->
-      formula_to_smt2_file formula "unknown";
+      formulas_to_smt2_file formulas' "unknown";
       failwith ("unknown: " ^ (Solver.get_reason_unknown solver)) (* fail? *)
   | Solver.SATISFIABLE   -> "sat", Solver.get_model solver
   in
-  if !Flags.queries then formula_to_smt2_file formula status;
+  if !Flags.queries then formulas_to_smt2_file formulas' status;
   model
 
 let lift_z3_model

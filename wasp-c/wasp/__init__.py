@@ -95,6 +95,14 @@ def get_parser():
         help='disable algebraic simplifications of symbolic expressions'
     )
 
+    parser.add_argument(
+        '--policy',
+        dest='policy',
+        action='store',
+        default='random',
+        help='search policy: random|depth'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -216,7 +224,7 @@ def main(root_dir, argv=None):
     analyser = WASP(args.smt_assume, args.no_simplify)
     #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
     log.info('Starting WASP...')
-    res = analyser.run(wasm_harness, args.entry_func, args.output_dir)
+    res = analyser.run(wasm_harness, args.entry_func, args.output_dir, args.policy)
     with open(wasm_harness + '.out', 'w') as out, \
             open(wasm_harness + '.err', 'w') as err:
         out.write(res.stdout)
