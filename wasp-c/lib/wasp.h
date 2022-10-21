@@ -19,5 +19,6 @@ int  __WASP_is_symbolic(void *, unsigned int);
 /* special boolean ops */
 int __logand(int, int);
 int __logor(int, int);
+int __ternary(int, int, int);
 
 #endif

@@ -4,3 +4,5 @@
 void assert(int expr) {
   return __WASP_assert(expr);
 }
+
+void assume(int expr) { }

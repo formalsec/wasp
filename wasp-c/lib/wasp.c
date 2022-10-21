@@ -53,3 +53,7 @@ int __logor(int a, int b) {
     "return;"
   );
 }
+
+int __ternary(int cond, int a, int b) {
+  return cond ? a : b;
+}

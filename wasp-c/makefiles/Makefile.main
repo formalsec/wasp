@@ -1,5 +1,7 @@
 CC=clang
 LD=wasm-ld
+OPT=opt
+LLC=llc
 
 LIBC_DIR ?= bin/
 LIBC_INC ?= lib
@@ -51,8 +53,8 @@ $(BUILD_DIR)/%.bc: %.c
 
 $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.bc
 	@echo "Building $@"
-	@opt -O1 $< -o $<
-	@llc -O1 -march=wasm32 -filetype=obj $< -o $@
+	@$(OPT) -O1 $< -o $<
+	@$(LLC) -O1 -march=wasm32 -filetype=obj $< -o $@
 
 $(BUILD_DIR)/%.wasm: $(BUILD_DIR)/%.o
 	@echo "Building $@"

@@ -38,7 +38,7 @@ def process_text(text, src_file, includes, rm_boolops=True):
         ast = parse_file(
             src_file,
             use_cpp=True,
-            cpp_path='gcc',
+            cpp_path='clang',
             cpp_args=[r'-E'] + list(args)
         )
     except ParseError as e:
@@ -60,8 +60,9 @@ def process_file(src_file, dst_file, includes, rm_boolops=True):
         return includes, code
 
     # preprocess input file
-    with open(src_file, 'r') as src, open(dst_file, 'w') as dst:
+    with open(src_file, 'r') as src:
         incls, code = _split_includes(src.read())
+    with open(dst_file, 'w') as dst:
         dst.write(incls + '\n' + 'void __start();' + '\n' + code)
 
     # parse input file
@@ -70,7 +71,7 @@ def process_file(src_file, dst_file, includes, rm_boolops=True):
         ast = parse_file(
             dst_file,
             use_cpp=True,
-            cpp_path='gcc',
+            cpp_path='clang',
             cpp_args=[r'-E'] + list(args)
         )
     except ParseError as e:
@@ -358,21 +359,21 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_TernaryOp(self, node):
-#        return c_ast.FuncCall(
-#            c_ast.ID('__ternary'),
-#            c_ast.ExprList([
-#                self._safe_visit(node.cond),
-#                self._safe_visit(node.iftrue),
-#                self._safe_visit(node.iffalse)
-#            ]),
-#            node.coord
-#        )
-        return c_ast.TernaryOp(
-            self._safe_visit(node.cond),
-            self._safe_visit(node.iftrue),
-            self._safe_visit(node.iffalse),
+        return c_ast.FuncCall(
+            c_ast.ID('__ternary'),
+            c_ast.ExprList([
+                self._safe_visit(node.cond),
+                self._safe_visit(node.iftrue),
+                self._safe_visit(node.iffalse)
+            ]),
             node.coord
         )
+#        return c_ast.TernaryOp(
+#            self._safe_visit(node.cond),
+#            self._safe_visit(node.iftrue),
+#            self._safe_visit(node.iffalse),
+#            node.coord
+#        )
 #
     def visit_TypeDecl(self, node):
         return node
@@ -389,7 +390,7 @@ class BinopVisitor(c_ast.NodeVisitor):
             self._safe_visit(node.expr),
             node.coord
         )
-        
+
     def visit_Union(self, node):
         return node
 
