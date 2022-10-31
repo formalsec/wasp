@@ -547,6 +547,12 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       let e1' = new_simplify e1
       and e2' = new_simplify e2 in
       begin match e1', e2' with
+      | SymPtr (b1, os1), SymPtr (b2, os2) ->
+        begin match op with
+        | I32Sub when b1 = b2 ->
+          new_simplify (I32Binop (I32Sub, os1, os2))
+        | _ -> I32Binop (op, e1', e2')
+        end
       | SymPtr (base, offset), _ ->
         begin match op with
         | I32Add ->
@@ -600,12 +606,6 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       | _ -> I32Binop (op, e1', e2')
       end
 
-  | I32Relop (I32Eq, SymPtr (_, Value (I32 0l)), Value (I32 0l)) ->
-    Value (I32 0l)
-
-  | I32Relop (I32Ne, SymPtr (_, Value (I32 0l)), Value (I32 0l)) ->
-    Value (I32 1l)
-
   | I32Relop (op, e1, e2) ->
     let e1' = new_simplify e1
     and e2' = new_simplify e2 in
@@ -615,6 +615,28 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       let op' = I32 (i32relop_to_astop op) in
       let ret = Eval_numeric.eval_relop op' v1 v2 in
       Value (Values.value_of_bool ret)
+    | SymPtr(_, _), Value (I32 0l) | Value (I32 0l), SymPtr(_, _) ->
+      begin match op with
+      | I32Eq -> Value (I32 0l)
+      | I32Ne -> Value (I32 1l)
+      | _ -> I32Relop (op, e1', e2')
+      end
+    | SymPtr (b1, os1), SymPtr (b2, os2) ->
+      begin match op with
+      | I32Eq when b1 = b2 -> I32Relop (I32Eq, os1, os2)
+      | I32Eq when b1 != b2 -> Value (I32 0l)
+      | I32Ne when b1 = b2 -> I32Relop (I32Ne, os1, os2)
+      | I32Ne when b1 != b2 -> Value (I32 1l)
+      | I32LtU when b1 = b2 -> I32Relop (I32LtU, os1, os2)
+      | I32LeU when b1 = b2 -> I32Relop (I32LeU, os1, os2)
+      | I32LtU -> I32Relop (I32LtU, Value (I32 b1), Value (I32 b2))
+      | I32LeU -> I32Relop (I32LeU, Value (I32 b1), Value (I32 b2))
+      | I32GtU when b1 = b2 -> I32Relop (I32GtU, os1, os2)
+      | I32GeU when b1 = b2 -> I32Relop (I32GeU, os1, os2)
+      | I32GtU -> I32Relop (I32GtU, Value (I32 b1), Value (I32 b2))
+      | I32GeU -> I32Relop (I32GeU, Value (I32 b1), Value (I32 b2))
+      | _ -> I32Relop (op, e1', e2')
+      end
 
     | _ -> I32Relop (op, e1', e2')
     end
