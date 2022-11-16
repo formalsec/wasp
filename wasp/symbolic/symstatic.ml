@@ -406,7 +406,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
             let high = Int64.(add (of_int32 low) (of_int32 chunk_size)) in
             let ptr_i64 = Int64.of_int32 (I32Value.of_value ptr) in
             let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
-            (* ptr_val \notin [low, high[ => overflow *)
+            (* ptr_val \notin [low, high] => overflow *)
             if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
               raise (BugException (Overflow, e.at, ""))
           end;
@@ -701,7 +701,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | Alloc, Value (I32 sz) :: Value (I32 base) :: vs' ->
         Hashtbl.add chunk_table base sz;
-        Result.ok ([{c with sym_code = SymPtr (base, (Value (I32 0l))) :: vs', List.tl es}], [])
+        let sym_ptr = SymPtr (base, (Value (I32 0l))) in
+        Result.ok ([{c with sym_code = sym_ptr :: vs', List.tl es}], [])
 
       | Alloc, _ ->
         failwith "Alloc with symbolic arguments"
