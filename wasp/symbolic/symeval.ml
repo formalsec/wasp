@@ -157,7 +157,7 @@ let plain e = SPlain e.it @@ e.at
 
 let lookup category list x =
   try Lib.List32.nth list x.it with Failure _ ->
-    Crash.error x.at ("undefined " ^ category ^ " " ^ Int32.to_string x.it) 
+    Crash.error x.at ("undefined " ^ category ^ " " ^ Int32.to_string x.it)
 
 let type_ (inst : module_inst) x = lookup "type" inst.types x
 let func (inst : module_inst) x = lookup "function" inst.funcs x
@@ -271,7 +271,7 @@ let write_report spec reason witness coverage loop_time : unit =
   in Io.save_file (Filename.concat !Flags.output "report.json") report_str
 
 let set_timeout (time_limit : int) : unit =
-  let alarm_handler i : unit = 
+  let alarm_handler i : unit =
     Z3Encoding2.interrupt_z3 ();
     incomplete := true;
     let loop_time = (Sys.time ()) -. !loop_start in
@@ -334,7 +334,7 @@ struct
   let make order =
     { size = 0; capacity = 8; heap = Array.make 8 (Obj.magic 0); order = order }
 
-  let create () = 
+  let create () =
     { size = 0; capacity = 8; heap = Array.make 8 (Obj.magic 0); order = compare }
 
   let length h = h.size
@@ -536,7 +536,7 @@ struct
               match sz with
               | None           -> Symmem2.load_value mem base offset ty
               | Some (sz, ext) -> Symmem2.load_packed sz ext mem base offset ty
-            in 
+            in
             (*print_endline ("after load: " ^ (Symvalue.to_string e));*)
             (v, e) :: vs', [], logic_env, pc, mem
           with
@@ -792,7 +792,7 @@ struct
               let f_imp = I32Binop (I32Or, s, f_eq) in
               let cond  = I32Binop (I32And, t_imp, f_imp) in
               (r, s_x), I32Relop (I32Ne, cond, Value (I32 0l)) :: pc.assumptions
-            end 
+            end
           in v :: vs', [], logic_env, { pc with assumptions = asm }, mem
 
         | PrintStack, vs' ->
@@ -935,7 +935,7 @@ struct
            *)
         )
       )
-    in 
+    in
     { c with sym_code = vs', es' @ List.tl es; logic_env = logic_env';
              path_cond = pc'; sym_mem = mem' }
 
@@ -1014,7 +1014,7 @@ struct
             );
             loop c' global_pc'
       )
-    in 
+    in
     loop_start := Sys.time ();
     let spec, reason, witness =
       PCMap.add "True" Formula.True PCMap.empty |> loop !conf in
@@ -1197,7 +1197,7 @@ struct
               match sz with
               | None           -> Symmem2.load_value mem base offset ty
               | Some (sz, ext) -> Symmem2.load_packed sz ext mem base offset ty
-            in 
+            in
             (*print_endline ("after load: " ^ (Symvalue.to_string e));*)
             (v, e) :: vs', [], logic_env, pc, mem
           with
@@ -1303,7 +1303,7 @@ struct
                 Logicenv.update logic_env binds;
                 [Interrupt (AssFail pc.branches) @@ e.at]
             )
-          in 
+          in
           if es' = [] then debug "\n\n###### Assertion passed ######";
           vs', es', logic_env, pc, mem
 
@@ -1464,7 +1464,7 @@ struct
               let f_imp = I32Binop (I32Or, s, f_eq) in
               let cond  = I32Binop (I32And, t_imp, f_imp) in
               (r, s_x), I32Relop (I32Ne, cond, Value (I32 0l)) :: pc.assumptions
-            end 
+            end
           in v :: vs', [], logic_env, {pc with assumptions = asm}, mem
 
         | PrintStack, vs' ->
@@ -1607,7 +1607,7 @@ struct
            *)
         )
       )
-    in 
+    in
     { c with sym_code = vs', es' @ List.tl es; logic_env = logic_env';
              path_cond = pc'; sym_mem = mem' }
 
@@ -1841,7 +1841,7 @@ struct
               match sz with
               | None           -> Symmem2.load_value mem base offset ty
               | Some (sz, ext) -> Symmem2.load_packed sz ext mem base offset ty
-            in 
+            in
             (*print_endline ("after load: " ^ (Symvalue.to_string e));*)
             (v, e) :: vs', [], logic_env, pc, mem
           with
@@ -1947,7 +1947,7 @@ struct
                 Logicenv.update logic_env binds;
                 [Interrupt (AssFail pc.branches) @@ e.at]
             )
-          in 
+          in
           if es' = [] then debug "\n\n###### Assertion passed ######";
           vs', es', logic_env, pc, mem
 
@@ -2108,7 +2108,7 @@ struct
               let f_imp = I32Binop (I32Or, s, f_eq) in
               let cond  = I32Binop (I32And, t_imp, f_imp) in
               (r, s_x), I32Relop (I32Ne, cond, Value (I32 0l)) :: pc.assumptions
-            end 
+            end
           in v :: vs', [], logic_env, {pc with assumptions = asm}, mem
 
         | PrintStack, vs' ->
@@ -2131,7 +2131,7 @@ struct
             | Symbolic (SymInt32, x), Symbolic (SymInt32, y) ->
               let c = if x = y then eq else ne in
               c, Symvalue.I32Relop (I32Eq, ex1, ex2)
-            | _, _ -> 
+            | _, _ ->
               eval_relop (v1, ex1) (v2, ex2) (Values.I32 Ast.I32Op.Eq)
           in
           v :: vs', [], logic_env, pc, mem
@@ -2251,7 +2251,7 @@ struct
            *)
         )
       )
-    in 
+    in
     { c with sym_code = vs', es' @ List.tl es; logic_env = logic_env';
              path_cond = pc'; sym_mem = mem' }
 
@@ -2409,8 +2409,6 @@ let init_memory (inst : module_inst) (seg : memory_segment) =
   if I64.lt_u bound end_ || I64.lt_u end_ offset then
     Link.error seg.at "data segment does not fit memory";
   fun () -> (Symmem2.store_bytes sym_mem offset init)
-  (*fun () -> (Memory.store_bytes mem offset init;
-             Symmem.store_bytes sym_mem offset init)*)
 
 let add_import (m : module_) (ext : extern) (im : import) (inst : module_inst)
   : module_inst =

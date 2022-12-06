@@ -385,7 +385,7 @@ let formulas_to_smt2_file =
   let file () : string =
     let () = incr counter in
     Printf.sprintf "query-%d.smt2" !counter
-  in fun f status -> 
+  in fun f status ->
     Params.set_print_mode ctx Z3enums.PRINT_SMTLIB2_COMPLIANT;
     let query_out = Filename.concat !Flags.output "queries" in
     let query_file = Filename.concat query_out (file ()) in
@@ -491,21 +491,21 @@ let lift_z3_model
   let i32_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymInt32, x)) in
     let v = Option.map (fun y -> I32 (Int64.to_int32 y)) n in
-    Option.map_default (fun y -> (x, y) :: a) (a) v
+    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
   ) [] sym_int32 in
   let i64_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymInt64, x)) in
     let v = Option.map (fun y -> I64 y) n in
-    Option.map_default (fun y -> (x, y) :: a) (a) v
+    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
   ) [] sym_int64 in
   let f32_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymFloat32, x)) in
     let v = Option.map (fun y -> F32 (F32.of_bits (Int64.to_int32 y))) n in
-    Option.map_default (fun y -> (x, y) :: a) (a) v
+    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
   ) [] sym_float32 in
   let f64_asgn = List.fold_left (fun a x ->
     let n = lift_z3_const (Symbolic (SymFloat64, x)) in
     let v = Option.map (fun y -> F64 (F64.of_bits y)) n in
-    Option.map_default (fun y -> (x, y) :: a) (a) v
+    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
   ) [] sym_float64 in
   i32_asgn @ (i64_asgn @ (f32_asgn @ f64_asgn))

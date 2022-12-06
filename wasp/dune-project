@@ -1,0 +1,20 @@
+(lang dune 3.0)
+
+(name wasp)
+
+(generate_opam_files true)
+
+(source
+ (github wasp-platform/wasp))
+
+(authors "Filipe Marques")
+
+(maintainers "Filipe Marques")
+
+(license LICENSE)
+
+(package
+ (name wasp)
+ (synopsis "WASP is a symbolic execution engine for Wasm")
+ (description "")
+ (depends batteries (z3 (= "4.8.1"))))
