@@ -6,11 +6,11 @@
 
   <resultfiles>**/test-suite</resultfiles>
 
-  <option name='--smt-assume' />
+  <option name="--smt-assume" />
 
-  <option name='--policy breadth' />
+  <option name="--policy">breadth</option>
 
-  <option name='--test-comp' />
+  <option name="--test-comp" />
 
   <rundefinition name="Test-Comp23_coverage-error-call">
     <propertyfile>../sv-benchmarks/c/properties/coverage-error-call.prp</propertyfile>
@@ -56,6 +56,9 @@
   </tasks>
   <tasks name="ReachSafety-Combinations">
     <includesfile>../sv-benchmarks/c/ReachSafety-Combinations.set</includesfile>
+  </tasks>
+    <tasks name="ReachSafety-Hardware">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Hardware.set</includesfile>
   </tasks>
 
   <tasks name="SoftwareSystems-BusyBox-MemSafety">

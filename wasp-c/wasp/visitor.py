@@ -31,7 +31,7 @@ def process_text(text, src_file, includes, rm_boolops=True):
     # split includes from the program string
     lines = text.splitlines()
     incl = filter(lambda l: l.startswith('#include'), lines)
-    incl = '\n'.join(list(incl))
+    incl = '\n'.join(list(incl)) + '#include <wasp-c.h>\n'
 
     try:
         args = map(lambda path: f'-I{path}', includes)
@@ -44,7 +44,7 @@ def process_text(text, src_file, includes, rm_boolops=True):
     except ParseError as e:
         raise ParsingError(str(e))
 
-    n_ast = visitor.visit(ast)          
+    n_ast = visitor.visit(ast)
     n_code = visitor.to_string(n_ast)
 
     return incl + '\n' + n_code
@@ -85,7 +85,7 @@ def process_file(src_file, dst_file, includes, rm_boolops=True):
     i = lines.index('void __start();')
 
     with open(dst_file, 'w') as dst:
-        dst.write(incls + '\n' + '\n'.join(lines[i+1:]))
+        dst.write(incls + '\n' + '#include <wasp.h>\n' + '\n'.join(lines[i+1:]))
 
 class BinopVisitor(c_ast.NodeVisitor):
 

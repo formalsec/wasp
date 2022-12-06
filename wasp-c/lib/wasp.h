@@ -12,6 +12,7 @@ float     __WASP_symb_float(char *);
 double    __WASP_symb_double(char *);
 
 /* symbolic variable manipulation */
+void assume(int);
 void __WASP_assume(int);
 void __WASP_assert(int);
 int  __WASP_is_symbolic(void *, unsigned int);

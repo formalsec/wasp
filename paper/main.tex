@@ -1,0 +1,54 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2017/10/04
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{minted}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+
+\begin{document}
+%
+\title{WASP: WebAssembly Symbolic Processor}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{
+  Filipe Marques\inst{1,2} \and
+  Jos\'e Fragoso Santos\inst{1,2} \and
+  Nuno Santos\inst{1,2} \and
+  Pedro Ad\~ao\inst{2,3}
+}
+%
+\authorrunning{F.\ Marques et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{
+  INESC-ID, Lisbon, Portugal \and
+  Instituto Superior T\'ecnico, Lisbon, Portugal \and
+  Instituto de Telecomunicaç\~oes, Portugal
+}
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+The WebAssembly Symbolic Processor, WASP, is a symbolic execution engine for testing Wasm modules, which works directly on Wasm code and was built on top of a standard-compliant Wasm reference implementation. WASP uses concolic execution to explore every feasible path of a program (up to a bound). We developed WASP-C, a symbolic framework to test C programs using WASP\@. WASP-C was tested against the Test-Comp 2021 benchmark suite, obtaining results comparable to well-established symbolic execution and testing tools for~C.
+\keywords{Concolic Testing \and WebAssembly \and Test-Generation \and Testing C Programs}
+\end{abstract}
+
+\input{body}
+
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+\end{document}

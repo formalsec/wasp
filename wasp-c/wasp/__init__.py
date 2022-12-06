@@ -36,7 +36,7 @@ def get_parser():
         '-o',
         dest='output_dir',
         action='store',
-        default='output',
+        default='wasp-out',
         help='output directory to write to',
     )
 
@@ -131,6 +131,14 @@ def get_parser():
         help='property file'
     )
 
+    parser.add_argument(
+        '--arch',
+        dest='arch',
+        action='store',
+        default='32',
+        help='data model'
+    )
+
     parser.add_argument('file', help='file to analyse')
 
     return parser
@@ -170,6 +178,21 @@ def configure(
     # Create `Makefile.config'
     libs = os.path.join(root_dir, 'bin')
     incl = os.path.join(root_dir, 'lib')
+    if not os.path.exists(os.path.join(libs, 'libc.a')):
+        log.debug('Compiling libc.a...')
+        try:
+            result = subprocess.run(
+                ["make", "-C", incl],
+                text=True,
+                check=True,
+                capture_output=True
+            )
+        except subprocess.CalledProcessError as e:
+            log.error(e.stdout)
+            log.error(e.stderr)
+            return 1
+        log.debug(f'libc.a compiled to \'{libs}\'')
+
     conf = os.path.join(output_dir, 'Makefile.config')
     log.debug(f'... Using static libc in \'{libs}\'.')
     log.debug(f'... Using static libc includes in \'{incl}\'.')
@@ -184,6 +207,7 @@ def configure(
         f.write(f'ENTRY_FUN = {entry_func}\n')
 
     log.debug(f'Created \'{conf}\'.')
+    return 0
 
 def compile_sources(sources):
     log.debug(f'Compiling sources in \'{sources}\'...')
@@ -258,6 +282,10 @@ def main(root_dir, argv=None):
         log.error('Can only use property file with --test-comp')
         return 1
 
+    test_comp_dir = os.path.join(args.output_dir, 'test-suite')
+    if args.test_comp and not os.path.exists(test_comp_dir):
+        os.makedirs(test_comp_dir)
+
     if not os.path.exists(args.output_dir):
         log.debug(f'Creating directory \'{args.output_dir}\'...')
         os.makedirs(args.output_dir)
@@ -269,7 +297,7 @@ def main(root_dir, argv=None):
     log.info('Setting up analysis files...')
 
     includes = args.includes + [os.path.join(root_dir, 'lib')]
-    harness = os.path.join(args.output_dir, 'harness.c')
+    harness = os.path.join(args.output_dir, 'instrumented_file.c')
     if preprocess_file(args.file, harness, includes, args.boolops, \
                        args.test_comp) != 0:
         log.error(f'Failed to process input file \'{args.file}\'!')
@@ -291,13 +319,13 @@ def main(root_dir, argv=None):
     analyser = WASP(verbose=args.verbose)
     #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
     log.info('Starting WASP...')
-    res = analyser.run(wasm_harness, args.entry_func, args=get_wasp_args(args))
+    res = analyser.run(wasm_harness, args.entry_func, args=get_wasp_args(args), time_limit=880)
     if args.verbose:
         log.debug('Exporting stdout and stdin...')
         with open(wasm_harness + '.out', 'w') as out, \
              open(wasm_harness + '.err', 'w') as err:
-            out.write(res.stdout)
-            err.write(res.stderr)
+            out.write(res.stdout.encode('UTF-8'))
+            err.write(res.stderr.encode('UTF-8'))
     if res.crashed:
         log.error(f'WASP crashed')
     elif res.timeout:
@@ -314,6 +342,7 @@ def main(root_dir, argv=None):
             'wasp-c',
             args.file,
             prop,
+            args.arch,
             error + tests
         )
         testsuite.write(os.path.join(args.output_dir, 'test-suite'))

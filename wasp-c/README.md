@@ -51,5 +51,5 @@ options:
 A sample Test-Comp run command is as follows:
 
 ```sh
-./bin/wasp-c --smt-assume --policy breadth --test-comp --property cover-error.prp examples/CostasArray-10.c
+./bin/wasp-c --smt-assume --policy breadth --test-comp --property properties/coverage-error-call.prp examples/CostasArray-10.c
 ```

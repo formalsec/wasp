@@ -19,11 +19,13 @@ class XMLSuiteGenerator:
                  producer,
                  filename,
                  specification,
+                 arch,
                  json_suite,
                  ):
         self.producer = producer
         self.filename = filename
         self.specification = specification
+        self.arch = arch
         self.json_suite = json_suite
 
 
@@ -56,7 +58,7 @@ class XMLSuiteGenerator:
         self.create_tag(metadata, 'programhash', \
                         XMLSuiteGenerator.get_hash(self.filename))
         self.create_tag(metadata, 'entryfunction', 'main')
-        self.create_tag(metadata, 'architecture', '64bit')
+        self.create_tag(metadata, 'architecture', self.arch + 'bit')
         self.create_tag(metadata, 'creationtime', \
                         XMLSuiteGenerator.get_datetime())
         return etree.tostring(
@@ -118,6 +120,9 @@ patterns = [
         ('void abort(...) {...}' , ''),
         ('__attribute__:[~\s?](...)', ''),
         ('__restrict', ''),
+        ('__inline', ''),
+        ('void reach_error() {...}', 'void reach_error() { __WASP_assert(0); }'),
+        ('__extension__', ''),
         ('__VERIFIER_nondet_:[h2]()', \
                 '__VERIFIER_nondet_:[h2](\":[id()]\")')
 ]
