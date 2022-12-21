@@ -383,6 +383,8 @@ rule token = parse
   | "print_pc" { PRINT_PC }
   | "print_value" { PRINT_VALUE }
   | "compare_expr" { COMPARE_EXPR }
+  | "set_priority" { SET_PRIORITY }
+  | "pop_priority" { POP_PRIORITY }
 
   | name as s { VAR s }
 

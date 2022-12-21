@@ -1,0 +1,31 @@
+;; Loads symbolic memory in various iterations 
+(module
+  (type $0 (func))
+  (func $main (type $0)
+        (i32.const 0)
+        (i32.const 6)
+        (i32.const 3)
+        (set_priority)
+        (i32.const 1024)
+        (i32.symbolic)
+        (i32.const 0)
+        (i32.eq)
+        (if 
+          (then
+            (nop)
+            (nop)
+            (nop)
+            (nop)
+            (nop)
+            (nop))
+          (else
+            (nop)
+            (nop)
+            (nop)))
+        (i32.const 0)
+        (pop_priority)
+        )
+  (memory $memory 1)
+  (export "main" (func $main))
+  (data $memory (i32.const 1024) "a\00b\00c\00d\00"))
+(invoke "main")

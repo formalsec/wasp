@@ -279,8 +279,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let es' = List.tl es in
 
           solver_counter := !solver_counter + 2;
-          let model_true = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
-          let model_false = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
+          let model_true = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_true] solver_time in
+          let model_false = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_false] solver_time in
 
           let l  = (match (model_true, model_false) with
           | (Some _, Some _) -> (
@@ -321,8 +321,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let es' = List.tl es in
 
           solver_counter := !solver_counter + 2;
-          let model_true = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_true) solver_time in
-          let model_false = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc_false) solver_time in
+          let model_true = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_true] solver_time in
+          let model_false = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_false] solver_time in
 
           let l  = (match (model_true, model_false) with
           | (Some _, Some _) -> (
@@ -425,7 +425,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let opt_c =
             let assertion = Formula.to_formula pc in
             solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+            let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
             match model with
             | None   -> None
             | Some m ->
@@ -490,7 +490,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let opt_c =
             let assertion = Formula.to_formula pc in
             solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+            let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
             match model with
             | None   -> None
             | Some m ->
@@ -592,7 +592,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         let opt_c =
           let assertion = Formula.to_formula pc in
           solver_counter := !solver_counter +1;
-          let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+          let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
           match model with
           | None   -> None
           | Some m ->
@@ -625,9 +625,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         debug ("Asserting: " ^ Symvalue.to_string (simplify v));
         let opt_c =
           let c = Option.map negate_relop (to_constraint (simplify v)) in
-          let pc' = Option.map_default (fun a -> a :: pc) pc c in
+          let pc' = Batteries.Option.map_default (fun a -> a :: pc) pc c in
           solver_counter := !solver_counter +1;
-          let model = time_call Z3Encoding2.check_sat_core (Formula.to_formula pc') solver_time in
+          let model = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc'] solver_time in
           match model with
           | None   -> None
           | Some m ->
@@ -669,7 +669,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let pc_true = add_constraint ex' pc in
           let assertion = Formula.to_formula pc_true in
           solver_counter := !solver_counter +1;
-          let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+          let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
           match model with
           | None   ->
             Result.ok ([], [])
@@ -713,7 +713,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let es' =
             if not (Hashtbl.mem chunk_table base) then (
               let assertion = Formula.to_formula pc in
-              let model = time_call Z3Encoding2.check_sat_core assertion solver_time in
+              let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
               match model with
               | None   -> failwith "unreachable, pc became unsat"
               | Some m ->

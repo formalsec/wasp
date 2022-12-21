@@ -151,6 +151,7 @@ let load_value (mem : memory) (a : address) (o : offset)
     | I32Type ->
       begin match expr' with
       | Value (I64 v) -> Value (I32 (Int64.to_int32 v))
+      | Ptr   (I64 p) -> Ptr   (I32 (Int64.to_int32 p))
       | _ -> expr'
       end
     | I64Type -> expr'
@@ -173,16 +174,33 @@ let load_value_static (mem : memory) (a : address) (o : offset)
     (t : value_type) : sym_expr  =
   let (_, se) = loadn mem a o (Types.size t) in
   (* Concat symbolic byte list *)
-  let se = List.fold_left (fun a b -> Concat (b, a)) (List.hd se) (List.tl se) in
+  let se = simplify List.(
+    fold_left (fun acc e -> Concat (e, acc)) (hd se) (tl se)
+  ) in
   (* Cast to `t` *)
   let se = simplify ~extract:true se in
   let se' = match t with
-    | I32Type -> se
+    | I32Type -> begin
+      match se with
+      | Value (I64 v) -> Symvalue.Value (I32 (Int64.to_int32 v))
+      | Ptr   (I64 p) -> Ptr   (I32 (Int64.to_int32 p))
+      | _ -> se
+    end
     | I64Type -> se
-    | F32Type -> F32Cvtop (Sf32.F32ReinterpretInt, se)
-    | F64Type -> F64Cvtop (Sf64.F64ReinterpretInt, se) in
+    | F32Type -> begin
+      match se with
+      | Value (I64 v) -> Value (F32 (F32.of_bits (Int64.to_int32 v)))
+      | I32Cvtop (Si32.I32ReinterpretFloat, v) -> v
+      | _ -> F32Cvtop (Sf32.F32ReinterpretInt, se)
+    end
+    | F64Type -> begin
+      match se with
+      | Value (I64 v) -> Value (F64 (F64.of_bits v))
+      | I64Cvtop (Si64.I64ReinterpretFloat, v) -> v
+      | _ -> F64Cvtop (Sf64.F64ReinterpretInt, se)
+    end
+  in
   match se' with
-  | Value _ -> se'
   | Extract ((Value I64 i), h, l) ->
     let len = h - l in
     begin match len with
@@ -208,9 +226,6 @@ let load_value_static (mem : memory) (a : address) (o : offset)
     in
     Value (F32 (F32.of_bits ix))
   | _ -> se'
-  (* | _ -> ( *)
-  (*   Printf.eprintf "%s" ("gonna die" ^ Symvalue.to_string se'); *)
-  (*   failwith "needed?") *)
 
 let store_value (mem : memory) (a : address) (o : offset)
     (v : sym_value) : unit =
@@ -225,6 +240,7 @@ let store_value (mem : memory) (a : address) (o : offset)
   | I32Type ->
     begin match sv with
     | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
+    | Ptr   (I32 x) -> Ptr   (I64 (Int64.of_int32 x))
     | _ -> sv
     end
   | I64Type -> sv

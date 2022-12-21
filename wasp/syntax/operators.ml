@@ -43,6 +43,8 @@ let print_btree = PrintBtree
 let print_pc = PrintPC
 let print_value = PrintValue
 let compare_expr = CompareExpr
+let set_priority = SetPriority
+let pop_priority = PopPriority
 
 (*  SYMBOLIC EXECUTION  *)
 let sym_assert = SymAssert

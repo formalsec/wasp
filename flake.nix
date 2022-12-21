@@ -27,8 +27,8 @@
             wabt
           ];
           shellHook = ''
-          export LD_LIBRARY_PATH="$HOME/.opam/4.08.1/lib/z3/:$LD_LIBRARY_PATH"
-          export PATH="$PATH:$PWD/wasp"
+          export LD_LIBRARY_PATH="$HOME/.opam/wasp/lib/z3/:$LD_LIBRARY_PATH"
+          export PATH="$PWD/wasp/_build/install/default/bin:$PATH"
           # export PATH="$PATH:$PWD/wasp-c/bin"
           eval $(opam env)
           '';

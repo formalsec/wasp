@@ -41,15 +41,18 @@ let argspec = Arg.align
   "--timeout", Arg.Set_int Flags.timeout, " time limit (default=900s)";
   "--workspace", Arg.Set_string Flags.output,
     " directory to output report and test-suite (default=output)";
-  (* Flags for Dynamic SE *)
   "-m", Arg.Set_int Flags.inst_limit,
     " maximum instr interpreted during a model";
+  (* Flags for Dynamic SE *)
   "-b", Arg.Set Flags.branches,
     " ignore assertion failures to cover more paths";
   "--smt-assume", Arg.Set Flags.smt_assume,
     " use the solver to progress in the assume rule";
   "--no-simplify", Arg.Clear Flags.simplify,
-    " do not perform algebraic simplifications of symbolic expressions"
+    " do not perform algebraic simplifications of symbolic expressions";
+  "--policy", Arg.Set_string Flags.policy,
+    " search policy random|depth|breadth (default: random)";
+  "--queries", Arg.Set Flags.queries, " output solver queries in .smt2 format";
   (* Flags for Static SE *)
 ]
 

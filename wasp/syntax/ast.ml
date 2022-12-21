@@ -123,6 +123,8 @@ and instr' =
   | PrintPC
   | PrintValue
   | CompareExpr
+  | SetPriority
+  | PopPriority
 
 (* Globals & Functions *)
 

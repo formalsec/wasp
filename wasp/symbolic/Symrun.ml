@@ -334,7 +334,7 @@ let run_action act : Values.value list =
         []
       ) else (
         let vs' = List.map (fun v -> (v.it, Symvalue.Value v.it)) vs in
-        let res = Symeval.invoke f vs' in
+        let res = Symeval.sym_invoke' f vs' in
         (List.map (fun (b,c) -> b) res)
       )
     | Some _ -> Assert.error act.at "export is not a function"
