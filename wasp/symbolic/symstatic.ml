@@ -249,6 +249,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = v1 :: vs', List.tl es } ], [])
 
       | Select, sexpr :: v2 :: v1 :: vs' ->
+        (* TODO: optimize like If and BrIf *)
         let c'  = clone c
         and es' = List.tl es
         and pc_true  = add_constraint sexpr pc
