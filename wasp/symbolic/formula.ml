@@ -3,7 +3,7 @@ open Symvalue
 type formula =
   | True
   | False
-  | Not   of formula 
+  | Not   of formula
   | And   of formula * formula
   | Or    of formula * formula
   | Relop of Symvalue.sym_expr
@@ -20,20 +20,24 @@ let rec negate (f : formula) : formula =
   | Relop e -> Relop (Symvalue.negate_relop e)
 
 let conjunct (conds : formula list) : formula =
-  assert (not (conds = []));
-  let rec loop (acc : t) = function
-    | []     -> acc
-    | h :: t -> loop (And (acc, h)) t
-  in loop (List.hd conds) (List.tl conds)
+  if conds = [] then
+    True
+  else
+    (
+    let rec loop (acc : t) = function
+      | []     -> acc
+      | h :: t -> loop (And (acc, h)) t
+    in loop (List.hd conds) (List.tl conds)
+  )
 
-let rec to_string_aux (p : Symvalue.sym_expr -> string) 
+let rec to_string_aux (p : Symvalue.sym_expr -> string)
     (f : formula) : string =
   match f with
   | True  -> "True"
   | False -> "False"
   | Not c -> "(Not " ^ (to_string_aux p c ) ^ ")"
-  | And (c1, c2) -> 
-      let c1_str = to_string_aux p c1 
+  | And (c1, c2) ->
+      let c1_str = to_string_aux p c1
       and c2_str = to_string_aux p c2 in
       "(" ^ c1_str ^ " /\\ " ^ c2_str ^")"
   | Or (c1, c2) ->
@@ -41,9 +45,9 @@ let rec to_string_aux (p : Symvalue.sym_expr -> string)
       and c2_str = to_string_aux p c2 in
       "(" ^ c1_str ^ " \\/ " ^ c2_str ^")"
   | Relop e -> p e
-  
+
 let to_string (f : formula) : string =
-  to_string_aux Symvalue.to_string f 
+  to_string_aux Symvalue.to_string f
 
 let pp_to_string (f : formula) : string =
   to_string_aux Symvalue.pp_to_string f
