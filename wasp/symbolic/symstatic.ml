@@ -101,6 +101,7 @@ type sym_config =
   var_map    : Varmap.t;
   sym_globals: Static_globals.t;
   chunk_table: (int32, int32) Hashtbl.t;
+  solver: IncrementalEncoding.solver;
 }
 
 let clone(c: sym_config): sym_config =
@@ -112,6 +113,7 @@ let clone(c: sym_config): sym_config =
   let var_map = Hashtbl.copy(c.var_map) in
   let sym_globals = Static_globals.clone_globals c.sym_globals in
   let chunk_table = Hashtbl.copy(c.chunk_table) in
+  let solver = IncrementalEncoding.clone c.solver in
   {
     sym_frame = sym_frame;
     sym_code = sym_code;
@@ -121,6 +123,7 @@ let clone(c: sym_config): sym_config =
     var_map = var_map;
     sym_globals = sym_globals;
     chunk_table = chunk_table;
+    solver = solver;
   }
 
 (* Symbolic frame and configuration  *)
@@ -134,6 +137,7 @@ let sym_config inst vs es sym_m globs = {
   var_map = Hashtbl.create 100;
   sym_globals = globs;
   chunk_table = Hashtbl.create 512;
+  solver = IncrementalEncoding.mk_solver ();
 }
 
 exception BugException of bug * region * string
@@ -228,6 +232,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
     sym_mem = mem;
     var_map = var_map;
     chunk_table = chunk_table;
+    solver = solver;
     _} = c in
   match es with
   | [] -> Result.ok ([], [c])
@@ -242,21 +247,48 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       | Drop, v :: vs' ->
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
-      | Select, Value (I32 0l) :: v2 :: v1 :: vs' ->
-        Result.ok ([ { c with sym_code = v2 :: vs', List.tl es } ], [])
+      | Select, ex :: v2 :: v1 :: vs' ->
+        (match simplify ex with
+        | Value (I32 0l) ->
+          (* if it is 0 *)
+          Result.ok ([ { c with sym_code = v2 :: vs', List.tl es } ], [])
+        | Value (I32 _) ->
+          (* if it is not 0 *)
+          Result.ok ([ { c with sym_code = v1 :: vs', List.tl es } ], [])
+        | ex -> (
+          let co = Option.get (to_constraint ex) in
+          let negated_co = negate_relop co in
+          let es' = List.tl es in
 
-      | Select, Value (I32 i) :: v2 :: v1 :: vs' ->
-        Result.ok ([ { c with sym_code = v1 :: vs', List.tl es } ], [])
+          solver_counter := !solver_counter + 2;
+          let sat_then = IncrementalEncoding.check solver [ co ] in
+          let sat_else = IncrementalEncoding.check solver [ negated_co ] in
 
-      | Select, sexpr :: v2 :: v1 :: vs' ->
-        (* TODO: optimize like If and BrIf *)
-        let c'  = clone c
-        and es' = List.tl es
-        and pc_true  = add_constraint sexpr pc
-        and pc_false = add_constraint ~neg:true sexpr pc in
-        let c_true = { c with sym_code = v1 :: vs', es'; path_cond = pc_true }
-        and c_false = { c' with sym_code = v2 :: vs', es'; path_cond = pc_false }
-        in Result.ok ([c_true; c_false], [])
+          let l = match (sat_then, sat_else) with
+          | (true, true) ->
+            let pc_true = add_constraint ex pc in
+            IncrementalEncoding.add solver [ co ];
+            let pc_false = add_constraint ~neg:true ex pc in
+            let c_clone = clone c in
+            IncrementalEncoding.add c_clone.solver [ negated_co ];
+            [{ c with sym_code = v1 :: vs', es'; path_cond = pc_true }
+            ;{ c_clone with sym_code = v2 :: vs', es'; path_cond = pc_false }]
+          | (true, false) ->
+            let pc_true = add_constraint ex pc in
+            [{ c with sym_code = v1 :: vs', es'; path_cond = pc_true }]
+          | (false, true) ->
+            let pc_false = add_constraint ~neg:true ex pc in
+            [{ c with sym_code = v2 :: vs', es'; path_cond = pc_false }]
+          | (false, false) -> failwith "Unreachable Select"
+          in
+
+          if List.length l = 2 then begin
+            debug ("split : " ^ (Printf.sprintf "%d" e.at.left.line));
+            debug ("on: " ^ (Symvalue.pp_to_string ex) );
+          end;
+          Result.ok (l, [])
+          )
+        )
 
       | Block (ts, es'), vs ->
         let es0 = SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at in
@@ -275,29 +307,34 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], [])
         | ex -> (
-          let pc_false = add_constraint ~neg:true ex pc in
-          let pc_true = add_constraint ex pc in
+          let co = Option.get (to_constraint ex) in
+          let negated_co = negate_relop co in
           let es' = List.tl es in
 
           solver_counter := !solver_counter + 2;
-          let model_true = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_true] solver_time in
-          let model_false = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_false] solver_time in
+          let sat_then = IncrementalEncoding.check solver [ co ] in
+          let sat_else = IncrementalEncoding.check solver [ negated_co ] in
 
-          let l  = (match (model_true, model_false) with
-          | (Some _, Some _) -> (
+          let l = match (sat_then, sat_else) with
+          | (true, true) ->
+            let pc_true = add_constraint ex pc in
+            IncrementalEncoding.add solver [ co ];
+            let pc_false = add_constraint ~neg:true ex pc in
             let c_clone = clone c in
+            IncrementalEncoding.add c_clone.solver [ negated_co ];
             [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }]
-            )
-          | (Some _, None) -> [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }]
-          | (None, Some _) -> [{ c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }]
-          | (None, None) -> failwith "Unreachable If"
-          )
+          | (true, false) ->
+            let pc_true = add_constraint ex pc in
+            [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }]
+          | (false, true) ->
+            let pc_false = add_constraint ~neg:true ex pc in
+            [{ c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false }]
+          | (false, false) -> failwith "Unreachable If"
           in
 
           if List.length l = 2 then begin
-            debug ("split : " ^ (Source.string_of_pos e.at.left ^
-              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)));
+            debug ("split : " ^ (Printf.sprintf "%d" e.at.left.line));
             debug ("on: " ^ (Symvalue.pp_to_string ex) );
           end;
           Result.ok (l, [])
@@ -317,31 +354,35 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs', [SPlain (Br x) @@ e.at] } ], [])
         | ex -> (
-          let pc_false = add_constraint ~neg:true ex pc in
-          let pc_true = add_constraint ex pc in
+          let co = Option.get (to_constraint ex) in
+          let negated_co = negate_relop co in
           let es' = List.tl es in
 
           solver_counter := !solver_counter + 2;
-          let model_true = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_true] solver_time in
-          let model_false = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc_false] solver_time in
+          let sat_then = IncrementalEncoding.check solver [ co ] in
+          let sat_else = IncrementalEncoding.check solver [ negated_co ] in
 
-          let l  = (match (model_true, model_false) with
-          | (Some _, Some _) -> (
+          let l = match (sat_then, sat_else) with
+          | (true, true) ->
+            let pc_true = add_constraint ex pc in
             let c_clone = clone c in
+            IncrementalEncoding.add solver [ co ];
+            let pc_false = add_constraint ~neg:true ex pc in
+            IncrementalEncoding.add c_clone.solver [ negated_co ];
             [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', es'; path_cond = pc_false }]
-            )
-          | (Some _, None) -> [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }]
-          | (None, Some _) -> [{ c with sym_code = vs', es'; path_cond = pc_false }]
-          | (None, None) -> failwith "Unreachable BrIf"
-          )
+          | (true, false) ->
+            let pc_true = add_constraint ex pc in
+            [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }]
+          | (false, true) ->
+            let pc_false = add_constraint ~neg:true ex pc in
+            [{ c with sym_code = vs', es'; path_cond = pc_false }]
+          | (false, false) -> failwith "Unreachable BrIf"
           in
+
           if List.length l = 2 then begin
-            debug ("split : " ^ (Source.string_of_pos e.at.left ^
-              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)));
+            debug ("split : " ^ (Printf.sprintf "%d" e.at.left.line));
             debug ("on: " ^ (Symvalue.pp_to_string ex) );
-            debug ("generating pc: " ^ (Formula.pp_to_string (Formula.to_formula pc_true)));
-            debug ("generating pc: " ^ (Formula.pp_to_string (Formula.to_formula pc_false)));
           end;
           Result.ok (l, [])
           )
@@ -423,20 +464,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
         with
         | BugException (b, at, _) ->
-          let opt_c =
-            let assertion = Formula.to_formula pc in
-            solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
-            match model with
-            | None   -> None
-            | Some m ->
-              let li32 = Varmap.get_vars_by_type I32Type var_map
-              and li64 = Varmap.get_vars_by_type I64Type var_map
-              and lf32 = Varmap.get_vars_by_type F32Type var_map
-              and lf64 = Varmap.get_vars_by_type F64Type var_map in
-              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-              Some (Logicenv.to_json binds)
-          in
+          let binds = IncrementalEncoding.binds solver var_map in
+          let opt_c = Some (Logicenv.to_json binds) in
           (match opt_c with
           | None -> failwith "unreachable, pc is unsat"
           | Some c -> (
@@ -488,20 +517,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           Result.ok ([ { c with sym_code = vs', es' } ], [])
         with
         | BugException (b, at, _) ->
-          let opt_c =
-            let assertion = Formula.to_formula pc in
-            solver_counter := !solver_counter +1;
-            let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
-            match model with
-            | None   -> None
-            | Some m ->
-              let li32 = Varmap.get_vars_by_type I32Type var_map
-              and li64 = Varmap.get_vars_by_type I64Type var_map
-              and lf32 = Varmap.get_vars_by_type F32Type var_map
-              and lf64 = Varmap.get_vars_by_type F64Type var_map in
-              let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-              Some (Logicenv.to_json binds)
-          in
+          let binds = IncrementalEncoding.binds solver var_map in
+          let opt_c = Some (Logicenv.to_json binds) in
           (match opt_c with
           | None -> failwith "unreachable, pc is unsat"
           | Some c -> (
@@ -590,32 +607,15 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | SymAssert, Value (I32 0l) :: vs' ->
         debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
-        let opt_c =
-          let assertion = Formula.to_formula pc in
-          solver_counter := !solver_counter +1;
-          let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
-          match model with
-          | None   -> None
-          | Some m ->
-            let li32 = Varmap.get_vars_by_type I32Type var_map
-            and li64 = Varmap.get_vars_by_type I64Type var_map
-            and lf32 = Varmap.get_vars_by_type F32Type var_map
-            and lf64 = Varmap.get_vars_by_type F64Type var_map in
-            let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-            Some (Logicenv.to_json binds)
+        let binds = IncrementalEncoding.binds solver var_map in
+        let c = Logicenv.to_json binds in
+        let reason = "{" ^
+        "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
+        "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+            (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+        "}"
         in
-        (match opt_c with
-        | Some c -> (
-          let reason = "{" ^
-          "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
-          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
-              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
-          "}"
-          in
-          Result.error (reason, c)
-          )
-        | None -> failwith "unreachable, pc is unsat"
-        )
+        Result.error (reason, c)
 
       | SymAssert, Value (I32 i) :: vs' ->
         (* passed *)
@@ -623,21 +623,17 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | SymAssert, v :: vs' ->
+        let v = simplify v in
         debug ("Asserting: " ^ Symvalue.to_string (simplify v));
         let opt_c =
-          let c = Option.map negate_relop (to_constraint (simplify v)) in
-          let pc' = Batteries.Option.map_default (fun a -> a :: pc) pc c in
-          solver_counter := !solver_counter +1;
-          let model = time_call Z3Encoding2.check_sat_core [Formula.to_formula pc'] solver_time in
-          match model with
-          | None   -> None
-          | Some m ->
-            let li32 = Varmap.get_vars_by_type I32Type var_map
-            and li64 = Varmap.get_vars_by_type I64Type var_map
-            and lf32 = Varmap.get_vars_by_type F32Type var_map
-            and lf64 = Varmap.get_vars_by_type F64Type var_map in
-            let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
+          let c = negate_relop (Option.get (to_constraint v)) in
+          solver_counter := !solver_counter + 1;
+          let sat = IncrementalEncoding.check solver [ c ] in
+          if sat then
+            let binds = IncrementalEncoding.binds solver var_map in
             Some (Logicenv.to_json binds)
+          else
+            None
         in
         if Option.is_some opt_c then
           debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...")
@@ -666,17 +662,16 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | Value (I32 _) ->
           (* if it is not 0 *)
           Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
-        | ex' -> (
-          let pc_true = add_constraint ex' pc in
-          let assertion = Formula.to_formula pc_true in
-          solver_counter := !solver_counter +1;
-          let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
-          match model with
-          | None   ->
-            Result.ok ([], [])
-          | Some _ ->
+        | ex -> (
+          let co = Option.get (to_constraint ex) in
+          solver_counter := !solver_counter + 1;
+          IncrementalEncoding.add solver [ co ];
+          if IncrementalEncoding.check solver [] then
+            let pc_true = co :: pc in
             let c_true = { c with sym_code = vs', List.tl es ; path_cond = pc_true } in
             Result.ok ([ c_true ], []);
+          else
+            Result.ok ([], [])
           )
         )
 
@@ -713,18 +708,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | SymPtr (base, (Value (I32 0l))) ->
           let es' =
             if not (Hashtbl.mem chunk_table base) then (
-              let assertion = Formula.to_formula pc in
-              let model = time_call Z3Encoding2.check_sat_core [assertion] solver_time in
-              match model with
-              | None   -> failwith "unreachable, pc became unsat"
-              | Some m ->
-                let li32 = Varmap.get_vars_by_type I32Type var_map
-                and li64 = Varmap.get_vars_by_type I64Type var_map
-                and lf32 = Varmap.get_vars_by_type F32Type var_map
-                and lf64 = Varmap.get_vars_by_type F64Type var_map in
-                let binds = Z3Encoding2.lift_z3_model m li32 li64 lf32 lf64 in
-                let witness = Logicenv.to_json binds in
-                [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
+              let binds = IncrementalEncoding.binds solver var_map in
+              let witness = Logicenv.to_json binds in
+              [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
             ) else (
               Hashtbl.remove chunk_table base;
               List.tl es
@@ -831,6 +817,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       var_map = c.var_map;
       sym_globals = c.sym_globals;
       chunk_table = c.chunk_table;
+      solver = c.solver;
     })
 
   | STrapping msg, vs ->
