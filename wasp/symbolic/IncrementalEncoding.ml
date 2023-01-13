@@ -414,10 +414,20 @@ let check (solver : Solver.solver) (vs : Symvalue.sym_expr list) : bool =
   in
   b
 
+(** fails if solver isn't currently SAT *)
+let get_model (solver : Solver.solver) : Model.model =
+  match Z3.Solver.get_model solver with
+  | Some(m) -> m
+  | None -> begin
+    ignore (time_call time_solver (fun () -> Solver.check solver []));
+    Option.get (Z3.Solver.get_model solver)
+  end
+
+(** fails if solver isn't currently SAT *)
 let binds
     (solver : Solver.solver)
     (var_map : Varmap.t) : (string * Values.value) list =
-  let model = Option.get (Z3.Solver.get_model solver) in
+  let model = get_model solver in
   let sym_int32 = Varmap.get_vars_by_type Types.I32Type var_map
   and sym_int64 = Varmap.get_vars_by_type Types.I64Type var_map
   and sym_float32 = Varmap.get_vars_by_type Types.F32Type var_map
