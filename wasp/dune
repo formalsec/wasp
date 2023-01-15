@@ -31,4 +31,4 @@
 (env
  (dev
   (flags
-   (-w +a-3-4-27-42-44-45 -warn-error +a))))
+   (-w +a-3-4-27-42-44-45-70 -warn-error +a))))

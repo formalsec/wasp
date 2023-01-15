@@ -4,7 +4,7 @@ exception Unknown
 
 let time_solver = ref 0.0
 
-type solver = Z3.Solver.solver
+type solver = Solver.solver
 
 let ctx =
   Z3.mk_context
@@ -323,12 +323,10 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : Symvalue.sym_expr) : Expr.expr 
       let e' = encode_sym_expr e in
       Zf32.encode_unop op e'
   | F32Binop (op, e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr e1 and e2' = encode_sym_expr e2 in
       Zf32.encode_binop op e1' e2'
   | F32Relop (op, e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr e1 and e2' = encode_sym_expr e2 in
       Zf32.encode_relop ~to_bv:bool_to_bv op e1' e2'
   | F32Cvtop (op, e) ->
       let e' = encode_sym_expr e in
@@ -337,12 +335,10 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : Symvalue.sym_expr) : Expr.expr 
       let e' = encode_sym_expr e in
       Zf64.encode_unop op e'
   | F64Binop (op, e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr e1 and e2' = encode_sym_expr e2 in
       Zf64.encode_binop op e1' e2'
   | F64Relop (op, e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr e1 and e2' = encode_sym_expr e2 in
       Zf64.encode_relop ~to_bv:bool_to_bv op e1' e2'
   | F64Cvtop (op, e) ->
       let e' = encode_sym_expr e in
@@ -353,31 +349,24 @@ let rec encode_sym_expr ?(bool_to_bv=false) (e : Symvalue.sym_expr) : Expr.expr 
       let e' = encode_sym_expr ~bool_to_bv:true e in
       BitVector.mk_extract ctx (h * 8 - 1) (l * 8) e'
   | Concat (e1, e2) ->
-      let e1' = encode_sym_expr e1
-      and e2' = encode_sym_expr e2 in
+      let e1' = encode_sym_expr e1 and e2' = encode_sym_expr e2 in
       BitVector.mk_concat ctx e1' e2'
-
-let enc_cache : (Formula.t, Expr.expr) Hashtbl.t = Hashtbl.create 128
 
 let rec encode_formula (a : Formula.t) : Expr.expr =
   let open Formula in
-  try Hashtbl.find enc_cache a with Not_found ->
-    let enc =
-      match a with
-      | True    -> Boolean.mk_true ctx
-      | False   -> Boolean.mk_false ctx
-      | Relop e -> encode_sym_expr e
-      | Not c   -> Boolean.mk_not ctx (encode_formula c)
-      | And (c1, c2) ->
-          let c1' = encode_formula c1
-          and c2' = encode_formula c2 in
-          Boolean.mk_and ctx [c1'; c2']
-      | Or (c1, c2) ->
-          let c1' = encode_formula c1
-          and c2' = encode_formula c2 in
-          Boolean.mk_or ctx [c1'; c2']
-    in Hashtbl.replace enc_cache a enc;
-    enc
+  match a with
+  | True    -> Boolean.mk_true ctx
+  | False   -> Boolean.mk_false ctx
+  | Relop e -> encode_sym_expr e
+  | Not c   -> Boolean.mk_not ctx (encode_formula c)
+  | And (c1, c2) ->
+      let c1' = encode_formula c1
+      and c2' = encode_formula c2 in
+      Boolean.mk_and ctx [c1'; c2']
+  | Or (c1, c2) ->
+      let c1' = encode_formula c1
+      and c2' = encode_formula c2 in
+      Boolean.mk_or ctx [c1'; c2']
 
 let mk_solver () : Solver.solver = Solver.mk_solver ctx None
 
@@ -415,98 +404,17 @@ let check (solver : Solver.solver) (vs : Symvalue.sym_expr list) : bool =
   b
 
 (** fails if solver isn't currently SAT *)
-let get_model (solver : Solver.solver) : Model.model =
-  match Z3.Solver.get_model solver with
-  | Some(m) -> m
-  | None -> begin
-    ignore (time_call time_solver (fun () -> Solver.check solver []));
-    Option.get (Z3.Solver.get_model solver)
-  end
-
-(** fails if solver isn't currently SAT *)
-let binds
-    (solver : Solver.solver)
-    (var_map : Varmap.t) : (string * Values.value) list =
-  let model = get_model solver in
-  let sym_int32 = Varmap.get_vars_by_type Types.I32Type var_map
-  and sym_int64 = Varmap.get_vars_by_type Types.I64Type var_map
-  and sym_float32 = Varmap.get_vars_by_type Types.F32Type var_map
-  and sym_float64 = Varmap.get_vars_by_type Types.F64Type var_map in
-  let set s i n =
-    let bs = Bytes.of_string s in
-    Bytes.set bs i n;
-    Bytes.to_string bs
-  in
-  let lift_z3_const (c : Symvalue.sym_expr) : int64 option =
-    let int_of_bv (bv : Expr.expr) : int64 =
-      assert (Expr.is_numeral bv);
-      Int64.of_string (set (Expr.to_string bv) 0 '0')
-    in
-    let float_of_fp (fp : Expr.expr) (ebits : int) (sbits : int ) : int64 =
-      assert (Expr.is_numeral fp);
-      if FloatingPoint.is_numeral_nan ctx fp then
-          if FloatingPoint.is_numeral_negative ctx fp then
-            if sbits = 23 then Int64.of_int32 0xffc0_0000l
-                          else 0xfff8_0000_0000_0000L
-          else
-            if sbits = 23 then Int64.of_int32 0x7fc0_0000l
-                          else 0x7ff8_0000_0000_0000L
-      else if FloatingPoint.is_numeral_inf ctx fp then
-        if FloatingPoint.is_numeral_negative ctx fp then
-          if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float (-. (1.0 /. 0.0))))
-                        else Int64.bits_of_float (-. (1.0 /. 0.0))
-        else
-          if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float (1.0 /. 0.0)))
-                        else Int64.bits_of_float (1.0 /. 0.0)
-      else if FloatingPoint.is_numeral_zero ctx fp then
-        if FloatingPoint.is_numeral_negative ctx fp then
-          if sbits = 23 then (Int64.of_int32 0x8000_0000l)
-                        else 0x8000_0000_0000_0000L
-        else
-          if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float 0.0))
-                        else Int64.bits_of_float 0.0
-      else begin
-        let fp = Expr.to_string fp in
-        let fp = String.sub fp 4 ((String.length fp) - 5) in
-        let fp_list = List.map (fun fp -> set fp 0 '0')
-                               (String.split_on_char ' ' fp) in
-        let bit_list = List.map (fun fp -> Int64.of_string fp) fp_list in
-        let sign     = Int64.shift_left (List.nth bit_list 0) (ebits + sbits)
-        and exponent = Int64.shift_left (List.nth bit_list 1) (sbits)
-        and fraction = List.nth bit_list 2 in
-        Int64.(logor sign (logor exponent fraction))
-      end
-    in
-    let interp = Model.get_const_interp_e model (encode_sym_expr c) in
-    let f e =
-      if BitVector.is_bv e then int_of_bv e
-      else (
-        let ebits = FloatingPoint.get_ebits ctx (Expr.get_sort e)
-        and sbits = FloatingPoint.get_sbits ctx (Expr.get_sort e) in
-        float_of_fp e ebits (sbits - 1)
-      )
-    in Option.map f interp
-  in
-  let open Symvalue in
-  let open Values in
-  let i32_asgn = List.fold_left (fun a x ->
-    let n = lift_z3_const (Symbolic (SymInt32, x)) in
-    let v = Option.map (fun y -> I32 (Int64.to_int32 y)) n in
-    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
-  ) [] sym_int32 in
-  let i64_asgn = List.fold_left (fun a x ->
-    let n = lift_z3_const (Symbolic (SymInt64, x)) in
-    let v = Option.map (fun y -> I64 y) n in
-    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
-  ) [] sym_int64 in
-  let f32_asgn = List.fold_left (fun a x ->
-    let n = lift_z3_const (Symbolic (SymFloat32, x)) in
-    let v = Option.map (fun y -> F32 (F32.of_bits (Int64.to_int32 y))) n in
-    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
-  ) [] sym_float32 in
-  let f64_asgn = List.fold_left (fun a x ->
-    let n = lift_z3_const (Symbolic (SymFloat64, x)) in
-    let v = Option.map (fun y -> F64 (F64.of_bits y)) n in
-    Batteries.Option.map_default (fun y -> (x, y) :: a) (a) v
-  ) [] sym_float64 in
-  i32_asgn @ (i64_asgn @ (f32_asgn @ f64_asgn))
+let model (solver : Solver.solver) lst =
+  match Solver.get_model solver with
+  | None -> []
+  | Some m ->
+      List.map 
+        (fun const ->
+          let sort = Sort.to_string (FuncDecl.get_range const)
+          and name = Symbol.to_string (FuncDecl.get_name const)
+          and interp = 
+            Batteries.Option.map_default Expr.to_string ""
+              (Model.get_const_interp m const)
+          in
+          (sort, name, interp))
+        (Model.get_const_decls m)
