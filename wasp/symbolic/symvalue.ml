@@ -1,4 +1,5 @@
 open Si32
+open Si64
 open Types
 open Values
 
@@ -505,6 +506,22 @@ let to_constraint (e : sym_expr) : sym_expr option =
   else if is_relop e then Some e
   else Some (I32Relop (I32Ne, e, Value (I32 0l)))
 
+let i64binop_to_astop (op : Si64.binop) =
+  match op with
+	| I64Add  -> Ast.I64Op.Add
+	| I64And  -> Ast.I64Op.And
+	| I64Or   -> Ast.I64Op.Or
+	| I64Sub  -> Ast.I64Op.Sub
+	| I64DivS -> Ast.I64Op.DivS
+  | I64DivU -> Ast.I64Op.DivU
+	| I64Xor  -> Ast.I64Op.Xor
+	| I64Mul  -> Ast.I64Op.Mul
+  | I64Shl  -> Ast.I64Op.Shl
+  | I64ShrS -> Ast.I64Op.ShrS
+  | I64ShrU -> Ast.I64Op.ShrU
+  | I64RemS -> Ast.I64Op.RemS
+  | I64RemU -> Ast.I64Op.RemU
+
 let i32binop_to_astop (op : Si32.binop) =
   match op with
 	| I32Add  -> Ast.I32Op.Add
@@ -610,6 +627,73 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
       | Value (I32 1l), bop when (is_relop bop) && (op = I32And) -> bop
 
       | _ -> I32Binop (op, e1', e2')
+      end
+
+  | I64Binop (op, e1, e2) ->
+      let e1' = new_simplify e1
+      and e2' = new_simplify e2 in
+      begin match e1', e2' with
+      | SymPtr (b1, os1), SymPtr (b2, os2) ->
+        begin match op with
+        | I64Sub when b1 = b2 ->
+          new_simplify (I64Binop (I64Sub, os1, os2))
+        | _ -> I64Binop (op, e1', e2')
+        end
+      | SymPtr (base, offset), _ ->
+        begin match op with
+        | I64Add ->
+          let new_offset = new_simplify (I64Binop (I64Add, offset, e2')) in
+          new_simplify (SymPtr (base, new_offset))
+        | I64Sub ->
+          let new_offset = new_simplify (I64Binop (I64Sub, offset, e2')) in
+          new_simplify (SymPtr (base, new_offset))
+        | _ -> I64Binop (op, e1', e2')
+        end
+      | _, SymPtr (base, offset) ->
+        begin match op with
+        | I64Add ->
+          let new_offset = new_simplify (I64Binop (I64Add, offset, e1')) in
+          new_simplify (SymPtr (base, new_offset))
+        | _ -> I64Binop (op, e1', e2')
+        end
+
+      | Value (I64 0L), _ ->
+        begin match op with
+        | I64Add | I64Or   | I64Sub  -> e2'
+        | I64And | I64DivS | I64DivU
+        | I64Mul | I64RemS | I64RemU -> Value (I64 0L)
+        | _ -> I64Binop (op, e1', e2')
+        end
+
+      | _, Value (I64 0L) ->
+        begin match op with
+        | I64Add | I64Or | I64Sub -> e1'
+        | I64And | I64Mul -> Value (I64 0L)
+        | _ -> I64Binop (op, e1', e2')
+        end
+
+      | Value v1, Value v2 ->
+        Value (Eval_numeric.eval_binop (I64 (i64binop_to_astop op)) v1 v2)
+
+      | I64Binop (op2, x, Value v1), Value v2 when not (is_value x) ->
+        begin match op, op2 with
+        | I64Add, I64Add ->
+          let v = Eval_numeric.eval_binop (I64 Ast.I64Op.Add) v1 v2 in
+          I64Binop (I64Add, x, Value v)
+        | I64Add, I64Sub
+        | I64Sub, I64Add ->
+          let v = Eval_numeric.eval_binop (I64 Ast.I64Op.Sub) v1 v2 in
+          I64Binop (I64Add, x, Value v)
+        | I64Sub, I64Sub ->
+          let v = Eval_numeric.eval_binop (I64 Ast.I64Op.Add) v1 v2 in
+          I64Binop (I64Sub, x, Value v)
+        | _, _ -> I64Binop (op, e1', e2')
+        end
+
+      | bop, Value (I64 1L)
+      | Value (I64 1L), bop when (is_relop bop) && (op = I64And) -> bop
+
+      | _ -> I64Binop (op, e1', e2')
       end
 
   | I32Relop (op, e1, e2) ->
