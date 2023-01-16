@@ -414,7 +414,12 @@ let rec type_of (e : sym_expr) : value_type  =
   | F64Relop _ -> I32Type
   | F64Cvtop _ -> F64Type
   | Symbolic (e, _)    -> type_of_symbolic e
-  | Extract  (e, _, _) -> type_of e
+  | Extract  (e, h, l) ->
+      begin match h - l with
+      | 4 -> I32Type
+      | 8 -> I64Type
+      | _ -> failwith "unsupported type length"
+      end
   | Concat (e1, e2) ->
     let len = concat_length (Concat (e1, e2)) in
     let len = if len < 4 then (Types.size (type_of e1)) + (Types.size (type_of e2))
