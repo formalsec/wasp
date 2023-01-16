@@ -218,6 +218,10 @@ let load_value_static (mem : memory) (a : address) (o : offset)
       I64Binop (op, a, b)
   | Extract ((SymPtr (base, offset)), 4, 0) ->
       SymPtr (base, offset)
+  | Extract (Extract (i, 4, 0), 4, 0) ->
+      Extract (i, 4, 0)
+  | Extract (Extract (i, 8, 0), 8, 0) ->
+      Extract (i, 8, 0)
   | F32Cvtop (F32ReinterpretInt, (Extract ((Value I64 i), h, l))) ->
     let len = h - l in
     let ix = match len with
