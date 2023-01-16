@@ -683,7 +683,7 @@ struct
 
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
           let base = I64_convert.extend_i32_u i in
-          let x = Logicenv.next logic_env (Symmem2.load_string mem base) in
+          let x = Logicenv.next (Symmem2.load_string mem base) in
           let v = Logicenv.get logic_env x ty b in
           (v, to_symbolic ty x) :: vs', [], logic_env, pc, mem
 
@@ -783,7 +783,7 @@ struct
             begin match s_c' with
             | None -> (r, if c = 0l then s_r2 else s_r1), pc.assumptions
             | Some s ->
-              let x = Logicenv.next logic_env "__ternary" in
+              let x = Logicenv.next "__ternary" in
               Logicenv.add logic_env x r;
               let s_x = to_symbolic I32Type x in
               let t_eq  = I32Relop (I32Eq, s_x, s_r1) in
@@ -909,7 +909,7 @@ struct
 
       | SInvoke func, vs ->
         let symbolic_arg t =
-          let x = Logicenv.next logic_env "arg" in
+          let x = Logicenv.next "arg" in
           let v = Logicenv.get logic_env x t false in
           (v, to_symbolic t x)
         in
@@ -1355,7 +1355,7 @@ struct
 
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
           let base = I64_convert.extend_i32_u i in
-          let x = Logicenv.next logic_env (Symmem2.load_string mem base) in
+          let x = Logicenv.next (Symmem2.load_string mem base) in
           let v = Logicenv.get logic_env x ty b in
           (v, to_symbolic ty x) :: vs', [], logic_env, pc, mem
 
@@ -1455,7 +1455,7 @@ struct
             begin match s_c' with
             | None -> (r, if c = 0l then s_r2 else s_r1), pc.assumptions
             | Some s ->
-              let x = Logicenv.next logic_env "__ternary" in
+              let x = Logicenv.next "__ternary" in
               Logicenv.add logic_env x r;
               let s_x = to_symbolic I32Type x in
               let t_eq  = I32Relop (I32Eq, s_x, s_r1) in
@@ -1581,7 +1581,7 @@ struct
 
       | SInvoke func, vs ->
         let symbolic_arg t =
-          let x = Logicenv.next logic_env "arg" in
+          let x = Logicenv.next "arg" in
           let v = Logicenv.get logic_env x t false in
           (v, to_symbolic t x)
         in

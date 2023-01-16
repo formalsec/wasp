@@ -51,7 +51,7 @@ let get (env : t) (k : name) (ty : value_type) (b : bool) : value =
   add env k v;
   v
 
-let next (env : t) (k : name) : name =
+let next (k : name) : name =
   let id = Counter.get_and_inc ids k in
   if id = 0 then k else (k ^ "_" ^ (string_of_int id))
 

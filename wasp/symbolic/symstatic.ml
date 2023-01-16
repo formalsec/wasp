@@ -679,7 +679,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        let x = Symmem2.load_string mem base in
+        let x = Logicenv.next (Symmem2.load_string mem base) in
         let v = to_symbolic ty x in
         let es' = List.tl es in
         Hashtbl.replace var_map x ty;
