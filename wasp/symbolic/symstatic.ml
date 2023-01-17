@@ -260,9 +260,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let es' = List.tl es in
 
           solver_counter := !solver_counter + 2;
+          let solver' = IncrementalEncoding.clone solver in
           IncrementalEncoding.add solver [ co ];
           let sat_then = IncrementalEncoding.check solver [] in
-          let solver' = IncrementalEncoding.clone solver in
           IncrementalEncoding.add solver' [ negated_co ];
           let sat_else = IncrementalEncoding.check solver' [] in
 
@@ -369,8 +369,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let l = match (sat_then, sat_else) with
           | (true, true) ->
             let pc_true = add_constraint ex pc in
-            let c_clone = clone c in
             let pc_false = add_constraint ~neg:true ex pc in
+            let c_clone = clone c in
             [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', es'; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
