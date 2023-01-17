@@ -435,9 +435,21 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | Load {offset; ty; sz; _}, sym_ptr :: vs' ->
         let sym_ptr = simplify sym_ptr in
-        let ptr = match concretize_ptr sym_ptr with
-        | Some ptr -> ptr
-        | None -> failwith (Printf.sprintf "%d" e.at.left.line ^": can't concretize '" ^ (to_string sym_ptr) ^ "' to a ptr")
+        let ptr, new_pc = match concretize_ptr sym_ptr with
+        | Some ptr -> ptr, pc
+        | None -> begin
+          let binds = IncrementalEncoding.value_binds solver var_map in
+          let logic_env = Logicenv.create binds in
+
+          let ptr = Logicenv.eval logic_env sym_ptr in
+          if Values.type_of ptr != I32Type then failwith "Load with non i32 ptr";
+
+          let ptr_cond = Symvalue.I32Relop (Si32.I32Eq, sym_ptr, Value ptr) in
+          let pc_post = add_constraint ptr_cond pc in
+
+          (* TODO: generate a configuration equal to the original with the condition denied in the path_cond ? *)
+          ptr, pc_post
+        end
         in
         let ptr64 = Int64.of_int32 (I32Value.of_value ptr) in
         let base_ptr = concretize_base_ptr sym_ptr in
@@ -463,7 +475,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
             )
           in
           let es' = List.tl es in
-          Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
+          Result.ok ([ { c with sym_code = v :: vs', es'; path_cond = new_pc } ], [])
         with
         | BugException (b, at, _) ->
           let string_binds = IncrementalEncoding.string_binds solver var_map in
@@ -481,14 +493,26 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           in
           Result.error (reason, witness)
         | exn ->
-          Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
+          Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at]; path_cond = new_pc } ], [])
         end
 
       | Store {offset; sz; _}, ex :: sym_ptr :: vs' ->
         let sym_ptr = simplify sym_ptr in
-        let ptr = match concretize_ptr sym_ptr with
-        | Some ptr -> ptr
-        | None -> failwith (Printf.sprintf "%d" e.at.left.line ^": can't concretize '" ^ (to_string sym_ptr) ^ "' to a ptr")
+        let ptr, new_pc = match concretize_ptr sym_ptr with
+        | Some ptr -> ptr, pc
+        | None -> begin
+          let binds = IncrementalEncoding.value_binds solver var_map in
+          let logic_env = Logicenv.create binds in
+
+          let ptr = Logicenv.eval logic_env sym_ptr in
+          if Values.type_of ptr != I32Type then failwith "Store with non i32 ptr";
+
+          let ptr_cond = Symvalue.I32Relop (Si32.I32Eq, sym_ptr, Value ptr) in
+          let pc_post = add_constraint ptr_cond pc in
+
+          (* TODO: generate a configuration equal to the original with the condition denied in the path_cond ? *)
+          ptr, pc_post
+        end
         in
         let ptr64 = Int64.of_int32 (I32Value.of_value ptr) in
         let base_ptr = concretize_base_ptr sym_ptr in
@@ -511,7 +535,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | Some sz -> Symmem2.store_packed sz mem ptr64 offset stored_val
           end;
           let es' = List.tl es in
-          Result.ok ([ { c with sym_code = vs', es' } ], [])
+          Result.ok ([ { c with sym_code = vs', es'; path_cond = new_pc } ], [])
         with
         | BugException (b, at, _) ->
           let string_binds = IncrementalEncoding.string_binds solver var_map in
@@ -529,7 +553,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           in
           Result.error (reason, witness)
         | exn ->
-          Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
+          Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at]; path_cond = new_pc } ], [])
         end
 
       | Const v, vs ->
@@ -693,8 +717,30 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         let sym_ptr = SymPtr (base, (Value (I32 0l))) in
         Result.ok ([{c with sym_code = sym_ptr :: vs', List.tl es}], [])
 
-      | Alloc, _ ->
-        failwith "Alloc with symbolic arguments"
+      | Alloc, s_size :: s_base :: vs' ->
+        let binds = IncrementalEncoding.value_binds solver var_map in
+        let logic_env = Logicenv.create binds in
+
+        let c_size = Logicenv.eval logic_env s_size in
+        let size = match c_size with
+        | I32 size -> size
+        | _ -> failwith "Alloc with non i32 size"
+        in
+        let c_base = Logicenv.eval logic_env s_base in
+        let base = match c_base with
+        | I32 base -> base
+        | _ -> failwith "Alloc with non i32 base"
+        in
+
+        let size_cond = Symvalue.I32Relop (Si32.I32Eq, s_size, Value (I32 size))
+        and base_cond = Symvalue.I32Relop (Si32.I32Eq, s_base, Value (I32 base)) in
+
+        let pc_post = add_constraint base_cond (add_constraint size_cond pc) in
+        Hashtbl.add chunk_table base size;
+
+        let sym_ptr = SymPtr (base, (Value (I32 0l))) in
+        (* TODO: generate a configuration equal to the original with the conditions denied in the path_cond ? *)
+        Result.ok ([{c with sym_code = sym_ptr :: vs', List.tl es; path_cond = pc_post}], [])
 
       | Free, ptr :: vs' -> (
         match simplify ptr with
