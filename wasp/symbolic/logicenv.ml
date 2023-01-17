@@ -75,17 +75,6 @@ let to_json (env : bind list) : string =
   in
   "[" ^ (String.concat ", " (List.map jsonify_bind env)) ^ "]"
 
-let to_json2 env : string =
-  let jsonify_bind b : string =
-    let (t, x, v) = b in
-    "{" ^
-        "\"name\" : \"" ^ x ^ "\", " ^
-        "\"value\" : \"" ^ v ^ "\", " ^
-        "\"type\" : \"" ^ t ^ "\"" ^
-    "}"
-  in
-  "[" ^ (String.concat ", " (List.map jsonify_bind env)) ^ "]"
-
 let to_string (env : t) : string =
   List.fold_left (fun a b ->
     let (k, v) = b in

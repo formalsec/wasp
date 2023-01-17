@@ -1,4 +1,6 @@
 open Z3
+open Types
+open Values
 
 exception Unknown
 
@@ -403,18 +405,74 @@ let check (solver : Solver.solver) (vs : Symvalue.sym_expr list) : bool =
   in
   b
 
+let set (s : string) (i : int) (n : char) =
+  let bs = Bytes.of_string s in
+  Bytes.set bs i n;
+  Bytes.to_string bs
+
+let int64_of_bv (bv : Expr.expr) : int64 =
+  assert (Expr.is_numeral bv);
+  Int64.of_string (set (Expr.to_string bv) 0 '0')
+
+let int64_of_fp (fp : Expr.expr) (ebits : int) (sbits : int) : int64 =
+  assert (Expr.is_numeral fp);
+  if FloatingPoint.is_numeral_nan ctx fp then
+    if FloatingPoint.is_numeral_negative ctx fp then
+      if sbits = 23 then Int64.of_int32 0xffc0_0000l
+      else 0xfff8_0000_0000_0000L
+    else
+      if sbits = 23 then Int64.of_int32 0x7fc0_0000l
+      else 0x7ff8_0000_0000_0000L
+  else if FloatingPoint.is_numeral_inf ctx fp then
+    if FloatingPoint.is_numeral_negative ctx fp then
+      if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float (-. (1.0 /. 0.0))))
+      else Int64.bits_of_float (-. (1.0 /. 0.0))
+    else
+      if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float (1.0 /. 0.0)))
+      else Int64.bits_of_float (1.0 /. 0.0)
+  else if FloatingPoint.is_numeral_zero ctx fp then
+    if FloatingPoint.is_numeral_negative ctx fp then
+      if sbits = 23 then (Int64.of_int32 0x8000_0000l)
+      else 0x8000_0000_0000_0000L
+    else
+      if sbits = 23 then (Int64.of_int32 (Int32.bits_of_float 0.0))
+      else Int64.bits_of_float 0.0
+  else
+    let fp = Expr.to_string fp in
+    let fp = String.sub fp 4 ((String.length fp) - 5) in
+    let fp_list = List.map (fun fp -> set fp 0 '0')
+                           (String.split_on_char ' ' fp) in
+    let bit_list = List.map (fun fp -> Int64.of_string fp) fp_list in
+    let sign     = Int64.shift_left (List.nth bit_list 0) (ebits + sbits)
+    and exponent = Int64.shift_left (List.nth bit_list 1) (sbits)
+    and fraction = List.nth bit_list 2 in
+    Int64.(logor sign (logor exponent fraction))
+
+let value_of_const model c =
+  let interp = Model.get_const_interp_e model (encode_sym_expr c) in
+  let f e =
+    let v =
+      if BitVector.is_bv e then int64_of_bv e
+      else
+        let ebits = FloatingPoint.get_ebits ctx (Expr.get_sort e)
+        and sbits = FloatingPoint.get_sbits ctx (Expr.get_sort e) in
+        int64_of_fp e ebits (sbits - 1)
+    in
+    match Symvalue.type_of c with
+    | I32Type -> I32 (Int64.to_int32 v)
+    | I64Type -> I64 v
+    | F32Type -> F32 (F32.of_bits (Int64.to_int32 v))
+    | F64Type -> F64 (F64.of_bits v)
+  in
+  Option.map f interp
+
 (** fails if solver isn't currently SAT *)
-let model (solver : Solver.solver) lst =
+let model (solver : Solver.solver) varmap =
   match Solver.get_model solver with
   | None -> []
   | Some m ->
-      List.map 
-        (fun const ->
-          let sort = Sort.to_string (FuncDecl.get_range const)
-          and name = Symbol.to_string (FuncDecl.get_name const)
-          and interp = 
-            Batteries.Option.map_default Expr.to_string ""
-              (Model.get_const_interp m const)
-          in
-          (sort, name, interp))
-        (Model.get_const_decls m)
+      List.fold_left
+        (fun a (x, t) ->
+          let v = value_of_const m (Symvalue.to_symbolic t x) in
+          Batteries.Option.map_default (fun v' -> (x, v') :: a) (a) v)
+        [] (Varmap.binds varmap)

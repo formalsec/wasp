@@ -7,3 +7,6 @@ let get_vars_by_type (t : value_type) (varmap : t) : string list =
   Hashtbl.fold (fun k v acc ->
     if v = t then k :: acc else acc
   ) varmap []
+
+let binds (varmap : t) : (string * value_type) list =
+  Hashtbl.fold (fun k v acc -> (k, v) :: acc) varmap []

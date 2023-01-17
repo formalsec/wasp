@@ -260,17 +260,17 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let es' = List.tl es in
 
           solver_counter := !solver_counter + 2;
+          IncrementalEncoding.add solver [ co ];
+          let sat_then = IncrementalEncoding.check solver [] in
           let solver' = IncrementalEncoding.clone solver in
-          let sat_then = IncrementalEncoding.check solver [ co ] in
-          let sat_else = IncrementalEncoding.check solver' [ negated_co ] in
+          IncrementalEncoding.add solver' [ negated_co ];
+          let sat_else = IncrementalEncoding.check solver' [] in
 
           let l = match (sat_then, sat_else) with
           | (true, true) ->
             let pc_true = add_constraint ex pc in
-            IncrementalEncoding.add solver [ co ];
             let pc_false = add_constraint ~neg:true ex pc in
             let c_clone = clone c in
-            IncrementalEncoding.add solver' [ negated_co ];
             [{ c with sym_code = v1 :: vs', es'; path_cond = pc_true }
             ;{ c_clone with sym_code = v2 :: vs', es'; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
@@ -313,16 +313,16 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
           solver_counter := !solver_counter + 2;
           let solver' = IncrementalEncoding.clone solver in
-          let sat_then = IncrementalEncoding.check solver [ co ] in
-          let sat_else = IncrementalEncoding.check solver' [ negated_co ] in
+          IncrementalEncoding.add solver [ co ];
+          let sat_then = IncrementalEncoding.check solver [] in
+          IncrementalEncoding.add solver' [ negated_co ];
+          let sat_else = IncrementalEncoding.check solver' [] in
 
           let l = match (sat_then, sat_else) with
           | (true, true) ->
             let pc_true = add_constraint ex pc in
-            IncrementalEncoding.add solver [ co ];
             let pc_false = add_constraint ~neg:true ex pc in
             let c_clone = clone c in
-            IncrementalEncoding.add solver' [ negated_co ];
             [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
@@ -361,16 +361,16 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
           solver_counter := !solver_counter + 2;
           let solver' = IncrementalEncoding.clone solver in
-          let sat_then = IncrementalEncoding.check solver [ co ] in
-          let sat_else = IncrementalEncoding.check solver' [ negated_co ] in
+          IncrementalEncoding.add solver [ co ];
+          let sat_then = IncrementalEncoding.check solver [] in
+          IncrementalEncoding.add solver' [ negated_co ];
+          let sat_else = IncrementalEncoding.check solver' [] in
 
           let l = match (sat_then, sat_else) with
           | (true, true) ->
             let pc_true = add_constraint ex pc in
             let c_clone = clone c in
-            IncrementalEncoding.add solver [ co ];
             let pc_false = add_constraint ~neg:true ex pc in
-            IncrementalEncoding.add solver' [ negated_co ];
             [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', es'; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
@@ -467,7 +467,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         with
         | BugException (b, at, _) ->
           let binds = IncrementalEncoding.model solver var_map in
-          let opt_c = Some (Logicenv.to_json2 binds) in
+          let opt_c = Some (Logicenv.to_json binds) in
           (match opt_c with
           | None -> failwith "unreachable, pc is unsat"
           | Some c -> (
@@ -520,7 +520,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         with
         | BugException (b, at, _) ->
           let binds = IncrementalEncoding.model solver var_map in
-          let opt_c = Some (Logicenv.to_json2 binds) in
+          let opt_c = Some (Logicenv.to_json binds) in
           (match opt_c with
           | None -> failwith "unreachable, pc is unsat"
           | Some c -> (
@@ -610,7 +610,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       | SymAssert, Value (I32 0l) :: vs' ->
         debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
         let binds = IncrementalEncoding.model solver var_map in
-        let c = Logicenv.to_json2 binds in
+        let c = Logicenv.to_json binds in
         let reason = "{" ^
         "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
         "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
@@ -633,7 +633,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let sat = IncrementalEncoding.check solver [ c ] in
           if sat then
             let binds = IncrementalEncoding.model solver var_map in
-            Some (Logicenv.to_json2 binds)
+            Some (Logicenv.to_json binds)
           else
             None
         in
@@ -711,7 +711,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let es' =
             if not (Hashtbl.mem chunk_table base) then (
               let binds = IncrementalEncoding.model solver var_map in
-              let witness = Logicenv.to_json2 binds in
+              let witness = Logicenv.to_json binds in
               [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
             ) else (
               Hashtbl.remove chunk_table base;
