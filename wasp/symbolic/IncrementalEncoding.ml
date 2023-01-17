@@ -467,12 +467,33 @@ let value_of_const model c =
   Option.map f interp
 
 (** fails if solver isn't currently SAT *)
-let model (solver : Solver.solver) varmap =
-  match Solver.get_model solver with
-  | None -> []
-  | Some m ->
-      List.fold_left
-        (fun a (x, t) ->
-          let v = value_of_const m (Symvalue.to_symbolic t x) in
-          Batteries.Option.map_default (fun v' -> (x, v') :: a) (a) v)
-        [] (Varmap.binds varmap)
+let model (s : solver) : Model.model =
+  match Solver.get_model s with
+  | None ->
+      ignore (Solver.check s []);
+      Option.get (Solver.get_model s)
+  | Some m -> m
+
+(** fails if solver isn't currently SAT *)
+let value_binds (s : solver) (varmap : Varmap.t) : Logicenv.bind list =
+  let m = model s in
+  List.fold_left
+    (fun a (x, t) ->
+      let v = value_of_const m (Symvalue.to_symbolic t x) in
+      Batteries.Option.map_default (fun v' -> (x, v') :: a) (a) v)
+    [] (Varmap.binds varmap)
+
+(** fails if solver isn't currently SAT *)
+let string_binds (s : solver) varmap :
+    (string * string * string) list =
+  let m = model s in
+  List.map
+    (fun const ->
+      let sort = Sort.to_string (FuncDecl.get_range const)
+      and name = Symbol.to_string (FuncDecl.get_name const)
+      and interp =
+        Batteries.Option.map_default Expr.to_string ""
+          (Model.get_const_interp m const)
+      in
+      (sort, name, interp))
+    (Model.get_const_decls m)

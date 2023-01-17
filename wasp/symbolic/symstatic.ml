@@ -466,27 +466,22 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
         with
         | BugException (b, at, _) ->
-          let binds = IncrementalEncoding.model solver var_map in
-          let opt_c = Some (Logicenv.to_json binds) in
-          (match opt_c with
-          | None -> failwith "unreachable, pc is unsat"
-          | Some c -> (
-            let bug_type = match b with
-            | Overflow -> "Out of Bounds access"
-            | UAF -> "Use After Free"
-            | _ -> failwith "unreachable, other bugs shouldn't be here"
-            in
-            let reason = "{" ^
-            "\"type\" : \"" ^ bug_type ^ "\", " ^
-            "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
-                (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
-            "}"
-            in
-            Result.error (reason, c)
-            )
-          )
+          let string_binds = IncrementalEncoding.string_binds solver var_map in
+          let witness = Logicenv.strings_to_json string_binds in
+          let bug_type = match b with
+          | Overflow -> "Out of Bounds access"
+          | UAF -> "Use After Free"
+          | _ -> failwith "unreachable, other bugs shouldn't be here"
+          in
+          let reason = "{" ^
+          "\"type\" : \"" ^ bug_type ^ "\", " ^
+          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+          "}"
+          in
+          Result.error (reason, witness)
         | exn ->
-            Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
+          Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
         end
 
       | Store {offset; sz; _}, ex :: sym_ptr :: vs' ->
@@ -519,27 +514,22 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           Result.ok ([ { c with sym_code = vs', es' } ], [])
         with
         | BugException (b, at, _) ->
-          let binds = IncrementalEncoding.model solver var_map in
-          let opt_c = Some (Logicenv.to_json binds) in
-          (match opt_c with
-          | None -> failwith "unreachable, pc is unsat"
-          | Some c -> (
-            let bug_type = match b with
-            | Overflow -> "Out of Bounds access"
-            | UAF -> "Use After Free"
-            | _ -> failwith "unreachable, other bugs shouldn't be here"
-            in
-            let reason = "{" ^
-            "\"type\" : \"" ^ bug_type ^ "\", " ^
-            "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
-                (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
-            "}"
-            in
-            Result.error (reason, c)
-            )
-          )
+          let string_binds = IncrementalEncoding.string_binds solver var_map in
+          let witness = Logicenv.strings_to_json string_binds in
+          let bug_type = match b with
+          | Overflow -> "Out of Bounds access"
+          | UAF -> "Use After Free"
+          | _ -> failwith "unreachable, other bugs shouldn't be here"
+          in
+          let reason = "{" ^
+          "\"type\" : \"" ^ bug_type ^ "\", " ^
+          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+              (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
+          "}"
+          in
+          Result.error (reason, witness)
         | exn ->
-            Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
+          Result.ok ([ { c with sym_code = vs', [STrapping (memory_error e.at exn) @@ e.at] } ], [])
         end
 
       | Const v, vs ->
@@ -609,15 +599,15 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | SymAssert, Value (I32 0l) :: vs' ->
         debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
-        let binds = IncrementalEncoding.model solver var_map in
-        let c = Logicenv.to_json binds in
+        let string_binds = IncrementalEncoding.string_binds solver var_map in
+        let witness = Logicenv.strings_to_json string_binds in
         let reason = "{" ^
         "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
         "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
             (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
         "}"
         in
-        Result.error (reason, c)
+        Result.error (reason, witness)
 
       | SymAssert, Value (I32 i) :: vs' ->
         (* passed *)
@@ -627,21 +617,22 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       | SymAssert, v :: vs' ->
         let v = simplify v in
         debug ("Asserting: " ^ Symvalue.to_string (simplify v));
-        let opt_c =
+        let opt_witness =
           let c = negate_relop (Option.get (to_constraint v)) in
           solver_counter := !solver_counter + 1;
           let sat = IncrementalEncoding.check solver [ c ] in
           if sat then
-            let binds = IncrementalEncoding.model solver var_map in
-            Some (Logicenv.to_json binds)
+            let string_binds = IncrementalEncoding.string_binds solver var_map in
+            let witness = Logicenv.strings_to_json string_binds in
+            Some witness
           else
             None
         in
-        if Option.is_some opt_c then
+        if Option.is_some opt_witness then
           debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...")
         else
           debug (Source.string_of_pos e.at.left ^ ":Assert PASSED!");
-        (match opt_c with
+        (match opt_witness with
         | Some c -> (
           let reason = "{" ^
           "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
@@ -710,8 +701,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         | SymPtr (base, (Value (I32 0l))) ->
           let es' =
             if not (Hashtbl.mem chunk_table base) then (
-              let binds = IncrementalEncoding.model solver var_map in
-              let witness = Logicenv.to_json binds in
+              let string_binds = IncrementalEncoding.string_binds solver var_map in
+              let witness = Logicenv.strings_to_json string_binds in
               [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
             ) else (
               Hashtbl.remove chunk_table base;
