@@ -892,15 +892,63 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
       )
   )
 
-let rec eval (cs : sym_config list) (outs : sym_config list) :
-    ((sym_config list * sym_config list), string * string) result =
-  match cs with
-  | [] -> Result.ok ([], outs)
+(* new `work` variants can change the behaviour of `push` & `pop` *)
+type work =
+  | WStack of sym_config Stack.t
+  | WQueue of sym_config Queue.t
 
-  | c :: t ->
-      match (step c) with
-      | Result.Ok (cs', outs') -> eval (cs' @ t) (outs' @ outs)
-      | err -> err
+let push (c : sym_config) (w : work) =
+  begin match w with
+  | WStack s -> Stack.push c s;
+  | WQueue q -> Queue.push c q;
+  end
+
+let add_seq (w : work) (cs : sym_config Seq.t) =
+  begin match w with
+  | WStack s -> Stack.add_seq s cs;
+  | WQueue q -> Queue.add_seq q cs;
+  end
+
+let pop (w : work) : sym_config =
+  begin match w with
+  | WStack s -> Stack.pop s
+  | WQueue q -> Queue.pop q
+  end
+
+let is_empty (w : work) : bool =
+  begin match w with
+  | WStack s -> Stack.is_empty s
+  | WQueue q -> Queue.is_empty q
+  end
+
+let create_work (initial_config : sym_config): work =
+  if !Flags.policy = "breadth" then
+    let q = Queue.create () in
+    Queue.push initial_config q;
+    WQueue q
+  else
+    let s = Stack.create () in
+    Stack.push initial_config s;
+    WStack s
+
+let eval (w : work) :
+    (sym_config list, string * string) result =
+  let err = ref None in
+  let outs = ref [] in
+  while Option.is_none !err && not ((is_empty w)) do
+    let c = pop w in
+    match (step c) with
+    | Result.Ok (cs', outs') -> begin
+      add_seq w (List.to_seq cs');
+      outs := !outs @ outs';
+    end
+    | Result.Error step_err -> begin
+      err := Some step_err;
+    end
+  done;
+  match !err with
+  | Some step_err -> Result.error step_err
+  | None -> Result.ok !outs
 
 let func_to_globs (func : func_inst): Static_globals.t =
   match Func.get_inst func with
@@ -921,8 +969,10 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   loop_start := Sys.time ();
 
-  let (spec, reason, witness) = match (eval [c] []) with
-  | Result.Ok (_, outs) -> (
+  let w = create_work c in
+
+  let (spec, reason, witness) = match (eval w) with
+  | Result.Ok outs -> (
     paths := List.length outs;
     (true, "{}", "[]")
   )
