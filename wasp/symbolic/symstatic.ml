@@ -451,7 +451,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           ptr, pc_post
         end
         in
-        let ptr64 = Int64.of_int32 (I32Value.of_value ptr) in
+        let ptr64 = I64_convert.extend_i32_u (I32Value.of_value ptr) in
         let base_ptr = concretize_base_ptr sym_ptr in
         begin try
           if Option.is_some base_ptr then begin
@@ -514,7 +514,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           ptr, pc_post
         end
         in
-        let ptr64 = Int64.of_int32 (I32Value.of_value ptr) in
+        let ptr64 = I64_convert.extend_i32_u (I32Value.of_value ptr) in
         let base_ptr = concretize_base_ptr sym_ptr in
         begin try
           if Option.is_some base_ptr then begin
