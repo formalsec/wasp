@@ -901,10 +901,13 @@ sig
   val pop : 'a t -> 'a
   val add_seq : 'a t -> 'a Seq.t -> unit
   val is_empty : 'a t -> bool
+  val length : 'a t -> int
 end
 
 module WorkStrategy (L : WorkList) =
 struct
+  let max_configs = 32
+
   let eval (c : sym_config) : (sym_config list, string * string) result =
     let w = L.create () in
     L.push c w;
@@ -912,10 +915,14 @@ struct
     let err = ref None in
     let outs = ref [] in
     while Option.is_none !err && not ((L.is_empty w)) do
+      let l = L.length w in
       let c = L.pop w in
       match (step c) with
       | Result.Ok (cs', outs') -> begin
-        L.add_seq w (List.to_seq cs');
+        if l + List.length cs' <= max_configs then
+          L.add_seq w (List.to_seq cs')
+        else
+          L.push c w;
         outs := !outs @ outs';
       end
       | Result.Error step_err -> begin
