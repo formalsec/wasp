@@ -904,7 +904,7 @@ sig
   val length : 'a t -> int
 end
 
-module WorkStrategy (L : WorkList) =
+module TreeStrategy (L : WorkList) =
 struct
   let max_configs = 32
 
@@ -929,14 +929,50 @@ struct
         err := Some step_err;
       end
     done;
+
     match !err with
     | Some step_err -> Result.error step_err
     | None -> Result.ok !outs
-
 end
 
-module DFS = WorkStrategy(Stack)
-module BFS = WorkStrategy(Queue)
+module DFS = TreeStrategy(Stack)
+module BFS = TreeStrategy(Queue)
+
+module ProgressBFS =
+struct
+  let eval (c : sym_config) : (sym_config list, string * string) result =
+    let max_configs = ref 2 in
+    let hot = Queue.create () in
+    Queue.push c hot;
+    let cold = Queue.create () in
+
+    let err = ref None in
+    let outs = ref [] in
+
+    while Option.is_none !err && not (Queue.is_empty hot && Queue.is_empty cold) do
+      while Option.is_none !err && not ((Queue.is_empty hot)) do
+        let l = Queue.length hot in
+        let c = Queue.pop hot in
+        match (step c) with
+        | Result.Ok (cs', outs') -> begin
+          if l + List.length cs' <= !max_configs then
+            Queue.add_seq hot (List.to_seq cs')
+          else
+            Queue.add_seq cold (List.to_seq cs');
+          outs := !outs @ outs';
+        end
+        | Result.Error step_err -> begin
+          err := Some step_err
+        end;
+      done;
+      Queue.transfer cold hot;
+      max_configs := !max_configs * 2;
+    done;
+
+    match !err with
+    | Some step_err -> Result.error step_err
+    | None -> Result.ok !outs
+end
 
 let func_to_globs (func : func_inst): Static_globals.t =
   match Func.get_inst func with
@@ -957,10 +993,12 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   loop_start := Sys.time ();
 
-  let eval = if !Flags.policy = "breadth" then
-    BFS.eval
-  else
-    DFS.eval
+  let eval = match !Flags.policy with
+  | "breadth" -> BFS.eval
+  | "depth" -> DFS.eval
+  | "progress" -> ProgressBFS.eval
+  | "random" -> ProgressBFS.eval (* default *)
+  | _ -> failwith "policy for static must be one of breadth, depth, or progress"
   in
 
   let (spec, reason, witness) = match (eval c) with
