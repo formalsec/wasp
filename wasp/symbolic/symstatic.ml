@@ -906,8 +906,6 @@ end
 
 module TreeStrategy (L : WorkList) =
 struct
-  let max_configs = 32
-
   let eval (c : sym_config) : (sym_config list, string * string) result =
     let w = L.create () in
     L.push c w;
@@ -915,14 +913,10 @@ struct
     let err = ref None in
     let outs = ref [] in
     while Option.is_none !err && not ((L.is_empty w)) do
-      let l = L.length w in
       let c = L.pop w in
       match (step c) with
       | Result.Ok (cs', outs') -> begin
-        if l + List.length cs' <= max_configs then
-          L.add_seq w (List.to_seq cs')
-        else
-          L.push c w;
+        L.add_seq w (List.to_seq cs');
         outs := !outs @ outs';
       end
       | Result.Error step_err -> begin
@@ -937,6 +931,37 @@ end
 
 module DFS = TreeStrategy(Stack)
 module BFS = TreeStrategy(Queue)
+
+module BFS_L =
+struct
+  let max_configs = 32
+
+  let eval (c : sym_config) : (sym_config list, string * string) result =
+    let w = Queue.create () in
+    Queue.push c w;
+
+    let err = ref None in
+    let outs = ref [] in
+    while Option.is_none !err && not ((Queue.is_empty w)) do
+      let l = Queue.length w in
+      let c = Queue.pop w in
+      match (step c) with
+      | Result.Ok (cs', outs') -> begin
+        if l + List.length cs' <= max_configs then
+          Queue.add_seq w (List.to_seq cs')
+        else
+          Queue.push c w;
+        outs := !outs @ outs';
+      end
+      | Result.Error step_err -> begin
+        err := Some step_err;
+      end
+    done;
+
+    match !err with
+    | Some step_err -> Result.error step_err
+    | None -> Result.ok !outs
+end
 
 module ProgressBFS =
 struct
@@ -966,7 +991,9 @@ struct
         end;
       done;
       Queue.transfer cold hot;
-      max_configs := !max_configs * 2;
+      (* only increase max size if we have a lot of splits *)
+      if Queue.length hot >= !max_configs * 3 / 4 then
+        max_configs := !max_configs * 2;
     done;
 
     match !err with
@@ -995,9 +1022,10 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
 
   let eval = match !Flags.policy with
   | "breadth" -> BFS.eval
+  | "breadth-l" -> BFS_L.eval
   | "depth" -> DFS.eval
   | "progress" -> ProgressBFS.eval
-  | "random" -> ProgressBFS.eval (* default *)
+  | "random" -> BFS_L.eval (* default *)
   | _ -> failwith "policy for static must be one of breadth, depth, or progress"
   in
 
