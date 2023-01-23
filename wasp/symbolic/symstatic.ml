@@ -963,6 +963,38 @@ struct
     | None -> Result.ok !outs
 end
 
+module Half_BFS =
+struct
+  let max_configs = 512
+
+  let eval (c : sym_config) : (sym_config list, string * string) result =
+    let w = Queue.create () in
+    Queue.push c w;
+
+    let err = ref None in
+    let outs = ref [] in
+    while Option.is_none !err && not ((Queue.is_empty w)) do
+      let c = Queue.pop w in
+      match (step c) with
+      | Result.Ok (cs', outs') -> begin
+        Queue.add_seq w (List.to_seq cs');
+        outs := !outs @ outs';
+      end
+      | Result.Error step_err -> begin
+        err := Some step_err;
+      end;
+      let l = Queue.length w in
+      if l >= max_configs - 2 then
+        let filtered = Queue.of_seq (Seq.filter_map (fun c -> if Random.bool () then Some c else None) (Queue.to_seq w)) in
+        Queue.clear w;
+        Queue.transfer filtered w;
+    done;
+
+    match !err with
+    | Some step_err -> Result.error step_err
+    | None -> Result.ok !outs
+end
+
 module ProgressBFS =
 struct
   let eval (c : sym_config) : (sym_config list, string * string) result =
@@ -1025,6 +1057,7 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
   | "breadth-l" -> BFS_L.eval
   | "depth" -> DFS.eval
   | "progress" -> ProgressBFS.eval
+  | "half-breadth" -> Half_BFS.eval
   | "random" -> BFS_L.eval (* default *)
   | _ -> failwith "policy for static must be one of breadth, depth, or progress"
   in
