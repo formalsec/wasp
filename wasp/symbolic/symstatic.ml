@@ -1033,6 +1033,42 @@ struct
     | None -> Result.ok !outs
 end
 
+module RS =
+struct
+  let eval (c : sym_config) : (sym_config list, string * string) result =
+    let swap (v : sym_config Vector.t) (x : int) (y : int) =
+      let tmp = Vector.get v x in
+      Vector.set v x (Vector.get v y);
+      Vector.set v y tmp;
+    in
+
+    let w = Vector.create ~dummy:c in
+    Vector.push w c;
+
+    let err = ref None in
+    let outs = ref [] in
+    while Option.is_none !err && not ((Vector.is_empty w)) do
+      if Vector.length w > 1 then
+        let idx = Random.int (Vector.length w) in
+        swap w idx (Vector.length w - 1);
+      let c = Vector.pop w in
+
+      match (step c) with
+      | Result.Ok (cs', outs') -> begin
+        Vector.append w (Vector.of_list ~dummy:c cs');
+
+        outs := !outs @ outs';
+      end
+      | Result.Error step_err -> begin
+        err := Some step_err;
+      end;
+    done;
+
+    match !err with
+    | Some step_err -> Result.error step_err
+    | None -> Result.ok !outs
+end
+
 let func_to_globs (func : func_inst): Static_globals.t =
   match Func.get_inst func with
     | (Some inst ) -> (
@@ -1058,7 +1094,7 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
   | "depth" -> DFS.eval
   | "progress" -> ProgressBFS.eval
   | "half-breadth" -> Half_BFS.eval
-  | "random" -> BFS_L.eval (* default *)
+  | "random" -> RS.eval
   | _ -> failwith "policy for static must be one of breadth, depth, or progress"
   in
 

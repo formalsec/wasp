@@ -7,7 +7,7 @@
  ; We also need to exclude the 'wasm' module as it overlaps with the library
  ; name.
  (wrapped false)
- (libraries batteries z3)
+ (libraries batteries vector z3)
  (modules :standard \ main))
 
 (executable
