@@ -147,6 +147,7 @@ let load_value (mem : memory) (a : address) (o : offset)
     | I32Type ->
       begin match expr' with
       | Value (I64 v) -> Value (I32 (Int64.to_int32 v))
+      | Ptr   (I64 p) -> Ptr   (I32 (Int64.to_int32 p))
       | _ -> expr'
       end
     | I64Type -> expr'
@@ -178,6 +179,7 @@ let store_value (mem : memory) (a : address) (o : offset)
   | I32Type ->
     begin match sv with
     | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
+    | Ptr   (I32 x) -> Ptr   (I64 (Int64.of_int32 x))
     | _ -> sv
     end
   | I64Type -> sv

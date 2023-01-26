@@ -19,7 +19,7 @@ let rec negate (f : formula) : formula =
   | Or  (c1, c2) -> And (negate c1, negate c2)
   | Relop e -> Relop (Symvalue.negate_relop e)
 
-let conjuct (conds : formula list) : formula =
+let conjunct (conds : formula list) : formula =
   assert (not (conds = []));
   let rec loop (acc : t) = function
     | []     -> acc
@@ -55,8 +55,11 @@ let rec length (e : formula) : int =
   | And (c1, c2) -> 1 + (length c1) + (length c2)
   | Or  (c1, c2) -> 1 + (length c1) + (length c2)
 
+let to_formulas (pc : sym_expr list) : formula list =
+  List.map (fun e -> Relop e) pc
+
 let to_formula (pc : sym_expr list) : formula =
-  conjuct (List.map (fun e -> Relop e) pc)
+  conjunct (to_formulas pc)
 
 let rec get_vars (e : formula) : (string * symbolic) list =
   match e with

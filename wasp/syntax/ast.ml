@@ -121,6 +121,8 @@ and instr' =
   | PrintMemory
   | PrintBtree
   | CompareExpr
+  | SetPriority
+  | PopPriority
 
 (* Globals & Functions *)
 

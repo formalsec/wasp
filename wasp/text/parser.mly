@@ -178,6 +178,7 @@ let inline_type_explicit (c : context) x ft at =
 %token GET_SYM_INT64
 %token GET_SYM_FLOAT32
 %token GET_SYM_FLOAT64
+%token SET_PRIORITY POP_PRIORITY
 
 %token SYM_ASSERT SYM_ASSUME
 %token ALLOC FREE
@@ -381,6 +382,8 @@ plain_instr :
   | PRINT_BTREE { fun c -> print_btree }
   | COMPARE_EXPR { fun c -> compare_expr }
   | IS_SYMBOLIC { fun c -> is_symbolic }
+  | SET_PRIORITY { fun c -> set_priority }
+  | POP_PRIORITY { fun c -> pop_priority }
 
 
 call_instr :

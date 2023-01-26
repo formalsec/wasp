@@ -358,21 +358,21 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_TernaryOp(self, node):
-        return c_ast.FuncCall(
-            c_ast.ID('__ternary'),
-            c_ast.ExprList([
-                self._safe_visit(node.cond),
-                self._safe_visit(node.iftrue),
-                self._safe_visit(node.iffalse)
-            ]),
-            node.coord
-        )
-#        return c_ast.TernaryOp(
-#            self._safe_visit(node.cond),
-#            self._safe_visit(node.iftrue),
-#            self._safe_visit(node.iffalse),
+#        return c_ast.FuncCall(
+#            c_ast.ID('__ternary'),
+#            c_ast.ExprList([
+#                self._safe_visit(node.cond),
+#                self._safe_visit(node.iftrue),
+#                self._safe_visit(node.iffalse)
+#            ]),
 #            node.coord
 #        )
+        return c_ast.TernaryOp(
+            self._safe_visit(node.cond),
+            self._safe_visit(node.iftrue),
+            self._safe_visit(node.iffalse),
+            node.coord
+        )
 #
     def visit_TypeDecl(self, node):
         return node

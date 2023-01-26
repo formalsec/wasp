@@ -96,6 +96,7 @@ def get_parser():
     )
 
     parser.add_argument(
+
         '--compile-only',
         dest='compile_only',
         action='store_true',
@@ -109,6 +110,14 @@ def get_parser():
       action='store',
       default=None,
       help='prepare file for WASP analysis using post-processing'
+
+    parser.add_argument(
+        '--policy',
+        dest='policy',
+        action='store',
+        default='random',
+        help='search policy: random|depth'
+
     )
 
     parser.add_argument('file', help='file to analyse')
@@ -256,5 +265,4 @@ def main(root_dir, argv=None):
           log.error(f'WASP timed out')
           return -1
       log.info('Analysis done.')
-
     return 0

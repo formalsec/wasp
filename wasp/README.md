@@ -19,27 +19,27 @@ Then, use opam to install an OCaml compiler
 opam init -y
 eval $(opam env)
 # install given version of the compiler (4.08.1 - recommended)
-opam switch create 4.08.1
+opam switch create wasp 4.08.1
 eval $(opam env)
 ```
 
-Lastly, use opam to install the package requirements
+Lastly, use opam to install the package requirements and the Dune build system
 
 ```sh
 # OCaml dependencies
-opam install -y extlib batteries z3=4.8.1
+opam pin .
 ```
 
 ## Building
 
-Once you have OCaml, simply do
+Once you have OCaml and Dune, simply do
 
 ```sh
-make
+dune build
 ```
 
-You'll get an exacutable named `./wasp`. This is a byte
-code exacutable.
+You'll get an exacutable named `./_build/install/default/bin/wasp.exe`.
+This is a byte code exacutable.
 
 ## Running
 
