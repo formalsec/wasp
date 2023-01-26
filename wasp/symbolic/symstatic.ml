@@ -1036,26 +1036,30 @@ end
 module RS =
 struct
   let eval (c : sym_config) : (sym_config list, string * string) result =
-    let swap (v : sym_config Vector.t) (x : int) (y : int) =
-      let tmp = Vector.get v x in
-      Vector.set v x (Vector.get v y);
-      Vector.set v y tmp;
+    let open Batteries in
+
+    let swap (v : sym_config BatDynArray.t) (x : int) (y : int) =
+      let tmp = BatDynArray.get v x in
+      BatDynArray.set v x (BatDynArray.get v y);
+      BatDynArray.set v y tmp;
     in
 
-    let w = Vector.create ~dummy:c in
-    Vector.push w c;
+    let w = BatDynArray.create () in
+    BatDynArray.add w c;
 
     let err = ref None in
     let outs = ref [] in
-    while Option.is_none !err && not ((Vector.is_empty w)) do
-      if Vector.length w > 1 then
-        let idx = Random.int (Vector.length w) in
-        swap w idx (Vector.length w - 1);
-      let c = Vector.pop w in
+    while Option.is_none !err && not ((BatDynArray.empty w)) do
+      if BatDynArray.length w > 1 then begin
+        let idx = Random.int (BatDynArray.length w) in
+        swap w idx (BatDynArray.length w - 1);
+      end;
+      let c = BatDynArray.last w in
+      BatDynArray.delete_last w;
 
       match (step c) with
       | Result.Ok (cs', outs') -> begin
-        Vector.append w (Vector.of_list ~dummy:c cs');
+        BatDynArray.append (BatDynArray.of_list cs') w;
 
         outs := !outs @ outs';
       end
