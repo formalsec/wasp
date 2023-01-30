@@ -3,9 +3,6 @@ open Symvalue
 open Types
 open Instance
 open Ast
-open Source
-(* open Evaluations *)
-(* open Si32 *)
 
 (* TODO/FIXME: there's a lot of code at the top that
   needs to be extracted to a common module with symeval.ml *)
@@ -75,7 +72,7 @@ let clone_frame (frame: sym_frame) : sym_frame =
 (*  Symbolic code  *)
 type sym_code = sym_expr stack * sym_admin_instr list
 
-and sym_admin_instr = sym_admin_instr' phrase
+and sym_admin_instr = sym_admin_instr' Source.phrase
 and sym_admin_instr' =
   | SPlain of instr'
   | SInvoke of func_inst
@@ -105,10 +102,10 @@ type sym_config =
 }
 
 let clone (c : sym_config) : sym_config =
-  let sym_frame = clone_frame (c.sym_frame) in
+  let sym_frame = clone_frame c.sym_frame in
   let sym_code = c.sym_code in
   let path_cond = c.path_cond in
-  let sym_mem = (Symmem2.clone c.sym_mem) in
+  let sym_mem = Symmem2.clone c.sym_mem in
   let sym_budget = c.sym_budget in
   let var_map = Hashtbl.copy c.var_map in
   let sym_globals = Static_globals.clone_globals c.sym_globals in
@@ -139,12 +136,12 @@ let sym_config inst vs es sym_m globs = {
   solver = IncrementalEncoding.mk_solver ();
 }
 
-exception BugException of bug * region * string
+exception BugException of bug * Source.region * string
 
 let solver_time = ref 0.
 let solver_counter = ref 0
 let loop_start = ref 0.
-let paths = ref (1)
+let paths = ref 1
 
 let debug str = if !Flags.trace then print_endline str
 
@@ -154,17 +151,18 @@ let time_call f args acc =
   acc := !acc +. ((Sys.time ()) -. start);
   ret
 
-let plain e = SPlain e.it @@ e.at
+let plain (e : instr) : sym_admin_instr =
+  let open Source in
+  SPlain e.it @@ e.at
 
 let lookup category list x =
+  let open Source in
   try Lib.List32.nth list x.it with Failure _ ->
     Crash.error x.at ("undefined " ^ category ^ " " ^ Int32.to_string x.it)
 
 let type_ (inst : module_inst) x = lookup "type" inst.types x
 let func (inst : module_inst) x = lookup "function" inst.funcs x
 let table (inst : module_inst) x = lookup "table" inst.tables x
-let memory (inst : module_inst) x = lookup "memory" inst.memories x
-let global (inst : module_inst) x = lookup "global" inst.globals x
 let local (frame : sym_frame) x = lookup "local" frame.sym_locals x
 
 let elem inst x i at =
@@ -233,12 +231,12 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
     chunk_table = chunk_table;
     solver = solver;
     _} = c in
+  let open Source in
   match es with
   | [] -> Result.ok ([], [c])
   | e :: t ->
   (match e.it, vs with
     | SPlain e', vs ->
-      (*print_endline((instr_str e'));*)
       (match e', vs with
       | Nop, vs ->
         Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
@@ -282,10 +280,6 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | (false, false) -> failwith "Unreachable Select"
           in
 
-          if List.length l = 2 then begin
-            debug ("split : " ^ (Printf.sprintf "%d" e.at.left.line));
-            debug ("on: " ^ (Symvalue.pp_to_string ex) );
-          end;
           Result.ok (l, [])
           )
         )
@@ -334,10 +328,6 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | (false, false) -> failwith "Unreachable If"
           in
 
-          if List.length l = 2 then begin
-            debug ("split : " ^ (Printf.sprintf "%d" e.at.left.line));
-            debug ("on: " ^ (Symvalue.pp_to_string ex) );
-          end;
           Result.ok (l, [])
           )
         )
@@ -382,10 +372,6 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | (false, false) -> failwith "Unreachable BrIf"
           in
 
-          if List.length l = 2 then begin
-            debug ("split : " ^ (Printf.sprintf "%d" e.at.left.line));
-            debug ("on: " ^ (Symvalue.pp_to_string ex) );
-          end;
           Result.ok (l, [])
           )
         )
@@ -487,7 +473,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           in
           let reason = "{" ^
           "\"type\" : \"" ^ bug_type ^ "\", " ^
-          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+          "\"line\" : \"" ^ (string_of_pos e.at.left ^
               (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
           "}"
           in
@@ -547,7 +533,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           in
           let reason = "{" ^
           "\"type\" : \"" ^ bug_type ^ "\", " ^
-          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+          "\"line\" : \"" ^ (string_of_pos e.at.left ^
               (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
           "}"
           in
@@ -622,12 +608,12 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = (Symvalue.Symbolic (SymFloat64, x)) :: vs', es'} ], [])
 
       | SymAssert, Value (I32 0l) :: vs' ->
-        debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
+        debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
         let string_binds = IncrementalEncoding.string_binds solver var_map in
         let witness = Logicenv.strings_to_json string_binds in
         let reason = "{" ^
         "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
-        "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+        "\"line\" : \"" ^ (string_of_pos e.at.left ^
             (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
         "}"
         in
@@ -635,7 +621,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | SymAssert, Value (I32 i) :: vs' ->
         (* passed *)
-        debug (Source.string_of_pos e.at.left ^ ":Assert PASSED!");
+        debug (string_of_pos e.at.left ^ ":Assert PASSED!");
         Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
 
       | SymAssert, v :: vs' ->
@@ -653,14 +639,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
             None
         in
         if Option.is_some opt_witness then
-          debug (Source.string_of_pos e.at.left ^ ":Assert FAILED! Stopping...")
+          debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...")
         else
-          debug (Source.string_of_pos e.at.left ^ ":Assert PASSED!");
+          debug (string_of_pos e.at.left ^ ":Assert PASSED!");
         (match opt_witness with
         | Some c -> (
           let reason = "{" ^
           "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
-          "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+          "\"line\" : \"" ^ (string_of_pos e.at.left ^
               (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
           "}"
           in
@@ -773,20 +759,20 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | PrintPC, vs ->
         let assertion = Formula.to_formula pc in
-        debug ((Printf.sprintf "%d" e.at.left.line) ^ " pc: " ^ (Formula.pp_to_string assertion));
+        print_endline ((Printf.sprintf "%d" e.at.left.line) ^ " pc: " ^ (Formula.pp_to_string assertion));
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
       | PrintValue, v:: vs' ->
         let es' = List.tl es in
-        debug ((Printf.sprintf "%d" e.at.left.line) ^ ":val: " ^ Symvalue.pp_to_string v);
+        print_endline ((Printf.sprintf "%d" e.at.left.line) ^ ":val: " ^ Symvalue.pp_to_string v);
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
       | _ -> (
-        print_endline ((Source.string_of_region e.at) ^ ":Not implemented " ^ instr_str e');
+        print_endline ((string_of_region e.at) ^ ":Not implemented " ^ instr_str e');
         let reason = "{" ^
         "\"type\" : \"" ^ "Not implemented" ^ "\", " ^
-        "\"line\" : \"" ^ (Source.string_of_pos e.at.left ^
+        "\"line\" : \"" ^ (string_of_pos e.at.left ^
             (if e.at.right = e.at.left then "" else "-" ^ string_of_pos e.at.right)) ^ "\"" ^
         "}"
         in
@@ -1082,6 +1068,7 @@ let func_to_globs (func : func_inst): Static_globals.t =
     | None -> Hashtbl.create 0
 
 let invoke (func : func_inst) (vs : sym_expr list) : unit =
+  let open Source in
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
   let inst = try Option.get (Func.get_inst func) with Invalid_argument s ->
     Crash.error at ("sym_invoke: " ^ s) in
