@@ -556,11 +556,17 @@ let i32relop_to_astop (op : Si32.relop) =
   | I32LeS -> Ast.I32Op.LeS
   | I32GeS -> Ast.I32Op.GeS
 
-let nland x n =
+let nland64 (x : int64) n =
   let rec loop x' n' acc =
     if n' = 0 then Int64.logand x' acc
     else loop x' (n' - 1) Int64.(logor (shift_left acc 8) 0xffL)
   in loop x n 0L
+
+let nland32 (x : int32) n =
+  let rec loop x' n' acc =
+    if n' = 0 then Int32.logand x' acc
+    else loop x' (n' - 1) Int32.(logor (shift_left acc 8) 0xffl)
+  in loop x n 0l
 
 let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
   begin match e with
@@ -741,10 +747,10 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
   | Extract (s, h, l) when extract = true ->
     begin match s with
     | Ptr (I64 p) ->
-      let p' = nland Int64.(shift_right p (l * 8)) (h - l) in
+      let p' = nland64 Int64.(shift_right p (l * 8)) (h - l) in
       Ptr (I64  p')
     | Value (I64 x) ->
-      let x' = nland (Int64.shift_right x (l * 8)) (h - l) in
+      let x' = nland64 (Int64.shift_right x (l * 8)) (h - l) in
       Value (I64 x')
     | _ when (h - l) = (Types.size (type_of s)) -> s
     | _ -> e
@@ -756,17 +762,24 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     begin match e1', e2' with
     | Extract (Ptr (I64 p2), h2, l2), Extract (Ptr (I64 p1), h1, l1) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
-      let p1' = nland (Int64.shift_right p1 (l1 * 8)) d1
-      and p2' = nland (Int64.shift_right p2 (l2 * 8)) d2 in
+      let p1' = nland64 (Int64.shift_right p1 (l1 * 8)) d1
+      and p2' = nland64 (Int64.shift_right p2 (l2 * 8)) d2 in
       let p = Int64.(logor (shift_left p2' (d1 * 8)) p1') in
       Extract (Ptr (I64 p), d1 + d2, 0)
 
     | Extract (Value (I64 x2), h2, l2), Extract (Value (I64 x1), h1, l1) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
-      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
-      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x1' = nland64 (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland64 (Int64.shift_right x2 (l2 * 8)) d2 in
       let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
       Extract (Value (I64 x), d1 + d2, 0)
+
+    | Extract (Value (I32 x2), h2, l2), Extract (Value (I32 x1), h1, l1) ->
+      let d1 = (h1 - l1) and d2 = (h2 - l2) in
+      let x1' = nland32 (Int32.shift_right x1 (l1 * 8)) d1
+      and x2' = nland32 (Int32.shift_right x2 (l2 * 8)) d2 in
+      let x = Int32.(logor (shift_left x2' (d1 * 8)) x1') in
+      Extract (Value (I32 x), d1 + d2, 0)
 
     | Extract (s1, h, m1), Extract (s2, m2, l) when (s1 = s2) && (m1 = m2) ->
       Extract (s1, h, l)
@@ -774,8 +787,8 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     | Extract (Value (I64 x2), h2, l2),
     Concat (Extract (Value (I64 x1), h1, l1), se) when not (is_value se) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
-      let x1' = nland (Int64.shift_right x1 (l1 * 8)) d1
-      and x2' = nland (Int64.shift_right x2 (l2 * 8)) d2 in
+      let x1' = nland64 (Int64.shift_right x1 (l1 * 8)) d1
+      and x2' = nland64 (Int64.shift_right x2 (l2 * 8)) d2 in
       let x = Int64.(logor (shift_left x2' (d1 * 8)) x1') in
       Concat (Extract (Value (I64 x), d1 + d2, 0), se)
 

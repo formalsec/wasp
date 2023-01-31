@@ -22,6 +22,7 @@ val memcpy : memory -> memory
 val init : memory -> (address * store) list -> unit
 val update : memory -> Logicenv.t -> unit
 
+val to_seq : memory -> (address * store) Seq.t
 val to_list : memory -> (address * store) list
 val to_string : memory -> string
 

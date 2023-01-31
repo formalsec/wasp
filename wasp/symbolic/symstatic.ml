@@ -20,10 +20,7 @@ exception Crash = Crash.Error (* failure that cannot happen in valid code *)
 exception Exhaustion = Exhaustion.Error
 
 let memory_error at = function
-  | Symmem2.InvalidAddress a ->
-      (Int64.to_string a) ^ ":address not found in hashtable"
-  | Symmem2.Bounds -> "out of bounds memory access"
-  (* TODO: might just remove these *)
+  | Symmem.Bounds -> "out of bounds memory access"
   | Memory.SizeOverflow -> "memory size overflow"
   | Memory.SizeLimit -> "memory size limit reached"
   | Memory.Type -> Crash.error at "type mismatch at memory access"
@@ -93,7 +90,7 @@ type sym_config =
   sym_frame  : sym_frame;
   sym_code   : sym_code;
   path_cond  : path_conditions;
-  sym_mem    : Symmem2.t;
+  sym_mem    : Symmem.t;
   sym_budget : int;  (* to model stack overflow *)
   var_map    : Varmap.t;
   sym_globals: Static_globals.t;
@@ -105,7 +102,7 @@ let clone (c : sym_config) : sym_config =
   let sym_frame = clone_frame c.sym_frame in
   let sym_code = c.sym_code in
   let path_cond = c.path_cond in
-  let sym_mem = Symmem2.clone c.sym_mem in
+  let sym_mem = Symmem.clone c.sym_mem in
   let sym_budget = c.sym_budget in
   let var_map = Hashtbl.copy c.var_map in
   let sym_globals = Static_globals.clone_globals c.sym_globals in
@@ -128,7 +125,7 @@ let sym_config inst vs es sym_m globs = {
   sym_frame  = sym_frame inst [];
   sym_code   = vs, es;
   path_cond  = [];
-  sym_mem    = sym_m;
+  sym_mem    = Symmem.from_symmem2 sym_m;
   sym_budget = 100000; (* models default recursion limit in a system *)
   var_map = Hashtbl.create 100;
   sym_globals = globs;
@@ -454,11 +451,8 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           end;
           let v =
             match sz with
-            | None           -> Symmem2.load_value_static mem ptr64 offset ty
-            | Some (sz, ext) -> (
-              let (_, v) = Symmem2.load_packed sz ext mem ptr64 offset ty in
-              v
-            )
+            | None         -> Symmem.load_value mem ptr64 offset ty
+            | Some (sz, _) -> Symmem.load_packed sz mem ptr64 offset ty
           in
           let es' = List.tl es in
           Result.ok ([ { c with sym_code = v :: vs', es'; path_cond = new_pc } ], [])
@@ -515,10 +509,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
             if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
               raise (BugException (Overflow, e.at, ""))
           end;
-          let stored_val = (Values.default_value (Symvalue.type_of ex), ex) in
           begin match sz with
-          | None    -> Symmem2.store_value mem ptr64 offset stored_val
-          | Some sz -> Symmem2.store_packed sz mem ptr64 offset stored_val
+          | None    -> Symmem.store_value mem ptr64 offset ex
+          | Some sz -> Symmem.store_packed sz mem ptr64 offset ex
           end;
           let es' = List.tl es in
           Result.ok ([ { c with sym_code = vs', es'; path_cond = new_pc } ], [])
@@ -680,7 +673,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
 
       | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
         let base = I64_convert.extend_i32_u i in
-        let x = Logicenv.next (Symmem2.load_string mem base) in
+        let x = Logicenv.next (Symmem.load_string mem base) in
         let v = to_symbolic ty x in
         let es' = List.tl es in
         Hashtbl.replace var_map x ty;
@@ -753,7 +746,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 
       | PrintMemory, vs ->
-        print_endline ("Memory State:\n" ^ (Symmem2.to_string mem));
+        print_endline ("Memory State:\n" ^ (Symmem.to_string mem));
         let es' = List.tl es in
         Result.ok ([ { c with sym_code = vs, es' } ], [])
 

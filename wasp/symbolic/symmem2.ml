@@ -56,6 +56,9 @@ let iter (f : address -> store -> unit) (mem : memory) : unit =
 let init (mem : memory) (l : (address * store) list) : unit =
   List.iter (fun (a, s) -> Hashtbl.replace mem a s) l
 
+let to_seq (mem : memory) : (address * store) Seq.t =
+  Hashtbl.to_seq mem
+
 let to_list (mem : memory) : (address * store) list =
   Hashtbl.fold (fun a s acc -> (a, s) :: acc) mem []
 
@@ -204,8 +207,8 @@ let load_value_static (mem : memory) (a : address) (o : offset)
   | Extract ((Value I64 i), h, l) ->
     let len = h - l in
     begin match len with
-    | 8 -> Value (I64                 (nland (Int64.shift_right i (l * 8)) (h - l)))
-    | 4 -> Value (I32 (Int64.to_int32 (nland (Int64.shift_right i (l * 8)) (h - l))))
+    | 8 -> Value (I64                 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
+    | 4 -> Value (I32 (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l))))
     | _ -> failwith "we assume to be reading i32 or i64 for now"
     end
   | Extract (Symbolic (SymInt32, x), 4, 0) ->
@@ -225,7 +228,7 @@ let load_value_static (mem : memory) (a : address) (o : offset)
   | F32Cvtop (F32ReinterpretInt, (Extract ((Value I64 i), h, l))) ->
     let len = h - l in
     let ix = match len with
-    | 4 -> (Int64.to_int32 (nland (Int64.shift_right i (l * 8)) (h - l)))
+    | 4 -> (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
     | _ -> failwith "we assume to be reading i32 or i64 for now"
     in
     Value (F32 (F32.of_bits ix))
