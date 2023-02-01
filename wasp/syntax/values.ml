@@ -35,8 +35,8 @@ let pp_string_of_value = function
   | F64 f -> string_of_float (F64.to_float f)
 
 let string_of_value = function
-  | I32 i -> I32.to_string_s i
-  | I64 i -> I64.to_string_s i
+  | I32 i -> I32.to_string_s i ^ "l"
+  | I64 i -> I64.to_string_s i ^ "L"
   | F32 z -> F32.to_string z
   | F64 z -> F64.to_string z
 
