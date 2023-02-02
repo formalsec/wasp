@@ -425,7 +425,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let logic_env = Logicenv.create binds in
 
           let ptr = Logicenv.eval logic_env sym_ptr in
-          if Values.type_of ptr != I32Type then failwith "Load with non i32 ptr";
+          let ty = Values.type_of ptr in
+          if ty != I32Type then
+            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Load with non i32 ptr: " ^ Types.string_of_value_type ty);
 
           let ptr_cond = Symvalue.I32Relop (Si32.I32Eq, sym_ptr, Value ptr) in
           let pc_post = add_constraint ptr_cond pc in
@@ -485,7 +487,9 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           let logic_env = Logicenv.create binds in
 
           let ptr = Logicenv.eval logic_env sym_ptr in
-          if Values.type_of ptr != I32Type then failwith "Store with non i32 ptr";
+          let ty = Values.type_of ptr in
+          if ty != I32Type then
+            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Store with non i32 ptr: " ^ Types.string_of_value_type ty);
 
           let ptr_cond = Symvalue.I32Relop (Si32.I32Eq, sym_ptr, Value ptr) in
           let pc_post = add_constraint ptr_cond pc in
@@ -703,12 +707,14 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
         let c_size = Logicenv.eval logic_env s_size in
         let size = match c_size with
         | I32 size -> size
-        | _ -> failwith "Alloc with non i32 size"
+        | _ ->
+          failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 size: " ^ Types.string_of_value_type (Values.type_of c_size));
         in
         let c_base = Logicenv.eval logic_env s_base in
         let base = match c_base with
         | I32 base -> base
-        | _ -> failwith "Alloc with non i32 base"
+        | _ ->
+          failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 base: " ^ Types.string_of_value_type (Values.type_of c_base));
         in
 
         let size_cond = Symvalue.I32Relop (Si32.I32Eq, s_size, Value (I32 size))
