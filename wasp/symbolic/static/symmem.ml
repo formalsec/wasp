@@ -270,7 +270,8 @@ let load_string (mem : t) (a : address) : string =
       match sb with
       | Symvalue.Extract (Symvalue.Value (Values.I64 b), 1, 0) ->
           Int64.to_int b
-      | _ -> failwith "Symmem.load_string failed to load a char"
+      | _ -> failwith ("Symmem.load_string failed to load a char" ^
+      "\nThe value loaded was: " ^ (Symvalue.to_string sb))
     in
     if b = 0 then
       acc
