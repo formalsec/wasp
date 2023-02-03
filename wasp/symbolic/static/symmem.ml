@@ -40,7 +40,11 @@ let rec load_byte
   match Hashtbl.find_opt mem.map a with
   | Some b -> b
   | None -> begin match mem.parent with
-    | Some p -> load_byte p a
+    | Some p -> begin
+      let b = load_byte p a in
+      Hashtbl.add mem.map a b; (* memoize *)
+      b
+    end
     | None -> Symvalue.Extract (Symvalue.Value (Values.I64 0L), 1, 0)
   end
 
