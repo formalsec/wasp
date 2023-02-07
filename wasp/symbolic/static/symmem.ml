@@ -3,8 +3,8 @@ type address = int64
 type offset = int32
 
 type memory = {
-  mutable map: (int64, Symvalue.sym_expr) Hashtbl.t;
-  mutable parent : memory Option.t;
+  map: (int64, Symvalue.sym_expr) Hashtbl.t;
+  parent : memory Option.t;
 }
 
 (* Only store_byte, load_byte, from_symmem2, clone and to_string
@@ -33,15 +33,22 @@ let store_byte
     (b : Symvalue.sym_expr) =
   Hashtbl.add mem.map a b
 
-let rec load_byte
+let load_byte
     (mem : t)
     (a : address)
     : Symvalue.sym_expr =
+  let rec load_byte_rec
+      (mem : t)
+      : Symvalue.sym_expr Option.t =
+    match Hashtbl.find_opt mem.map a with
+    | Some b -> Some b
+    | None -> Option.bind mem.parent (fun p -> load_byte_rec p)
+  in
+
   match Hashtbl.find_opt mem.map a with
   | Some b -> b
-  | None -> begin match mem.parent with
-    | Some p -> begin
-      let b = load_byte p a in
+  | None -> begin match Option.bind mem.parent (fun p -> load_byte_rec p) with
+    | Some b -> begin
       Hashtbl.add mem.map a b; (* memoize *)
       b
     end
@@ -82,33 +89,18 @@ let from_symmem2 (mem : Symmem2.t) : t =
   let concolic_to_symbolic (k, (_, s)) = (k, s) in
   {map = Hashtbl.of_seq (Seq.map concolic_to_symbolic concolic_seq); parent = None}
 
-(* let clone (mem : t) : t * t = *)
-(*   let child1 = { *)
-(*     map = Hashtbl.create 32; *)
-(*     parent = Some mem; *)
-(*   } *)
-(*   in *)
-(*   let child2 = { *)
-(*     map = Hashtbl.create 32; *)
-(*     parent = Some mem; *)
-(*   } *)
-(*   in *)
-(*   child1, child2 *)
-
-let clone (mem : t) : t =
-  let parent = Some {
-    map = mem.map;
-    parent = mem.parent;
-  }
-  in
-  mem.map <- Hashtbl.create 32;
-  mem.parent <- parent;
-  let child = {
+let clone (mem : t) : t * t =
+  let child1 = {
     map = Hashtbl.create 32;
-    parent = parent;
+    parent = Some mem;
   }
   in
-  child
+  let child2 = {
+    map = Hashtbl.create 32;
+    parent = Some mem;
+  }
+  in
+  child1, child2
 
 let load_value
     (mem : t)

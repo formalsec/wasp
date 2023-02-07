@@ -98,26 +98,28 @@ type sym_config =
   solver : IncrementalEncoding.solver;
 }
 
-let clone (c : sym_config) : sym_config =
+let clone (c : sym_config) : sym_config * sym_config =
   let sym_frame = clone_frame c.sym_frame in
   let sym_code = c.sym_code in
   let path_cond = c.path_cond in
-  let sym_mem = Symmem.clone c.sym_mem in
+  let sym_mem, sym_mem' = Symmem.clone c.sym_mem in
   let sym_budget = c.sym_budget in
   let var_map = Hashtbl.copy c.var_map in
   let sym_globals = Static_globals.clone_globals c.sym_globals in
   let chunk_table = Hashtbl.copy c.chunk_table in
-  {
+  let c' = {
     sym_frame = sym_frame;
     sym_code = sym_code;
     path_cond = path_cond;
-    sym_mem = sym_mem;
+    sym_mem = sym_mem';
     sym_budget = sym_budget;
     var_map = var_map;
     sym_globals = sym_globals;
     chunk_table = chunk_table;
     solver = c.solver;
   }
+  in
+  { c with sym_mem = sym_mem }, c'
 
 (* Symbolic frame and configuration  *)
 let sym_frame sym_inst sym_locals = {sym_inst; sym_locals; }
@@ -265,7 +267,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | (true, true) ->
             let pc_true = add_constraint ex pc in
             let pc_false = add_constraint ~neg:true ex pc in
-            let c_clone = clone c in
+            let c, c_clone = clone c in
             [{ c with sym_code = v1 :: vs', es'; path_cond = pc_true }
             ;{ c_clone with sym_code = v2 :: vs', es'; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
@@ -313,7 +315,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | (true, true) ->
             let pc_true = add_constraint ex pc in
             let pc_false = add_constraint ~neg:true ex pc in
-            let c_clone = clone c in
+            let c, c_clone = clone c in
             [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' ; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' ; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
@@ -357,7 +359,7 @@ let rec step (c : sym_config) : ((sym_config list * sym_config list), string * s
           | (true, true) ->
             let pc_true = add_constraint ex pc in
             let pc_false = add_constraint ~neg:true ex pc in
-            let c_clone = clone c in
+            let c, c_clone = clone c in
             [{ c with sym_code = vs', [SPlain (Br x) @@ e.at]; path_cond = pc_true }
             ;{ c_clone with sym_code = vs', es'; path_cond = pc_false; solver = solver' }]
           | (true, false) ->
