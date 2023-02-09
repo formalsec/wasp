@@ -9,7 +9,7 @@ exception Bounds
 
 val from_symmem2 : Symmem2.t -> t
 
-val clone : t -> t * t
+val clone : t -> t
 
 val load_value : t -> address -> offset -> Types.value_type ->
   Symvalue.sym_expr

@@ -2,10 +2,7 @@ type size = int32
 type address = int64
 type offset = int32
 
-type memory = {
-  map: (int64, Symvalue.sym_expr) Hashtbl.t;
-  parent : memory Option.t;
-}
+type memory = (int64, Symvalue.sym_expr) Hashtbl.t
 
 (* Only store_byte, load_byte, from_symmem2, clone and to_string
    interact with the underlying data structure, this should make
@@ -31,29 +28,15 @@ let store_byte
     (mem : t)
     (a : address)
     (b : Symvalue.sym_expr) =
-  Hashtbl.add mem.map a b
+  Hashtbl.replace mem a b
 
 let load_byte
     (mem : t)
     (a : address)
     : Symvalue.sym_expr =
-  let rec load_byte_rec
-      (mem : t)
-      : Symvalue.sym_expr Option.t =
-    match Hashtbl.find_opt mem.map a with
-    | Some b -> Some b
-    | None -> Option.bind mem.parent (fun p -> load_byte_rec p)
-  in
-
-  match Hashtbl.find_opt mem.map a with
+  match Hashtbl.find_opt mem a with
   | Some b -> b
-  | None -> begin match Option.bind mem.parent (fun p -> load_byte_rec p) with
-    | Some b -> begin
-      Hashtbl.add mem.map a b; (* memoize *)
-      b
-    end
-    | None -> Symvalue.Extract (Symvalue.Value (Values.I64 0L), 1, 0)
-  end
+  | None -> Symvalue.Extract (Symvalue.Value (Values.I64 0L), 1, 0)
 
 let storen
     (mem : t)
@@ -87,20 +70,10 @@ let loadn
 let from_symmem2 (mem : Symmem2.t) : t =
   let concolic_seq = (Symmem2.to_seq mem) in
   let concolic_to_symbolic (k, (_, s)) = (k, s) in
-  {map = Hashtbl.of_seq (Seq.map concolic_to_symbolic concolic_seq); parent = None}
+  Hashtbl.of_seq (Seq.map concolic_to_symbolic concolic_seq)
 
-let clone (mem : t) : t * t =
-  let child1 = {
-    map = Hashtbl.create 32;
-    parent = Some mem;
-  }
-  in
-  let child2 = {
-    map = Hashtbl.create 32;
-    parent = Some mem;
-  }
-  in
-  child1, child2
+let clone (mem : t) : t =
+  Hashtbl.copy mem
 
 let load_value
     (mem : t)
@@ -310,7 +283,7 @@ let store_packed
 
 let to_string (mem : t) : string =
   (* TODO: need to go all the way up the chain *)
-  let lst = List.sort (fun (a, _) (b, _) -> compare a b) (List.of_seq (Hashtbl.to_seq mem.map)) in
+  let lst = List.sort (fun (a, _) (b, _) -> compare a b) (List.of_seq (Hashtbl.to_seq mem)) in
   List.fold_right (
     fun (a, se) acc ->
       "(" ^ (Int64.to_string a) ^ "->" ^
