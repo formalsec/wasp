@@ -110,6 +110,7 @@ def get_parser():
       action='store',
       default=None,
       help='prepare file for WASP analysis using post-processing'
+    )
 
     parser.add_argument(
         '--policy',
