@@ -14,7 +14,7 @@ type module_inst =
 and func_inst = module_inst ref Func.t
 and table_inst = Table.t
 and memory_inst = Memory.t
-and symmem_inst = Symmem2.t
+and symmem_inst = Heap.t
 and global_inst = Global.t
 and export_inst = Ast.name * extern
 
@@ -30,7 +30,7 @@ type Table.elem += FuncElem of func_inst
 (* Auxiliary functions *)
 
 let empty_module_inst =
-  { types = []; funcs = []; tables = []; memories = []; sym_memory = Symmem2.alloc 512;
+  { types = []; funcs = []; tables = []; memories = []; sym_memory = Heap.alloc 512;
     globals = []; exports = [] }
 
 let extern_type_of = function

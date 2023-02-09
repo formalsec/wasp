@@ -1,6 +1,6 @@
 open Types
 open Values
-open Symmem2
+open Heap
 
 let print_b_tree_keys (mem : memory) (n_keys : int) (max_keys : int) (node_addr : int) = 
   Printf.printf "[node: %s; keys: { " (string_of_int node_addr);

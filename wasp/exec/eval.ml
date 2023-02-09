@@ -229,9 +229,7 @@ let rec step (c : config) : config =
           with Memory.SizeOverflow | Memory.SizeLimit | Memory.OutOfMemory -> -1l
         in I32 result :: vs', []
 
-      | Const v, vs ->
-        Printf.printf "--- A CONST WAS MADE ---\n";
-        v.it :: vs, []
+      | Const v, vs -> v.it :: vs, []
 
       | Test testop, v :: vs' ->
         (try value_of_bool (Eval_numeric.eval_testop testop v) :: vs', []
