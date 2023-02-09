@@ -744,10 +744,11 @@ module RandArray : Work_list = struct
   let create () = BatDynArray.create ()
   let is_empty a = BatDynArray.empty a
   let push v a = BatDynArray.add a v
-
-  let pop a =
-    Random.self_init ();
-    BatDynArray.get a (Random.int (BatDynArray.length a))
+  let pop a = 
+    let i = Random.int (BatDynArray.length a) in
+    let v = BatDynArray.get a i in
+    BatDynArray.delete a i;
+    v
 end
 
 module DFS = Guided_search (Stack)
