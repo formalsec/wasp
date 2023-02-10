@@ -5,8 +5,8 @@ ENV Z3_VERSION=4.8.1
 
 LABEL org.opencontainers.image.source https://github.com/wasp-platform/wasp
 
-RUN apt-get update  && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    && sudo ranger vim make llvm clang lld opam wabt libgmp-dev python3-pip \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    sudo ranger vim make llvm clang lld opam wabt libgmp-dev python3-pip \
     git npm curl lcov clang-tidy gcc-multilib \
     && useradd -m wasp \
     && echo wasp:wasp | chpasswd \
