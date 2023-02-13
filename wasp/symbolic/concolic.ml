@@ -99,6 +99,7 @@ exception AssertFail of config * region
 exception BugException of config * region * bug
 exception Unsatisfiable
 
+let var_map = Hashtbl.create 16
 let head = ref Execution_tree.Leaf
 let step_cnt = ref 0
 let solver_cnt = ref 0
@@ -262,7 +263,10 @@ let rec step (c : config) : config =
         | BrTable (xs, x), (I32 i, _) :: vs' ->
             (vs', [ SPlain (Br (Lib.List32.nth xs i)) @@ e.at ], pc, bp)
         | Return, vs -> ([], [ SReturning vs @@ e.at ], pc, bp)
-        | Call x, vs -> (vs, [ SInvoke (func frame.inst x) @@ e.at ], pc, bp)
+        | Call x, vs ->
+            print_string (Hashtbl.find var_map x.it);
+            flush_all ();
+            (vs, [ SInvoke (func frame.inst x) @@ e.at ], pc, bp)
         | CallIndirect x, (I32 i, _) :: vs ->
             let func = func_elem frame.inst (0l @@ e.at) i e.at in
             if type_ frame.inst x <> Func.type_of func then
@@ -428,10 +432,9 @@ let rec step (c : config) : config =
             tree := tree';
             (vs', [], add_constraint ex pc, bp)
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
-            let base = I64_convert.extend_i32_u i in
-            let x = Store.next store (Heap.load_string mem base) in
-            let v = Store.get store x ty b in
-            ((v, to_symbolic ty x) :: vs', [], pc, bp)
+            let i = read_int () in
+            let v = I32 (Int32.of_int i) in
+            ((v, Value v) :: vs', [], pc, bp)
         | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
             let sv2' = mk_relop sv2 (Values.type_of v2) in
             let v2' =

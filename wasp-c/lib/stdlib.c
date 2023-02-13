@@ -28,8 +28,6 @@ void *alloca(size_t size) {
 
 void *calloc (size_t nmemb, size_t size) {
   unsigned int r = bump_pointer;
-  for (int i = 0; i < nmemb * size; ++i)
-    *((unsigned int*)(bump_pointer + i)) = 0;
   bump_pointer += (nmemb * size);
   return (void *)__WASP_alloc(r, nmemb * size);
 }

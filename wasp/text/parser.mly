@@ -109,6 +109,7 @@ let bind category space x =
   space.count <- Int32.add space.count 1l;
   if space.count = 0l then
     error x.at ("too many " ^ category ^ " bindings");
+  Hashtbl.add Concolic.var_map i x.it;
   i
 
 let bind_type (c : context) x ty =
