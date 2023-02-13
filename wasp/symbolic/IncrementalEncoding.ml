@@ -410,8 +410,7 @@ let check (e : t) (vs : Symvalue.sym_expr list) : bool =
 
 let fork (e : t) (co : Symvalue.sym_expr) : bool * bool =
   let negated_co = Symvalue.negate_relop co in
-  let e' = clone e in
-  (check e [ co ]), (check e' [ negated_co ])
+  (check e [ co ]), (check e [ negated_co ])
 
 let set (s : string) (i : int) (n : char) =
   let bs = Bytes.of_string s in
