@@ -229,6 +229,7 @@ module SymbolicExecutor (E : Encoder) =
       let var_map = Hashtbl.copy c.var_map in
       let sym_globals = Static_globals.clone_globals c.sym_globals in
       let chunk_table = Hashtbl.copy c.chunk_table in
+      let encoder = E.clone c.encoder in
       {
         sym_frame = sym_frame;
         sym_code = sym_code;
@@ -237,7 +238,7 @@ module SymbolicExecutor (E : Encoder) =
         var_map = var_map;
         sym_globals = sym_globals;
         chunk_table = chunk_table;
-        encoder = E.clone c.encoder;
+        encoder = encoder;
       }
     let sym_config
         (inst : module_inst)
