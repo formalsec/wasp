@@ -7,7 +7,7 @@ type t = memory
 
 exception Bounds
 
-val from_symmem2 : Symmem2.t -> t
+val from_heap : Heap.t -> t
 
 val clone : t -> t
 

@@ -1,5 +1,5 @@
 let name = "WebAssembly Symbolic Processor"
-let version = "v0.2"
+let version = "v0.2.3"
 
 let configure () =
   Import.register (Utf8.decode "spectest") Spectest.lookup;

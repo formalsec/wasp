@@ -104,10 +104,10 @@ let input_from get_script run =
   | Parse.Syntax (at, msg) -> error at "syntax error" msg
   | Valid.Invalid (at, msg) -> error at "invalid module" msg
   | Import.Unknown (at, msg) -> error at "link failure" msg
-  | Symeval.Link (at, msg) -> error at "link failure" msg
-  | Symeval.Trap (at, msg) -> error at "runtime trap" msg
-  | Symeval.Exhaustion (at, msg) -> error at "resource exhaustion" msg
-  | Symeval.Crash (at, msg) -> error at "runtime crash" msg
+  | Concolic.Link (at, msg) -> error at "link failure" msg
+  | Concolic.Trap (at, msg) -> error at "runtime trap" msg
+  | Concolic.Exhaustion (at, msg) -> error at "resource exhaustion" msg
+  | Concolic.Crash (at, msg) -> error at "runtime crash" msg
   | Symstatic.Link (at, msg) -> error at "link failure" msg
   | Symstatic.Trap (at, msg) -> error at "runtime trap" msg
   | Symstatic.Exhaustion (at, msg) -> error at "resource exhaustion" msg
@@ -333,9 +333,8 @@ let run_action act : Values.value list =
         Symstatic.invoke f (List.map (fun v -> Symvalue.Value v.it) vs);
         []
       ) else (
-        let vs' = List.map (fun v -> (v.it, Symvalue.Value v.it)) vs in
-        let res = Symeval.sym_invoke' f vs' in
-        (List.map (fun (b,c) -> b) res)
+        Concolic.main f (List.map (fun v -> (v.it, Symvalue.Value v.it)) vs) inst;
+      []
       )
     | Some _ -> Assert.error act.at "export is not a function"
     | None -> Assert.error act.at "undefined export"
@@ -412,9 +411,9 @@ let run_assertion ass =
     if not !Flags.unchecked then Valid.check_module m;
     (match
       let imports = Import.link m in
-      ignore (Symeval.init m imports)
+      ignore (Concolic.init m imports)
     with
-    | exception (Import.Unknown (_, msg) | Symeval.Link (_, msg)) ->
+    | exception (Import.Unknown (_, msg) | Concolic.Link (_, msg)) ->
       assert_message ass.at "linking" msg re
     | _ -> Assert.error ass.at "expected linking error"
     )
@@ -425,9 +424,9 @@ let run_assertion ass =
     if not !Flags.unchecked then Valid.check_module m;
     (match
       let imports = Import.link m in
-      ignore (Symeval.init m imports)
+      ignore (Concolic.init m imports)
     with
-    | exception Symeval.Trap (_, msg) ->
+    | exception Concolic.Trap (_, msg) ->
       assert_message ass.at "instantiation" msg re
     | _ -> Assert.error ass.at "expected instantiation error"
     )
@@ -441,14 +440,14 @@ let run_assertion ass =
   | AssertTrap (act, re) ->
     trace ("Asserting trap...");
     (match run_action act with
-    | exception Symeval.Trap (_, msg) -> assert_message ass.at "runtime" msg re
+    | exception Concolic.Trap (_, msg) -> assert_message ass.at "runtime" msg re
     | _ -> Assert.error ass.at "expected runtime error"
     )
 
   | AssertExhaustion (act, re) ->
     trace ("Asserting exhaustion...");
     (match run_action act with
-    | exception Symeval.Exhaustion (_, msg) ->
+    | exception Concolic.Exhaustion (_, msg) ->
       assert_message ass.at "exhaustion" msg re
     | _ -> Assert.error ass.at "expected exhaustion error"
     )
@@ -471,7 +470,7 @@ let rec run_command cmd =
     if not !Flags.dry then begin
       trace "Initializing...";
       let imports = Import.link m in
-      let inst = Symeval.init m imports in
+      let inst = Concolic.init m imports in
       bind instances x_opt inst
     end
 

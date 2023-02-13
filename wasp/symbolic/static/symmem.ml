@@ -67,8 +67,8 @@ let loadn
 
 (* public functions, visible in symmem.mli *)
 
-let from_symmem2 (mem : Symmem2.t) : t =
-  let concolic_seq = (Symmem2.to_seq mem) in
+let from_heap (mem : Heap.t) : t =
+  let concolic_seq = (Heap.to_seq mem) in
   let concolic_to_symbolic (k, (_, s)) = (k, s) in
   Hashtbl.of_seq (Seq.map concolic_to_symbolic concolic_seq)
 

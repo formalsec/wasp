@@ -14,5 +14,5 @@ let timeout = ref 895
 let concrete = ref false
 let static = ref false
 let queries = ref false
-let policy = ref "random"
+let policy = ref "breadth"
 let encoding = ref "incremental"

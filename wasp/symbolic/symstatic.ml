@@ -203,7 +203,7 @@ module type EncodingStrategy =
       module_inst ->
       sym_expr stack ->
       sym_admin_instr stack ->
-      Symmem2.t ->
+      Heap.t ->
       Static_globals.t -> sym_config
 
     val step : sym_config -> ((sym_config list * sym_config list), string * string) result
@@ -244,12 +244,12 @@ module SymbolicExecutor (E : Encoder) =
         (inst : module_inst)
         (vs : sym_expr stack)
         (es : sym_admin_instr stack)
-        (sym_m : Symmem2.t)
+        (sym_m : Heap.t)
         (globs : Static_globals.t)
         : sym_config = {
       sym_frame  = sym_frame inst [];
       sym_code   = vs, es;
-      sym_mem    = Symmem.from_symmem2 sym_m;
+      sym_mem    = Symmem.from_heap sym_m;
       sym_budget = 100000; (* models default recursion limit in a system *)
       var_map = Hashtbl.create 100;
       sym_globals = globs;
@@ -450,9 +450,9 @@ module SymbolicExecutor (E : Encoder) =
             | Some ptr -> ptr
             | None -> begin
               let binds = E.value_binds encoder var_map in
-              let logic_env = Logicenv.create binds in
+              let logic_env = Store.create binds in
 
-              let ptr = Logicenv.eval logic_env sym_ptr in
+              let ptr = Store.eval logic_env sym_ptr in
               let ty = Values.type_of ptr in
               if ty != I32Type then
                 failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Load with non i32 ptr: " ^ Types.string_of_value_type ty);
@@ -489,7 +489,7 @@ module SymbolicExecutor (E : Encoder) =
             with
             | BugException (b, at, _) ->
               let string_binds = E.string_binds encoder var_map in
-              let witness = Logicenv.strings_to_json string_binds in
+              let witness = Store.strings_to_json string_binds in
               let bug_type = match b with
               | Overflow -> "Out of Bounds access"
               | UAF -> "Use After Free"
@@ -512,9 +512,9 @@ module SymbolicExecutor (E : Encoder) =
             | Some ptr -> ptr
             | None -> begin
               let binds = E.value_binds encoder var_map in
-              let logic_env = Logicenv.create binds in
+              let logic_env = Store.create binds in
 
-              let ptr = Logicenv.eval logic_env sym_ptr in
+              let ptr = Store.eval logic_env sym_ptr in
               let ty = Values.type_of ptr in
               if ty != I32Type then
                 failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Store with non i32 ptr: " ^ Types.string_of_value_type ty);
@@ -550,7 +550,7 @@ module SymbolicExecutor (E : Encoder) =
             with
             | BugException (b, at, _) ->
               let string_binds = E.string_binds encoder var_map in
-              let witness = Logicenv.strings_to_json string_binds in
+              let witness = Store.strings_to_json string_binds in
               let bug_type = match b with
               | Overflow -> "Out of Bounds access"
               | UAF -> "Use After Free"
@@ -635,7 +635,7 @@ module SymbolicExecutor (E : Encoder) =
           | SymAssert, Value (I32 0l) :: vs' ->
             debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
             let string_binds = E.string_binds encoder var_map in
-            let witness = Logicenv.strings_to_json string_binds in
+            let witness = Store.strings_to_json string_binds in
             let reason = "{" ^
             "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
             "\"line\" : \"" ^ (string_of_pos e.at.left ^
@@ -658,7 +658,7 @@ module SymbolicExecutor (E : Encoder) =
               let sat = E.check encoder [ c ] in
               if sat then
                 let string_binds = E.string_binds encoder var_map in
-                let witness = Logicenv.strings_to_json string_binds in
+                let witness = Store.strings_to_json string_binds in
                 Some witness
               else
                 None
@@ -704,7 +704,7 @@ module SymbolicExecutor (E : Encoder) =
 
           | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
             let base = I64_convert.extend_i32_u i in
-            let x = Logicenv.next (Symmem.load_string mem base) in
+            let x = Store.next (Symmem.load_string mem base) in
             let v = to_symbolic ty x in
             let es' = List.tl es in
             Hashtbl.replace var_map x ty;
@@ -729,15 +729,15 @@ module SymbolicExecutor (E : Encoder) =
 
           | Alloc, s_size :: s_base :: vs' ->
             let binds = E.value_binds encoder var_map in
-            let logic_env = Logicenv.create binds in
+            let logic_env = Store.create binds in
 
-            let c_size = Logicenv.eval logic_env s_size in
+            let c_size = Store.eval logic_env s_size in
             let size = match c_size with
             | I32 size -> size
             | _ ->
               failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 size: " ^ Types.string_of_value_type (Values.type_of c_size));
             in
-            let c_base = Logicenv.eval logic_env s_base in
+            let c_base = Store.eval logic_env s_base in
             let base = match c_base with
             | I32 base -> base
             | _ ->
@@ -761,7 +761,7 @@ module SymbolicExecutor (E : Encoder) =
               let es' =
                 if not (Hashtbl.mem chunk_table base) then (
                   let string_binds = E.string_binds encoder var_map in
-                  let witness = Logicenv.strings_to_json string_binds in
+                  let witness = Store.strings_to_json string_binds in
                   [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
                 ) else (
                   Hashtbl.remove chunk_table base;
