@@ -15,3 +15,4 @@ let concrete = ref false
 let static = ref false
 let queries = ref false
 let policy = ref "random"
+let encoding = ref "incremental"

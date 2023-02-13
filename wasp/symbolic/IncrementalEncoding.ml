@@ -6,7 +6,17 @@ exception Unknown
 
 let time_solver = ref 0.0
 
-type solver = Solver.solver
+let time_call f acc =
+  let start = Sys.time () in
+  let ret = f () in
+  acc := !acc +. ((Sys.time ()) -. start);
+  ret
+
+type s = Solver.solver
+type t = {
+  solver : s;
+  pc : Symvalue.path_conditions ref;
+}
 
 let ctx =
   Z3.mk_context
@@ -370,40 +380,38 @@ let rec encode_formula (a : Formula.t) : Expr.expr =
       and c2' = encode_formula c2 in
       Boolean.mk_or ctx [c1'; c2']
 
-let mk_solver () : Solver.solver = Solver.mk_solver ctx None
+let create () : t =
+  {
+    solver = Solver.mk_solver ctx None;
+    pc = ref [];
+  }
 
-let clone (solver : Solver.solver) : Solver.solver =
-  Solver.translate solver ctx
+let clone (e : t) : t =
+  { e with solver = Solver.translate e.solver ctx; }
 
-let add (solver : Solver.solver) (vs : Symvalue.sym_expr list):  unit =
-  let vs' = List.map (encode_sym_expr ~bool_to_bv:false) vs in
-  Solver.add solver vs'
+let add (e : t) (c : Symvalue.sym_expr):  unit =
+  e.pc := c :: !(e.pc);
+  let ec = encode_sym_expr ~bool_to_bv:false c in
+  Solver.add e.solver [ec]
 
-let pop (solver : Solver.solver) (lvl : int) : unit =
-  Solver.pop solver lvl
-
-let push (solver : Solver.solver) : unit =
-  Solver.push solver
-
-let time_call (acc : float ref) (f : unit -> 'a) : 'a =
-  let start = Sys.time () in
-  let result = f () in
-  acc := !acc +. Sys.time () -. start;
-  result
-
-let check (solver : Solver.solver) (vs : Symvalue.sym_expr list) : bool =
+let check (e : t) (vs : Symvalue.sym_expr list) : bool =
   let vs' = List.map (encode_sym_expr ~bool_to_bv:false) vs in
   let b =
     let sat =
-      time_call time_solver (fun () -> Solver.check solver vs')
+      time_call (fun () -> Solver.check e.solver vs') time_solver
     in
     match sat with
     | Solver.SATISFIABLE -> true
     | Solver.UNKNOWN ->
-      failwith ("unknown: " ^ (Solver.get_reason_unknown solver)) (* fail? *)
+      failwith ("unknown: " ^ (Solver.get_reason_unknown e.solver)) (* fail? *)
     | Solver.UNSATISFIABLE -> false
   in
   b
+
+let fork (e : t) (co : Symvalue.sym_expr) : bool * bool =
+  let negated_co = Symvalue.negate_relop co in
+  let e' = clone e in
+  (check e [ co ]), (check e' [ negated_co ])
 
 let set (s : string) (i : int) (n : char) =
   let bs = Bytes.of_string s in
@@ -467,16 +475,16 @@ let value_of_const model c =
   Option.map f interp
 
 (** fails if solver isn't currently SAT *)
-let model (s : solver) : Model.model =
-  match Solver.get_model s with
+let model (e : t) : Model.model =
+  match Solver.get_model e.solver with
   | None ->
-      ignore (Solver.check s []);
-      Option.get (Solver.get_model s)
+      ignore (Solver.check e.solver []);
+      Option.get (Solver.get_model e.solver)
   | Some m -> m
 
 (** fails if solver isn't currently SAT *)
-let value_binds (s : solver) (varmap : Varmap.t) : Logicenv.bind list =
-  let m = model s in
+let value_binds (e : t) (varmap : Varmap.t) : (string * value) list =
+  let m = model e in
   List.fold_left
     (fun a (x, t) ->
       let v = value_of_const m (Symvalue.to_symbolic t x) in
@@ -484,9 +492,9 @@ let value_binds (s : solver) (varmap : Varmap.t) : Logicenv.bind list =
     [] (Varmap.binds varmap)
 
 (** fails if solver isn't currently SAT *)
-let string_binds (s : solver) varmap :
+let string_binds (e : t) (varmap : Varmap.t) :
     (string * string * string) list =
-  let m = model s in
+  let m = model e in
   List.map
     (fun const ->
       let sort = Sort.to_string (FuncDecl.get_range const)
