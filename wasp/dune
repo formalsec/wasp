@@ -8,12 +8,24 @@
  ; name.
  (wrapped false)
  (libraries batteries z3)
- (modules :standard \ main))
+ (modules :standard \ main wasp_ce wasp_se))
 
 (executable
  (name main)
- (public_name wasp)
+ (public_name wasm)
  (modules main)
+ (libraries wasp))
+
+(executable
+ (name wasp_ce)
+ (public_name wasp-ce)
+ (modules wasp_ce)
+ (libraries wasp))
+
+(executable
+ (name wasp_se)
+ (public_name wasp-se)
+ (modules wasp_se)
  (libraries wasp))
 
 (subdir
