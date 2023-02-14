@@ -370,7 +370,7 @@ let time_call f acc =
 
 let create () = { solver = Solver.mk_solver ctx None; pc = ref [] }
 let interrupt () = Tactic.interrupt ctx
-let clone (s : t) : t = s
+let clone (s : t) : t = { s with pc = ref !(s.pc) }
 let add (s : t) (e : sym_expr) : unit = s.pc := e :: !(s.pc)
 
 let formulas_to_smt2_file =
