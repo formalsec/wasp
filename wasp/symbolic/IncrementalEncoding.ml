@@ -482,16 +482,16 @@ let model (e : t) : Model.model =
   | Some m -> m
 
 (** fails if solver isn't currently SAT *)
-let value_binds (e : t) (varmap : Varmap.t) : (string * value) list =
+let value_binds (e : t) vars : (string * value) list =
   let m = model e in
   List.fold_left
     (fun a (x, t) ->
       let v = value_of_const m (Symvalue.to_symbolic t x) in
       Batteries.Option.map_default (fun v' -> (x, v') :: a) (a) v)
-    [] (Varmap.binds varmap)
+    [] vars
 
 (** fails if solver isn't currently SAT *)
-let string_binds (e : t) (varmap : Varmap.t) :
+let string_binds (e : t) vars :
     (string * string * string) list =
   let m = model e in
   List.map

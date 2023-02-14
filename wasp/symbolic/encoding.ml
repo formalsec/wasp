@@ -4,6 +4,11 @@ open Values
 open Symvalue
 open Formula
 
+type t = { solver : s; pc : path_conditions ref }
+and s = Solver.solver
+
+let time_solver = ref 0.0
+
 let ctx =
   mk_context [ ("model", "true"); ("proof", "false"); ("unsat_core", "false") ]
 
@@ -357,7 +362,16 @@ let rec encode_formula (a : Formula.t) : Expr.expr =
     Hashtbl.replace enc_cache a enc;
     enc
 
-let interrupt_z3 () = Tactic.interrupt ctx
+let time_call f acc =
+  let start = Sys.time () in
+  let ret = f () in
+  acc := !acc +. (Sys.time () -. start);
+  ret
+
+let create () = { solver = Solver.mk_solver ctx None; pc = ref [] }
+let interrupt () = Tactic.interrupt ctx
+let clone (s : t) : t = s
+let add (s : t) (e : sym_expr) : unit = s.pc := e :: !(s.pc)
 
 let formulas_to_smt2_file =
   let counter = ref 0 in
@@ -374,20 +388,23 @@ let formulas_to_smt2_file =
       (SMT.benchmark_to_smtstring ctx query_file "" status "" (List.tl f)
          (List.hd f))
 
-let check (formulas : Formula.t list) : Model.model option =
-  let formulas' = List.map encode_formula formulas in
-  let solver = Solver.mk_solver ctx None in
-  let _ = Solver.add solver formulas' in
-  let status, model =
-    match Solver.check solver [] with
-    | Solver.UNSATISFIABLE -> ("unsat", None)
+let check (s : t) (es : sym_expr list) : bool =
+  let es' = es @ !(s.pc) in
+  let formulas' = List.map encode_formula (Formula.to_formulas es') in
+  let sat = time_call (fun () -> Solver.check s.solver formulas') time_solver in
+  let status, b =
+    match sat with
+    | Solver.SATISFIABLE -> ("sat", true)
+    | Solver.UNSATISFIABLE -> ("unsat", false)
     | Solver.UNKNOWN ->
-        formulas_to_smt2_file formulas' "unknown";
-        failwith ("unknown: " ^ Solver.get_reason_unknown solver) (* fail? *)
-    | Solver.SATISFIABLE -> ("sat", Solver.get_model solver)
+        if !Flags.queries then formulas_to_smt2_file formulas' "unknown";
+        failwith ("unknown: " ^ Solver.get_reason_unknown s.solver)
   in
   if !Flags.queries then formulas_to_smt2_file formulas' status;
-  model
+  b
+
+let fork (s : t) (e : sym_expr) : bool * bool =
+  (check s [ simplify e ], check s [ negate_relop (simplify e) ])
 
 let set s i n =
   let bs = Bytes.of_string s in
@@ -446,10 +463,18 @@ let value_of_const model (c, t) =
   in
   Option.map f interp
 
-let lift (model : Model.model) (vars : (string * value_type) list) :
+let model (s : t) : Model.model =
+  match Solver.get_model s.solver with
+  | Some m -> m
+  | None -> assert false (* should not happen after sat check *)
+
+let value_binds (s : t) (vars : (string * value_type) list) :
     (string * value) list =
+  let model = model s in
   List.fold_left
     (fun a (x, t) ->
       let v = value_of_const model (Symvalue.to_symbolic t x, t) in
       Batteries.Option.map_default (fun v' -> (x, v') :: a) a v)
     [] vars
+
+let string_binds s vars = []

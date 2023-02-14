@@ -189,8 +189,11 @@ module type Encoder =
     val check : t -> sym_expr list -> bool
     val fork : t -> sym_expr -> bool * bool
 
-    val value_binds : t -> Varmap.t -> (string * value) list
-    val string_binds : t -> Varmap.t -> (string * string * string) list
+    val value_binds : 
+      t -> (string * Types.value_type) list -> (string * value) list
+
+    val string_binds :
+      t -> (string * Types.value_type) list -> (string * string * string) list
   end
 
 module type EncodingStrategy =
@@ -449,7 +452,7 @@ module SymbolicExecutor (E : Encoder) =
             let ptr = match concretize_ptr sym_ptr with
             | Some ptr -> ptr
             | None -> begin
-              let binds = E.value_binds encoder var_map in
+              let binds = E.value_binds encoder (Varmap.binds var_map) in
               let logic_env = Store.create binds in
 
               let ptr = Store.eval logic_env sym_ptr in
@@ -488,7 +491,7 @@ module SymbolicExecutor (E : Encoder) =
               Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
             with
             | BugException (b, at, _) ->
-              let string_binds = E.string_binds encoder var_map in
+              let string_binds = E.string_binds encoder (Varmap.binds var_map) in
               let witness = Store.strings_to_json string_binds in
               let bug_type = match b with
               | Overflow -> "Out of Bounds access"
@@ -511,7 +514,7 @@ module SymbolicExecutor (E : Encoder) =
             let ptr = match concretize_ptr sym_ptr with
             | Some ptr -> ptr
             | None -> begin
-              let binds = E.value_binds encoder var_map in
+              let binds = E.value_binds encoder (Varmap.binds var_map)in
               let logic_env = Store.create binds in
 
               let ptr = Store.eval logic_env sym_ptr in
@@ -549,7 +552,7 @@ module SymbolicExecutor (E : Encoder) =
               Result.ok ([ { c with sym_code = vs', es' } ], [])
             with
             | BugException (b, at, _) ->
-              let string_binds = E.string_binds encoder var_map in
+              let string_binds = E.string_binds encoder (Varmap.binds var_map) in
               let witness = Store.strings_to_json string_binds in
               let bug_type = match b with
               | Overflow -> "Out of Bounds access"
@@ -634,7 +637,7 @@ module SymbolicExecutor (E : Encoder) =
 
           | SymAssert, Value (I32 0l) :: vs' ->
             debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
-            let string_binds = E.string_binds encoder var_map in
+            let string_binds = E.string_binds encoder (Varmap.binds var_map) in
             let witness = Store.strings_to_json string_binds in
             let reason = "{" ^
             "\"type\" : \"" ^ "Assertion Failure" ^ "\", " ^
@@ -657,7 +660,7 @@ module SymbolicExecutor (E : Encoder) =
               solver_counter := !solver_counter + 1;
               let sat = E.check encoder [ c ] in
               if sat then
-                let string_binds = E.string_binds encoder var_map in
+                let string_binds = E.string_binds encoder (Varmap.binds var_map) in
                 let witness = Store.strings_to_json string_binds in
                 Some witness
               else
@@ -728,7 +731,7 @@ module SymbolicExecutor (E : Encoder) =
             Result.ok ([{c with sym_code = sym_ptr :: vs', List.tl es}], [])
 
           | Alloc, s_size :: s_base :: vs' ->
-            let binds = E.value_binds encoder var_map in
+            let binds = E.value_binds encoder (Varmap.binds var_map)in
             let logic_env = Store.create binds in
 
             let c_size = Store.eval logic_env s_size in
@@ -760,7 +763,7 @@ module SymbolicExecutor (E : Encoder) =
             | SymPtr (base, (Value (I32 0l))) ->
               let es' =
                 if not (Hashtbl.mem chunk_table base) then (
-                  let string_binds = E.string_binds encoder var_map in
+                  let string_binds = E.string_binds encoder (Varmap.binds var_map) in
                   let witness = Store.strings_to_json string_binds in
                   [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
                 ) else (
@@ -906,6 +909,7 @@ module SymbolicExecutor (E : Encoder) =
       )
   end
 
+module BatchSE = SymbolicExecutor(Encoding)
 module IncrementalSE = SymbolicExecutor(IncrementalEncoding)
 
 module type WorkList =

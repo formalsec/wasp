@@ -105,6 +105,7 @@ let solver_cnt = ref 0
 let iterations = ref 0
 let solver_time = ref 0.
 let loop_start = ref 0.
+let solver = Encoding.create ()
 let debug str = if !Flags.trace then print_endline str
 
 let count (init : int) : unit -> int =
@@ -192,14 +193,6 @@ let instr_str e =
   | Binary op -> "binary"
   | Convert op -> "convert"
   | _ -> "not support"
-
-let timed_check_sat formulas =
-  let start = Sys.time () in
-  let opt_model = Encoding.check formulas in
-  let delta = Sys.time () -. start in
-  solver_time := !solver_time +. delta;
-  solver_cnt := !solver_cnt + 1;
-  opt_model
 
 let branch_on_cond bval c pc tree =
   let tree', to_branch =
@@ -385,41 +378,42 @@ let rec step (c : config) : config =
             (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
         | SymAssert, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
-        | SymAssert, (I32 i, ex) :: vs' -> (
+        | SymAssert, (I32 i, ex) :: vs' ->
             let formulas = add_constraint ~neg:true ex pc in
-            match timed_check_sat (Formula.to_formulas formulas) with
-            | None -> (vs', [], pc, bp)
-            | Some m ->
-                let binds = Encoding.lift m (Store.get_key_types store) in
-                Store.update store binds;
-                (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp))
+            if not (Encoding.check solver formulas) then (vs', [], pc, bp)
+            else
+              let binds =
+                Encoding.value_binds solver (Store.get_key_types store)
+              in
+              Store.update store binds;
+              (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 0l, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [ Interrupt (AsmFail pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 0l, ex) :: vs' when not !Flags.smt_assume ->
             let br = branch_on_cond false ex pc tree in
             let pc' = add_constraint ~neg:true ex pc in
             (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc', br :: bp)
-        | SymAssume, (I32 0l, ex) :: vs' -> (
+        | SymAssume, (I32 0l, ex) :: vs' ->
             debug
               (">>> Assumed false {line> "
               ^ Source.string_of_pos e.at.left
               ^ "}.");
             let pc' = add_constraint ex pc in
-            let formulas = Formula.to_formulas pc' in
-            match timed_check_sat formulas with
-            | None ->
-                let br = branch_on_cond false ex pc tree in
-                let pc_fls = add_constraint ~neg:true ex pc in
-                (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc_fls, br :: bp)
-            | Some m ->
-                let tree', _ = Execution_tree.move_true !tree in
-                tree := tree';
-                let binds = Encoding.lift m (Store.get_key_types store) in
-                Store.update store binds;
-                Heap.update mem store;
-                let f (_, s) = (Store.eval store s, s) in
-                List.iter (fun a -> a := f !a) frame.locals;
-                (List.map f vs', [], pc', bp))
+            if not (Encoding.check solver pc') then
+              let br = branch_on_cond false ex pc tree in
+              let pc_fls = add_constraint ~neg:true ex pc in
+              (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc_fls, br :: bp)
+            else
+              let tree', _ = Execution_tree.move_true !tree in
+              tree := tree';
+              let binds =
+                Encoding.value_binds solver (Store.get_key_types store)
+              in
+              Store.update store binds;
+              Heap.update mem store;
+              let f (_, s) = (Store.eval store s, s) in
+              List.iter (fun a -> a := f !a) frame.locals;
+              (List.map f vs', [], pc', bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
@@ -644,15 +638,15 @@ let write_report spec reason witness loop_time : unit =
     "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
     ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
     ^ "\"solver_time\" : \""
-    ^ string_of_float !solver_time
+    ^ string_of_float !Encoding.time_solver
     ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int !iterations ^ ", "
     ^ "\"solver_counter\" : " ^ string_of_int !solver_cnt ^ ", "
     ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
   in
   Io.save_file (Filename.concat !Flags.output "report.json") report_str
 
-let update_config c model glob code mem =
-  let binds = Encoding.lift model (Store.get_key_types c.store) in
+let update_config c glob code mem =
+  let binds = Encoding.value_binds solver (Store.get_key_types c.store) in
   Store.reset c.store;
   Store.init c.store binds;
   Globals.clear c.glob;
@@ -721,15 +715,12 @@ module Guided_search (L : Work_list) = struct
       else if L.is_empty wl then true
       else
         let rec find_sat_pc pcs =
-          if L.is_empty pcs then None
-          else
-            match timed_check_sat (Formula.to_formulas (L.pop pcs)) with
-            | None -> find_sat_pc pcs
-            | Some m -> Some m
+          if L.is_empty pcs then false
+          else if not (Encoding.check solver (L.pop pcs)) then find_sat_pc pcs
+          else true
         in
-        match find_sat_pc wl with
-        | None -> true
-        | Some m -> loop (update_config c m glob0 code0 mem0)
+        if not (find_sat_pc wl) then true
+        else loop (update_config c glob0 code0 mem0)
     in
     loop_start := Sys.time ();
     let spec = loop c in
@@ -744,6 +735,7 @@ module RandArray : Work_list = struct
   let create () = BatDynArray.create ()
   let is_empty a = BatDynArray.empty a
   let push v a = BatDynArray.add a v
+
   let pop a =
     let i = Random.int (BatDynArray.length a) in
     let v = BatDynArray.get a i in
@@ -757,7 +749,7 @@ module RND = Guided_search (RandArray)
 
 let set_timeout (time_limit : int) : unit =
   let alarm_handler i : unit =
-    Encoding.interrupt_z3 ();
+    Encoding.interrupt ();
     let loop_time = Sys.time () -. !loop_start in
     write_report true "{}" "[]" loop_time;
     exit 0
