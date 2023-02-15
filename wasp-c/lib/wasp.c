@@ -27,6 +27,10 @@ int __WASP_is_symbolic(void *var, unsigned int sz) {
   return 0;
 }
 
+int __WASP_print_stack(int a) {
+
+}
+
 /* special boolean ops */
 int __logand(int a, int b) {
   __asm__ __volatile__(
