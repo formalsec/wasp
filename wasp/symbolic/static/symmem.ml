@@ -88,9 +88,12 @@ let load_value
     (tl exprs)
   )
   in
+  (* simplify concats *)
+  let expr = Symvalue.simplify expr in
+  (* remove extract *)
   let expr = Symvalue.simplify ~extract:true expr in
   let open Values in
-  let v =
+  let expr =
   match ty with
     | Types.I32Type -> begin
       match expr with
@@ -112,48 +115,7 @@ let load_value
       | _ -> Symvalue.F64Cvtop (Sf64.F64ReinterpretInt, expr)
     end
   in
-  let open Symvalue in
-  let v =
-  match v with
-  | Extract ((Value I32 i), h, l) ->
-    let i = Int64.of_int32 i in
-    let len = h - l in
-    begin match len with
-    | 8 -> Symvalue.Value (I64                 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
-    | 4 -> Symvalue.Value (I32 (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l))))
-    | _ -> failwith "we assume to be reading i32 or i64 for now"
-    end
-  | Extract ((Value I64 i), h, l) ->
-    let len = h - l in
-    begin match len with
-    | 8 -> Value (I64                 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
-    | 4 -> Value (I32 (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l))))
-    | _ -> failwith "we assume to be reading i32 or i64 for now"
-    end
-  | Extract (Symbolic (SymInt32, x), 4, 0) ->
-      Symbolic (SymInt32, x)
-  | Extract (Symbolic (SymInt64, x), 8, 0) ->
-      Symbolic (SymInt64, x)
-  | Extract (I32Binop (op, a, b), 4, 0) ->
-      I32Binop (op, a, b)
-  | Extract (I64Binop (op, a, b), 8, 0) ->
-      I64Binop (op, a, b)
-  | Extract ((SymPtr (base, offset)), 4, 0) ->
-      SymPtr (base, offset)
-  | Extract (Extract (i, 4, 0), 4, 0) ->
-      Extract (i, 4, 0)
-  | Extract (Extract (i, 8, 0), 8, 0) ->
-      Extract (i, 8, 0)
-  | F32Cvtop (Sf32.F32ReinterpretInt, (Extract ((Value I64 i), h, l))) ->
-    let len = h - l in
-    let ix = match len with
-    | 4 -> (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
-    | _ -> failwith "we assume to be reading i32 or i64 for now"
-    in
-    Value (F32 (F32.of_bits ix))
-  | _ -> v
-  in
-  v
+  expr
 
 let load_packed
     (sz : Memory.pack_size)
@@ -163,74 +125,32 @@ let load_packed
     (ty : Types.value_type) :
     Symvalue.sym_expr =
   let exprs = loadn mem a o (length_pack_size sz) in
-  let expr = Symvalue.simplify ~extract:true List.(
-    fold_left (fun acc e -> Symvalue.Concat (e, acc)) (hd exprs) (tl exprs)
+  let open Values in
+  (* pad with 0s *)
+  let expr =
+    let rec loop acc i =
+      if i >= (Types.size ty) then acc
+      else loop (acc @ [Symvalue.Extract (Symvalue.Value (I64 0L), 1, 0)]) (i + 1) in
+    let exprs = loop exprs (List.length exprs) in
+    List.(
+      fold_left (fun acc e -> Symvalue.Concat (e, acc)) (hd exprs) (tl exprs)
   )
   in
-  let open Values in
-  let v =
+  (* simplify concats *)
+  let expr = Symvalue.simplify expr in
+  (* remove extract *)
+  let expr = Symvalue.simplify ~extract:true expr in
+  let expr =
   match ty with
     | Types.I32Type -> begin
       match expr with
       | Symvalue.Value (I64 v) -> Symvalue.Value (I32 (Int64.to_int32 v))
-      | Symvalue.Ptr   (I64 p) -> Symvalue.Ptr   (I32 (Int64.to_int32 p))
       | _ -> expr
     end
     | Types.I64Type -> expr
-    | Types.F32Type -> begin
-      match expr with
-      | Symvalue.Value (I64 v) -> Symvalue.Value (F32 (F32.of_bits (Int64.to_int32 v)))
-      | Symvalue.I32Cvtop (Si32.I32ReinterpretFloat, v) -> v
-      | _ -> Symvalue.F32Cvtop (Sf32.F32ReinterpretInt, expr)
-    end
-    | Types.F64Type -> begin
-      match expr with
-      | Symvalue.Value (I64 v) -> Symvalue.Value (F64 (F64.of_bits v))
-      | Symvalue.I64Cvtop (Si64.I64ReinterpretFloat, v) -> v
-      | _ -> Symvalue.F64Cvtop (Sf64.F64ReinterpretInt, expr)
-    end
+    | _ -> failwith "load_packed only exists for i32 and i64"
   in
-  let open Symvalue in
-  let v =
-  match v with
-  | Extract ((Value I64 i), h, l) ->
-    let len = h - l in
-    begin match len with
-    | 8 -> Symvalue.Value (I64                 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
-    | 4 -> Symvalue.Value (I32 (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l))))
-    | _ -> failwith "we assume to be reading i32 or i64 for now"
-    end
-  | Extract (Symbolic (SymInt32, x), 4, 0) ->
-      Symbolic (SymInt32, x)
-  | Extract (Symbolic (SymInt64, x), 8, 0) ->
-      Symbolic (SymInt64, x)
-  | Extract (I32Binop (op, a, b), 4, 0) ->
-      I32Binop (op, a, b)
-  | Extract (I64Binop (op, a, b), 8, 0) ->
-      I64Binop (op, a, b)
-  | Extract ((SymPtr (base, offset)), 4, 0) ->
-      SymPtr (base, offset)
-  | Extract (Extract (i, 4, 0), 4, 0) ->
-      Extract (i, 4, 0)
-  | Extract (Extract (i, 8, 0), 8, 0) ->
-      Extract (i, 8, 0)
-  | F32Cvtop (Sf32.F32ReinterpretInt, (Extract ((Value I64 i), h, l))) ->
-    let len = h - l in
-    let ix = match len with
-    | 4 -> (Int64.to_int32 (nland64 (Int64.shift_right i (l * 8)) (h - l)))
-    | _ -> failwith "we assume to be reading i32 or i64 for now"
-    in
-    Value (F32 (F32.of_bits ix))
-  | _ ->
-    let rec loop acc i =
-      if i >= (Types.size ty) then acc
-      else loop (acc @ [Extract (Value (I64 0L), 1, 0)]) (i + 1) in
-    let exprs = loop exprs (List.length exprs) in
-    List.(
-      fold_left (fun acc e -> Concat (e, acc)) (hd exprs) (tl exprs)
-    )
-  in
-  v
+  expr
 
 let load_string (mem : t) (a : address) : string =
   let rec loop a acc =
@@ -260,7 +180,11 @@ let store_value
   let open Values in
   let value =
   match ty with
-  | Types.I32Type
+  | Types.I32Type -> begin
+      match value with
+      | Symvalue.Value (I32 i) -> Symvalue.Value (I64 (Int64.of_int32 i))
+      | _ -> value
+  end
   | Types.I64Type -> value
   | Types.F32Type -> begin match value with
     | Symvalue.Value (F32 f) -> Symvalue.Value (I64 (Int64.of_int32 (F32.to_bits f)))
@@ -279,6 +203,12 @@ let store_packed
     (a : address)
     (o : offset)
     (value : Symvalue.sym_expr) =
+  let value : Symvalue.sym_expr =
+    match value with
+    | Symvalue.Value (Values.I32 x) -> Symvalue.Value (Values.I64 (Int64.of_int32 x))
+    | Symvalue.Value (Values.I64 x) -> Symvalue.Value (Values.I64 x)
+    | _ -> value
+  in
   storen mem a o (length_pack_size sz) value
 
 let to_string (mem : t) : string =
