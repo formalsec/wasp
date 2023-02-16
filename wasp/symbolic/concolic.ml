@@ -162,38 +162,6 @@ let take n (vs : 'a stack) at =
 let drop n (vs : 'a stack) at =
   try Lib.List.drop n vs with Failure _ -> Crash.error at "stack underflow"
 
-let instr_str e =
-  match e with
-  | Unreachable -> "unreachable"
-  | Nop -> "nop"
-  | Drop -> "drop"
-  | Select -> "select"
-  | Block (ts, es) -> "block"
-  | Loop (ts, es) -> "loop"
-  | If (ts, es1, es2) -> "if"
-  | Br x -> "br "
-  | BrIf x -> "br_if "
-  | BrTable (xs, x) -> "br_table "
-  | Return -> "return"
-  | Call x -> "call "
-  | CallIndirect x -> "call_indirect"
-  | LocalGet x -> "local.get "
-  | LocalSet x -> "local.set "
-  | LocalTee x -> "local.tee "
-  | GlobalGet x -> "global.get "
-  | GlobalSet x -> "global.set "
-  | Load op -> "load"
-  | Store op -> "store"
-  | MemorySize -> "memory.size"
-  | MemoryGrow -> "memory.grow"
-  | Const lit -> "const"
-  | Test op -> "test"
-  | Compare op -> "cmp"
-  | Unary op -> "unary"
-  | Binary op -> "binary"
-  | Convert op -> "convert"
-  | _ -> "not support"
-
 let branch_on_cond bval c pc tree =
   let tree', to_branch =
     if bval then Execution_tree.move_true !tree
