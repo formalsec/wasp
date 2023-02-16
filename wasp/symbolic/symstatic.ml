@@ -189,7 +189,7 @@ module type Encoder =
     val check : t -> sym_expr list -> bool
     val fork : t -> sym_expr -> bool * bool
 
-    val value_binds : 
+    val value_binds :
       t -> (string * Types.value_type) list -> (string * value) list
 
     val string_binds :
