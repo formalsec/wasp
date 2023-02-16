@@ -387,7 +387,7 @@ let create () : t =
   }
 
 let clone (e : t) : t =
-  { e with solver = Solver.translate e.solver ctx; }
+  { solver = Solver.translate e.solver ctx; pc = ref !(e.pc) }
 
 let add (e : t) (c : Symvalue.sym_expr):  unit =
   e.pc := c :: !(e.pc);
