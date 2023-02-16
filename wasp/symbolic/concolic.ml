@@ -504,7 +504,7 @@ let rec step (c : config) : config =
             in
             (v :: vs', [], pc', bp)
         | PrintStack, vs' ->
-            debug ("Stack dump: " ^ string_of_sym_value vs');
+            debug ("Stack:\n" ^ string_of_sym_value vs');
             (vs', [], pc, bp)
         | PrintPC, vs' ->
             debug ((Source.string_of_pos e.at.left) ^ ":PC: "
