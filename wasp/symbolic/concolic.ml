@@ -55,13 +55,13 @@ type code = sym_value stack * sym_admin_instr list
 and sym_admin_instr = sym_admin_instr' phrase
 
 and sym_admin_instr' =
-  | SPlain of instr'
-  | SInvoke of func_inst
-  | STrapping of string
-  | SReturning of sym_value stack
-  | SBreaking of int32 * sym_value stack
-  | SLabel of int * instr list * code
-  | SFrame of int * frame * code
+  | Plain of instr'
+  | Invoke of func_inst
+  | Trapping of string
+  | Returning of sym_value stack
+  | Breaking of int32 * sym_value stack
+  | Label of int * instr list * code
+  | Frame of int * frame * code
   | Interrupt of interruption
 
 type config = {
@@ -129,7 +129,7 @@ let string_of_bug : bug -> string = function
   | UAF -> "Use After Free"
   | InvalidFree -> "Invalid Free"
 
-let plain e = SPlain e.it @@ e.at
+let plain e = Plain e.it @@ e.at
 
 let lookup category list x =
   try Lib.List32.nth list x.it
@@ -207,36 +207,36 @@ let rec step (c : config) : config =
   let e = List.hd es in
   let vs', es', pc', bp' =
     match (e.it, vs) with
-    | SPlain e', vs -> (
+    | Plain e', vs -> (
         match (e', vs) with
         | Unreachable, vs ->
-            (vs, [ STrapping "unreachable executed" @@ e.at ], pc, bp)
+            (vs, [ Trapping "unreachable executed" @@ e.at ], pc, bp)
         | Nop, vs -> (vs, [], pc, bp)
         | Block (ts, es'), vs ->
             let es' =
-              [ SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at ]
+              [ Label (List.length ts, [], ([], List.map plain es')) @@ e.at ]
             in
             (vs, es', pc, bp)
         | Loop (ts, es'), vs ->
             ( vs,
-              [ SLabel (0, [ e' @@ e.at ], ([], List.map plain es')) @@ e.at ],
+              [ Label (0, [ e' @@ e.at ], ([], List.map plain es')) @@ e.at ],
               pc,
               bp )
         | If (ts, es1, es2), (I32 0l, ex) :: vs' when is_concrete (simplify ex)
           ->
-            (vs', [ SPlain (Block (ts, es2)) @@ e.at ], pc, bp)
+            (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc, bp)
         | If (ts, es1, es2), (I32 0l, ex) :: vs' ->
             let br = branch_on_cond false ex pc tree in
             let pc' = add_constraint ~neg:true ex pc in
-            (vs', [ SPlain (Block (ts, es2)) @@ e.at ], pc', br :: bp)
+            (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', br :: bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' when is_concrete (simplify ex)
           ->
-            (vs', [ SPlain (Block (ts, es1)) @@ e.at ], pc, bp)
+            (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' ->
             let br = branch_on_cond true ex pc tree in
             let pc' = add_constraint ex pc in
-            (vs', [ SPlain (Block (ts, es1)) @@ e.at ], pc', br :: bp)
-        | Br x, vs -> ([], [ SBreaking (x.it, vs) @@ e.at ], pc, bp)
+            (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', br :: bp)
+        | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
         | BrIf x, (I32 0l, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
         | BrIf x, (I32 0l, ex) :: vs' ->
@@ -244,23 +244,23 @@ let rec step (c : config) : config =
             let pc' = add_constraint ~neg:true ex pc in
             (vs', [], pc', br :: bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            (vs', [ SPlain (Br x) @@ e.at ], pc, bp)
+            (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' ->
             let br = branch_on_cond true ex pc tree in
             let pc' = add_constraint ex pc in
-            (vs', [ SPlain (Br x) @@ e.at ], pc', br :: bp)
+            (vs', [ Plain (Br x) @@ e.at ], pc', br :: bp)
         | BrTable (xs, x), (I32 i, _) :: vs'
           when I32.ge_u i (Lib.List32.length xs) ->
-            (vs', [ SPlain (Br x) @@ e.at ], pc, bp)
+            (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrTable (xs, x), (I32 i, _) :: vs' ->
-            (vs', [ SPlain (Br (Lib.List32.nth xs i)) @@ e.at ], pc, bp)
-        | Return, vs -> ([], [ SReturning vs @@ e.at ], pc, bp)
-        | Call x, vs -> (vs, [ SInvoke (func frame.inst x) @@ e.at ], pc, bp)
+            (vs', [ Plain (Br (Lib.List32.nth xs i)) @@ e.at ], pc, bp)
+        | Return, vs -> ([], [ Returning vs @@ e.at ], pc, bp)
+        | Call x, vs -> (vs, [ Invoke (func frame.inst x) @@ e.at ], pc, bp)
         | CallIndirect x, (I32 i, _) :: vs ->
             let func = func_elem frame.inst (0l @@ e.at) i e.at in
             if type_ frame.inst x <> Func.type_of func then
-              (vs, [ STrapping "indirect call type mismatch" @@ e.at ], pc, bp)
-            else (vs, [ SInvoke func @@ e.at ], pc, bp)
+              (vs, [ Trapping "indirect call type mismatch" @@ e.at ], pc, bp)
+            else (vs, [ Invoke func @@ e.at ], pc, bp)
         | Drop, v :: vs' -> (vs', [], pc, bp)
         | Select, (I32 0l, ve) :: v2 :: v1 :: vs' when is_concrete (simplify ve)
           ->
@@ -310,7 +310,7 @@ let rec step (c : config) : config =
             with
             | BugException (_, at, b) ->
                 (vs', [ Interrupt (Bug b) @@ e.at ], pc, bp)
-            | exn -> (vs', [ STrapping (memory_error e.at exn) @@ e.at ], pc, bp)
+            | exn -> (vs', [ Trapping (memory_error e.at exn) @@ e.at ], pc, bp)
             )
         | Store { offset; sz; _ }, (v, ex) :: (I32 i, sym_ptr) :: vs' -> (
             let base = I64_convert.extend_i32_u i in
@@ -333,7 +333,7 @@ let rec step (c : config) : config =
             with
             | BugException (_, at, b) ->
                 (vs', [ Interrupt (Bug b) @@ e.at ], pc, bp)
-            | exn -> (vs', [ STrapping (memory_error e.at exn) @@ e.at ], pc, bp)
+            | exn -> (vs', [ Trapping (memory_error e.at exn) @@ e.at ], pc, bp)
             )
         | MemorySize, vs ->
             let mem' = memory frame.inst (0l @@ e.at) in
@@ -355,23 +355,23 @@ let rec step (c : config) : config =
         | Test testop, v :: vs' -> (
             try (eval_testop v testop :: vs', [], pc, bp)
             with exn ->
-              (vs', [ STrapping (numeric_error e.at exn) @@ e.at ], pc, bp))
+              (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Compare relop, v2 :: v1 :: vs' -> (
             try (eval_relop v1 v2 relop :: vs', [], pc, bp)
             with exn ->
-              (vs', [ STrapping (numeric_error e.at exn) @@ e.at ], pc, bp))
+              (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Unary unop, v :: vs' -> (
             try (eval_unop v unop :: vs', [], pc, bp)
             with exn ->
-              (vs', [ STrapping (numeric_error e.at exn) @@ e.at ], pc, bp))
+              (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Binary binop, v2 :: v1 :: vs' -> (
             try (eval_binop v1 v2 binop :: vs', [], pc, bp)
             with exn ->
-              (vs', [ STrapping (numeric_error e.at exn) @@ e.at ], pc, bp))
+              (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Convert cvtop, v :: vs' -> (
             try (eval_cvtop cvtop v :: vs', [], pc, bp)
             with exn ->
-              (vs', [ STrapping (numeric_error e.at exn) @@ e.at ], pc, bp))
+              (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Dup, v :: vs' -> (v :: v :: vs', [], pc, bp)
         | SymAssert, (I32 0l, ex) :: vs' ->
             debug ">>> Assert FAILED! Stopping...";
@@ -439,7 +439,7 @@ let rec step (c : config) : config =
               let v3, sv3 = eval_binop (v1', sv1') (v2', sv2') boolop in
               ((v3, simplify sv3) :: vs', [], pc, bp)
             with exn ->
-              (vs', [ STrapping (numeric_error e.at exn) @@ e.at ], pc, bp))
+              (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
             Hashtbl.add heap b a;
             ((I32 b, Ptr (I32 b)) :: vs', [], pc, bp)
@@ -530,38 +530,38 @@ let rec step (c : config) : config =
         | SetPriority, _ :: _ :: _ :: vs' -> (vs', [], pc, bp)
         | PopPriority, _ :: vs' -> (vs', [], pc, bp)
         | _ -> Crash.error e.at "missing or ill-typed operand on stack")
-    | STrapping msg, vs -> assert false
+    | Trapping msg, vs -> assert false
     | Interrupt i, vs -> assert false
-    | SReturning vs', vs -> Crash.error e.at "undefined frame"
-    | SBreaking (k, vs'), vs -> Crash.error e.at "undefined label"
-    | SLabel (n, es0, (vs', [])), vs -> (vs' @ vs, [], pc, bp)
-    | SLabel (n, es0, (vs', { it = Interrupt i; at } :: es')), vs ->
+    | Returning vs', vs -> Crash.error e.at "undefined frame"
+    | Breaking (k, vs'), vs -> Crash.error e.at "undefined label"
+    | Label (n, es0, (vs', [])), vs -> (vs' @ vs, [], pc, bp)
+    | Label (n, es0, (vs', { it = Interrupt i; at } :: es')), vs ->
         ( vs,
-          [ Interrupt i @@ at ] @ [ SLabel (n, es0, (vs', es')) @@ e.at ],
+          [ Interrupt i @@ at ] @ [ Label (n, es0, (vs', es')) @@ e.at ],
           pc,
           bp )
-    | SLabel (n, es0, (vs', { it = STrapping msg; at } :: es')), vs ->
-        (vs, [ STrapping msg @@ at ], pc, bp)
-    | SLabel (n, es0, (vs', { it = SReturning vs0; at } :: es')), vs ->
-        (vs, [ SReturning vs0 @@ at ], pc, bp)
-    | SLabel (n, es0, (vs', { it = SBreaking (0l, vs0); at } :: es')), vs ->
+    | Label (n, es0, (vs', { it = Trapping msg; at } :: es')), vs ->
+        (vs, [ Trapping msg @@ at ], pc, bp)
+    | Label (n, es0, (vs', { it = Returning vs0; at } :: es')), vs ->
+        (vs, [ Returning vs0 @@ at ], pc, bp)
+    | Label (n, es0, (vs', { it = Breaking (0l, vs0); at } :: es')), vs ->
         (take n vs0 e.at @ vs, List.map plain es0, pc, bp)
-    | SLabel (n, es0, (vs', { it = SBreaking (k, vs0); at } :: es')), vs ->
-        (vs, [ SBreaking (Int32.sub k 1l, vs0) @@ at ], pc, bp)
-    | SLabel (n, es0, code'), vs ->
+    | Label (n, es0, (vs', { it = Breaking (k, vs0); at } :: es')), vs ->
+        (vs, [ Breaking (Int32.sub k 1l, vs0) @@ at ], pc, bp)
+    | Label (n, es0, code'), vs ->
         let c' = step { c with code = code' } in
-        (vs, [ SLabel (n, es0, c'.code) @@ e.at ], c'.pc, c'.bp)
-    | SFrame (n, frame', (vs', [])), vs -> (vs' @ vs, [], pc, bp)
-    | SFrame (n, frame', (vs', { it = Interrupt i; at } :: es')), vs ->
+        (vs, [ Label (n, es0, c'.code) @@ e.at ], c'.pc, c'.bp)
+    | Frame (n, frame', (vs', [])), vs -> (vs' @ vs, [], pc, bp)
+    | Frame (n, frame', (vs', { it = Interrupt i; at } :: es')), vs ->
         ( vs,
-          [ Interrupt i @@ at ] @ [ SFrame (n, frame', (vs', es')) @@ e.at ],
+          [ Interrupt i @@ at ] @ [ Frame (n, frame', (vs', es')) @@ e.at ],
           pc,
           bp )
-    | SFrame (n, frame', (vs', { it = STrapping msg; at } :: es')), vs ->
-        (vs, [ STrapping msg @@ at ], pc, bp)
-    | SFrame (n, frame', (vs', { it = SReturning vs0; at } :: es')), vs ->
+    | Frame (n, frame', (vs', { it = Trapping msg; at } :: es')), vs ->
+        (vs, [ Trapping msg @@ at ], pc, bp)
+    | Frame (n, frame', (vs', { it = Returning vs0; at } :: es')), vs ->
         (take n vs0 e.at @ vs, [], pc, bp)
-    | SFrame (n, frame', code'), vs ->
+    | Frame (n, frame', code'), vs ->
         let c' =
           step
             {
@@ -577,10 +577,10 @@ let rec step (c : config) : config =
               budget = c.budget - 1;
             }
         in
-        (vs, [ SFrame (n, c'.frame, c'.code) @@ e.at ], c'.pc, c'.bp)
-    | SInvoke func, vs when c.budget = 0 ->
+        (vs, [ Frame (n, c'.frame, c'.code) @@ e.at ], c'.pc, c'.bp)
+    | Invoke func, vs when c.budget = 0 ->
         Exhaustion.error e.at "call stack exhausted"
-    | SInvoke func, vs -> (
+    | Invoke func, vs -> (
         let symbolic_arg t =
           let x = Store.next store "arg" in
           let v = Store.get store x t false in
@@ -602,9 +602,9 @@ let rec step (c : config) : config =
                 (List.map default_value f.it.locals)
             in
             let locals'' = List.rev args @ locals' in
-            let code' = ([], [ SPlain (Block (out, f.it.body)) @@ f.at ]) in
+            let code' = ([], [ Plain (Block (out, f.it.body)) @@ f.at ]) in
             let frame' = { inst = !inst'; locals = List.map ref locals'' } in
-            (vs', [ SFrame (List.length out, frame', code') @@ e.at ], pc, bp)
+            (vs', [ Frame (List.length out, frame', code') @@ e.at ], pc, bp)
         | Func.HostFunc (t, f) -> failwith "HostFunc error")
   in
   let e' =
@@ -687,7 +687,7 @@ module Guided_search (L : Work_list) = struct
       let rec eval (c : config) : config =
         match c.code with
         | vs, [] -> c
-        | vs, { it = STrapping msg; at } :: _ -> Trap.error at msg
+        | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
         | vs, { it = Interrupt (AsmFail pc); at } :: _ ->
             skip := true;
             iterations := !iterations - 1;
@@ -773,7 +773,7 @@ let main (func : func_inst) (vs : sym_value list) (inst : module_inst) =
           inst.globals));
   let c =
     config empty_module_inst (List.rev vs)
-      [ SInvoke func @@ at ]
+      [ Invoke func @@ at ]
       inst.sym_memory glob (ref head)
   in
   let f =
