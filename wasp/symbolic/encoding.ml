@@ -443,7 +443,8 @@ let int64_of_fp (fp : Expr.expr) (ebits : int) (sbits : int) : int64 =
     let sign = Int64.shift_left (List.nth bit_list 0) (ebits + sbits)
     and exponent = Int64.shift_left (List.nth bit_list 1) sbits
     and fraction = List.nth bit_list 2 in
-    Int64.(logor sign (logor exponent fraction))
+    let v = Int64.(logor sign (logor exponent fraction)) in
+    v
 
 let value_of_const model (c, t) =
   let interp = Model.get_const_interp_e model (encode_sym_expr c) in
@@ -458,7 +459,8 @@ let value_of_const model (c, t) =
     match t with
     | Types.I32Type -> I32 (Int64.to_int32 v)
     | Types.I64Type -> I64 v
-    | Types.F32Type -> F32 (F32.of_float (Int64.float_of_bits v))
+    | Types.F32Type ->
+        F32 (F32.of_float (Int32.float_of_bits (Int64.to_int32 v)))
     | Types.F64Type -> F64 (F64.of_float (Int64.float_of_bits v))
   in
   Option.map f interp
