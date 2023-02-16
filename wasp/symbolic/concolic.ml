@@ -86,7 +86,7 @@ let config inst vs es mem glob tree =
     code = (vs, es);
     mem;
     store = Store.create [];
-    heap = Hashtbl.create 128;
+    heap = Hashtbl.create Flags.hashtbl_default_size;
     pc = [];
     bp = [];
     tree;
@@ -423,7 +423,7 @@ let rec step (c : config) : config =
             (vs', [], add_constraint ex pc, bp)
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
             let base = I64_convert.extend_i32_u i in
-            let x = Store.next (Heap.load_string mem base) in
+            let x = Store.next store (Heap.load_string mem base) in
             let v = Store.get store x ty b in
             ((v, to_symbolic ty x) :: vs', [], pc, bp)
         | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
@@ -492,7 +492,7 @@ let rec step (c : config) : config =
               match s_c' with
               | None -> ((r, if c = 0l then s_r2 else s_r1), pc)
               | Some s ->
-                  let x = Store.next "__ternary" in
+                  let x = Store.next store "__ternary" in
                   Store.add store x r;
                   let s_x = to_symbolic I32Type x in
                   let t_eq = I32Relop (I32Eq, s_x, s_r1) in
@@ -582,7 +582,7 @@ let rec step (c : config) : config =
         Exhaustion.error e.at "call stack exhausted"
     | SInvoke func, vs -> (
         let symbolic_arg t =
-          let x = Store.next "arg" in
+          let x = Store.next store "arg" in
           let v = Store.get store x t false in
           (v, to_symbolic t x)
         in

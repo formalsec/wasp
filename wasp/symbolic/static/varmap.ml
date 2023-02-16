@@ -3,6 +3,12 @@ open Types
 type varmap = (string, value_type) Hashtbl.t
 type t = varmap
 
+let symbols = Counter.create ()
+
+let next (x : string) : string =
+  let id = Counter.get_and_inc symbols x in
+  if id = 0 then x else x ^ "_" ^ string_of_int id
+
 let get_vars_by_type (t : value_type) (varmap : t) : string list =
   Hashtbl.fold (fun k v acc ->
     if v = t then k :: acc else acc

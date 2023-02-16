@@ -8,58 +8,69 @@ open Symvalue
 
 type name = string
 type bind = name * value
-type logicenv = (name, value) Hashtbl.t
-type t = logicenv
 
-let ids = Counter.create ()
-let names : name list ref = ref []
+type store = {
+  sym : Counter.t;
+  ord : name list ref;
+  map : (name, value) Hashtbl.t;
+}
 
-let reset (env : t) : unit =
-  names := [];
-  Counter.clear ids;
-  Hashtbl.clear env
+type t = store
 
-let clear (env : t) : unit = Hashtbl.clear env
+let reset (s : t) : unit =
+  Counter.clear s.sym;
+  Hashtbl.clear s.map;
+  s.ord := []
 
-let init (env : t) (binds : bind list) : unit =
-  List.iter (fun (k, v) -> Hashtbl.add env k v) binds
+let clear (s : t) : unit = Hashtbl.clear s.map
 
-let create (binds : bind list) : logicenv =
-  let env = Hashtbl.create 512 in
-  init env binds;
-  env
+let init (s : t) (binds : bind list) : unit =
+  List.iter (fun (k, v) -> Hashtbl.add s.map k v) binds
 
-let add (env : t) (k : name) (v : value) : unit =
-  names := k :: !names;
-  Hashtbl.replace env k v
-
-let find (env : t) (k : name) : value = Hashtbl.find env k
-let exists (x : name) : bool = List.mem x !names
-
-let get (env : t) (k : name) (ty : value_type) (b : bool) : value =
-  let v =
-    try find env k
-    with Not_found -> (
-      match ty with
-      | I32Type -> I32 (I32.rand (if b then 2 else 127))
-      | I64Type -> I64 (I64.rand 127)
-      | F32Type -> F32 (F32.rand 127.0)
-      | F64Type -> F64 (F64.rand 127.0))
+let create (binds : bind list) : t =
+  let s =
+    {
+      sym = Counter.create ();
+      ord = ref [];
+      map = Hashtbl.create Flags.hashtbl_default_size;
+    }
   in
-  add env k v;
+  init s binds;
+  s
+
+let add (s : t) (x : name) (v : value) : unit =
+  s.ord := x :: !(s.ord);
+  Hashtbl.replace s.map x v
+
+let find (s : t) (x : name) : value = Hashtbl.find s.map x
+let find_opt (s : t) (x : name) : value option = Hashtbl.find_opt s.map x
+let exists (s : t) (x : name) : bool = List.mem x !(s.ord)
+
+let get (s : t) (x : name) (ty : value_type) (b : bool) : value =
+  let v =
+    match find_opt s x with
+    | Some v -> v
+    | None -> (
+        match ty with
+        | I32Type -> I32 (I32.rand (if b then 2 else 127))
+        | I64Type -> I64 (I64.rand 127)
+        | F32Type -> F32 (F32.rand 127.0)
+        | F64Type -> F64 (F64.rand 127.0))
+  in
+  add s x v;
   v
 
-let next (k : name) : name =
-  let id = Counter.get_and_inc ids k in
-  if id = 0 then k else k ^ "_" ^ string_of_int id
+let next (s : t) (x : name) : name =
+  let id = Counter.get_and_inc s.sym x in
+  if id = 0 then x else x ^ "_" ^ string_of_int id
 
-let is_empty (env : t) : bool = 0 = Hashtbl.length env
+let is_empty (s : t) : bool = 0 = Hashtbl.length s.map
 
-let update (env : t) (binds : bind list) : unit =
-  List.iter (fun (x, v) -> Hashtbl.replace env x v) binds
+let update (s : t) (binds : bind list) : unit =
+  List.iter (fun (x, v) -> Hashtbl.replace s.map x v) binds
 
-let to_list (env : t) : bind list =
-  List.map (fun x -> (x, find env x)) (List.rev !names)
+let to_list (s : t) : bind list =
+  List.map (fun x -> (x, find s x)) (List.rev !(s.ord))
 
 let to_json (env : bind list) : string =
   let jsonify_bind (b : bind) : string =
@@ -73,14 +84,11 @@ let to_json (env : bind list) : string =
 
 let strings_to_json string_env : string =
   let jsonify_bind b : string =
-    let (t, x, v) = b in
-    "{" ^
-        "\"name\" : \"" ^ x ^ "\", " ^
-        "\"value\" : \"" ^ v ^ "\", " ^
-        "\"type\" : \"" ^ t ^ "\"" ^
-    "}"
+    let t, x, v = b in
+    "{" ^ "\"name\" : \"" ^ x ^ "\", " ^ "\"value\" : \"" ^ v ^ "\", "
+    ^ "\"type\" : \"" ^ t ^ "\"" ^ "}"
   in
-  "[" ^ (String.concat ", " (List.map jsonify_bind string_env)) ^ "]"
+  "[" ^ String.concat ", " (List.map jsonify_bind string_env) ^ "]"
 
 let to_string (env : t) : string =
   List.fold_left
@@ -89,10 +97,10 @@ let to_string (env : t) : string =
       a ^ "(" ^ k ^ "->" ^ string_of_value v ^ ")\n")
     "" (to_list env)
 
-let get_key_types (env : t) : (string * value_type) list =
-  Hashtbl.fold (fun k v acc -> (k, Values.type_of v) :: acc) env []
+let get_key_types (s : t) : (string * value_type) list =
+  Hashtbl.fold (fun k v acc -> (k, Values.type_of v) :: acc) s.map []
 
-let to_expr (env : t) : sym_expr list =
+let to_expr (s : t) : sym_expr list =
   Hashtbl.fold
     (fun k v acc ->
       let e =
@@ -103,7 +111,7 @@ let to_expr (env : t) : sym_expr list =
         | F64 _ -> F64Relop (Sf64.F64Eq, Symbolic (SymFloat64, k), Value v)
       in
       e :: acc)
-    env []
+    s.map []
 
 let rec eval (env : t) (e : sym_expr) : value =
   match e with

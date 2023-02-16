@@ -3,7 +3,7 @@ open Symvalue
 type globals = (int32, sym_value) Hashtbl.t
 type t = globals
 
-let create () = Hashtbl.create 128
+let create () = Hashtbl.create Flags.hashtbl_default_size
 let reset g = Hashtbl.reset g
 let clear g = Hashtbl.clear g
 let add_seq g binds = Hashtbl.add_seq g binds

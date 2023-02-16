@@ -707,7 +707,7 @@ module SymbolicExecutor (E : Encoder) =
 
           | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
             let base = I64_convert.extend_i32_u i in
-            let x = Store.next (Symmem.load_string mem base) in
+            let x = Varmap.next (Symmem.load_string mem base) in
             let v = to_symbolic ty x in
             let es' = List.tl es in
             Hashtbl.replace var_map x ty;
