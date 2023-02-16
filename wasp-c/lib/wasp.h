@@ -16,7 +16,9 @@ void __WASP_assume(int);
 void __WASP_assert(int);
 int  __WASP_is_symbolic(void *, unsigned int);
 
+/* debug operations*/
 int __WASP_print_stack(int);
+void __WASP_print_pc();
 
 /* special boolean ops */
 int __logand(int, int);
