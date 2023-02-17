@@ -11,7 +11,7 @@ type bind = name * value
 
 type store = {
   sym : Counter.t;
-  ord : name list ref;
+  ord : name BatDynArray.t;
   map : (name, value) Hashtbl.t;
 }
 
@@ -20,7 +20,7 @@ type t = store
 let reset (s : t) : unit =
   Counter.clear s.sym;
   Hashtbl.clear s.map;
-  s.ord := []
+  BatDynArray.clear s.ord
 
 let clear (s : t) : unit = Hashtbl.clear s.map
 
@@ -31,7 +31,7 @@ let create (binds : bind list) : t =
   let s =
     {
       sym = Counter.create ();
-      ord = ref [];
+      ord = BatDynArray.create ();
       map = Hashtbl.create Flags.hashtbl_default_size;
     }
   in
@@ -39,12 +39,12 @@ let create (binds : bind list) : t =
   s
 
 let add (s : t) (x : name) (v : value) : unit =
-  s.ord := x :: !(s.ord);
+  BatDynArray.add s.ord x;
   Hashtbl.replace s.map x v
 
 let find (s : t) (x : name) : value = Hashtbl.find s.map x
 let find_opt (s : t) (x : name) : value option = Hashtbl.find_opt s.map x
-let exists (s : t) (x : name) : bool = List.mem x !(s.ord)
+let exists (s : t) (x : name) : bool = BatDynArray.mem x s.ord
 
 let get (s : t) (x : name) (ty : value_type) (b : bool) : value =
   let v =
@@ -69,10 +69,7 @@ let is_empty (s : t) : bool = 0 = Hashtbl.length s.map
 let update (s : t) (binds : bind list) : unit =
   List.iter (fun (x, v) -> Hashtbl.replace s.map x v) binds
 
-let to_list (s : t) : bind list =
-  List.map (fun x -> (x, find s x)) (List.rev !(s.ord))
-
-let to_json (env : bind list) : string =
+let to_json (s : t) : string =
   let jsonify_bind (b : bind) : string =
     let n, v = b in
     "{" ^ "\"name\" : \"" ^ n ^ "\", " ^ "\"value\" : \"" ^ pp_string_of_value v
@@ -80,7 +77,12 @@ let to_json (env : bind list) : string =
     ^ string_of_value_type (Values.type_of v)
     ^ "\"" ^ "}"
   in
-  "[" ^ String.concat ", " (List.map jsonify_bind env) ^ "]"
+  "["
+  ^ String.concat ","
+      (BatDynArray.fold_left
+         (fun a x -> jsonify_bind (x, find s x) :: a)
+         [] s.ord)
+  ^ "]"
 
 let strings_to_json string_env : string =
   let jsonify_bind b : string =
@@ -90,12 +92,12 @@ let strings_to_json string_env : string =
   in
   "[" ^ String.concat ", " (List.map jsonify_bind string_env) ^ "]"
 
-let to_string (env : t) : string =
-  List.fold_left
-    (fun a b ->
-      let k, v = b in
+let to_string (s : t) : string =
+  BatDynArray.fold_left
+    (fun a k ->
+      let v = find s k in
       a ^ "(" ^ k ^ "->" ^ string_of_value v ^ ")\n")
-    "" (to_list env)
+    "" s.ord
 
 let get_key_types (s : t) : (string * value_type) list =
   Hashtbl.fold (fun k v acc -> (k, Values.type_of v) :: acc) s.map []

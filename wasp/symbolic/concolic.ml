@@ -686,7 +686,7 @@ module Guided_search (L : Work_list) = struct
       in
       if not !skip then
         write_test_case test_suite
-          Store.(to_json (to_list store))
+          (Store.to_json store)
           (Option.is_some err) cntr;
       if Option.is_some err then false
       else if L.is_empty wl then true
