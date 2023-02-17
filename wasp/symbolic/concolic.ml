@@ -472,7 +472,16 @@ let rec step (c : config) : config =
             in
             (v :: vs', [], pc', bp)
         | PrintStack, vs' ->
-            debug ("Stack dump: " ^ string_of_sym_value vs');
+            debug
+              ("Stack @ "
+              ^ Source.string_of_pos e.at.left
+              ^ ":\n" ^ string_of_sym_value vs');
+            (vs', [], pc, bp)
+        | PrintPC, vs' ->
+            debug
+              (Source.string_of_pos e.at.left
+              ^ ":PC: "
+              ^ Formula.(pp_to_string (to_formula pc)));
             (vs', [], pc, bp)
         | PrintMemory, vs' ->
             debug ("Memory dump:\n" ^ Heap.to_string mem);

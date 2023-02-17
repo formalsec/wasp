@@ -10,6 +10,8 @@ patterns = [
     ('call \$__WASP_symb_float', 'f32.symbolic'),
     ('call \$__WASP_symb_double', 'f64.symbolic'),
     ('call \$__WASP_is_symbolic', 'is_symbolic'),
+    ('call \$__WASP_print_stack', 'print_stack'),
+    ('call \$__WASP_print_pc', 'print_pc'),
     ('call \$__logand', 'i32.__logand'),
     ('call \$__logor', 'i32.__logor'),
     ('anyfunc', 'funcref'),
