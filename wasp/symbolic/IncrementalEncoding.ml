@@ -475,11 +475,8 @@ let value_of_const model c =
 
 (** fails if solver isn't currently SAT *)
 let model (e : t) : Model.model =
-  match Solver.get_model e.solver with
-  | None ->
-      ignore (Solver.check e.solver []);
-      Option.get (Solver.get_model e.solver)
-  | Some m -> m
+  assert (check e []);
+  Option.get (Solver.get_model e.solver)
 
 (** fails if solver isn't currently SAT *)
 let value_binds (e : t) vars : (string * value) list =
