@@ -45,6 +45,9 @@ let argspec =
       ( "--policy",
         Arg.Set_string Flags.policy,
         " search policy random|depth|breadth (default: random)" );
+      ( "--encoding",
+        Arg.Set_string Flags.encoding,
+        " encoding policy incremental|batch (default: incremental)" );
       ( "--queries",
         Arg.Set Flags.queries,
         " output solver queries in .smt2 format" );

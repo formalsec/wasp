@@ -3,9 +3,10 @@ open Symvalue
 open Types
 open Instance
 open Ast
+open Strategies
 
 (* TODO/FIXME: there's a lot of code at the top that
-  needs to be extracted to a common module with symeval.ml *)
+  needs to be extracted to a common module with concolic.ml *)
 
 (* Errors *)
 
@@ -26,17 +27,6 @@ let memory_error at = function
   | Memory.Type -> Crash.error at "type mismatch at memory access"
   | exn -> raise exn
 
-type bug =
-  | Overflow
-  | UAF
-  | InvalidFree
-
-type interruption =
-  | IntLimit
-  | AsmFail of path_conditions
-  | AssFail of string
-  | Bug of bug * string
-
 let numeric_error at = function
   | Evaluations.UnsupportedOp m ->  m ^ ": unsupported operation"
   | Numeric_error.IntegerOverflow -> "integer overflow"
@@ -51,13 +41,6 @@ let numeric_error at = function
 (* Administrative Expressions & Configurations *)
 type 'a stack = 'a list
 
-(*  Symbolic Frame  *)
-type sym_frame =
-{
-  sym_inst : module_inst;
-  sym_locals : sym_expr ref list; (*  Locals can be symbolic  *)
-}
-
 let clone_frame (frame: sym_frame) : sym_frame =
   let sym_inst = clone frame.sym_inst in
   let sym_locals = List.map (fun r -> ref !r) frame.sym_locals in
@@ -66,33 +49,13 @@ let clone_frame (frame: sym_frame) : sym_frame =
     sym_locals = sym_locals;
   }
 
-(*  Symbolic code  *)
-type sym_code = sym_expr stack * sym_admin_instr list
-
-and sym_admin_instr = sym_admin_instr' Source.phrase
-and sym_admin_instr' =
-  | SPlain of instr'
-  | SInvoke of func_inst
-  | STrapping of string
-  | SReturning of sym_expr stack
-  | SBreaking of int32 * sym_expr stack
-  | SLabel of int * instr list * sym_code
-  | SFrame of int * sym_frame * sym_code
-  (**
-    * Wasp's administrative instructions to halt
-    * small-step semantic intepretation
-    *)
-  | Interrupt of interruption
 
 (* Symbolic frame *)
 let sym_frame sym_inst sym_locals = {sym_inst; sym_locals; }
 
 exception BugException of bug * Source.region * string
 
-let solver_time = ref 0.
 let solver_counter = ref 0
-let loop_start = ref 0.
-let paths = ref 1
 
 let debug str = if !Flags.trace then print_endline str
 
@@ -196,22 +159,6 @@ module type Encoder =
       t -> (string * Types.value_type) list -> (string * string * string) list
   end
 
-module type EncodingStrategy =
-  sig
-    type sym_config
-
-    val clone : sym_config -> sym_config
-
-    val sym_config :
-      module_inst ->
-      sym_expr stack ->
-      sym_admin_instr stack ->
-      Heap.t ->
-      Static_globals.t -> sym_config
-
-    val step : sym_config -> ((sym_config list * sym_config list), string * string) result
-  end
-
 module SymbolicExecutor (E : Encoder) =
   struct
     type sym_config = {
@@ -262,7 +209,7 @@ module SymbolicExecutor (E : Encoder) =
 
     let time_solver = E.time_solver
 
-    let rec step (c : sym_config) : ((sym_config list * sym_config list), string * string) result =
+    let rec step (c : sym_config) : ((sym_config list * path_conditions list), string * string) result =
       let {
         sym_frame = frame;
         sym_code = vs, es;
@@ -273,7 +220,10 @@ module SymbolicExecutor (E : Encoder) =
         _} = c in
       let open Source in
       match es with
-      | [] -> Result.ok ([], [c])
+      | [] -> begin
+        let open E in
+        Result.ok ([], [!(encoder.pc)])
+      end
       | e :: t ->
       (match e.it, vs with
         | SPlain e', vs ->
@@ -912,192 +862,14 @@ module SymbolicExecutor (E : Encoder) =
 module BatchSE = SymbolicExecutor(Encoding)
 module IncrementalSE = SymbolicExecutor(IncrementalEncoding)
 
-module type WorkList =
-sig
-  type 'a t
-  exception Empty
-  val create : unit -> 'a t
-  val push : 'a -> 'a t -> unit
-  val pop : 'a t -> 'a
-  val add_seq : 'a t -> 'a Seq.t -> unit
-  val is_empty : 'a t -> bool
-  val length : 'a t -> int
-end
+module HBatchSE = Strategies.Helper(BatchSE)
+module HIncSE = Strategies.Helper(IncrementalSE)
 
-module TreeStrategy (L : WorkList) (ES : EncodingStrategy) =
-struct
-  let eval (c : ES.sym_config) : (ES.sym_config list, string * string) result =
-    let w = L.create () in
-    L.push c w;
-
-    let err = ref None in
-    let outs = ref [] in
-    while Option.is_none !err && not ((L.is_empty w)) do
-      let c = L.pop w in
-      match (ES.step c) with
-      | Result.Ok (cs', outs') -> begin
-        L.add_seq w (List.to_seq cs');
-        outs := !outs @ outs';
-      end
-      | Result.Error step_err -> begin
-        err := Some step_err;
-      end
-    done;
-
-    match !err with
-    | Some step_err -> Result.error step_err
-    | None -> Result.ok !outs
-end
-
-module DFS = TreeStrategy(Stack)
-module DFS_Inc = DFS(IncrementalSE)
-module BFS = TreeStrategy(Queue)
-module BFS_Inc = BFS(IncrementalSE)
-
-module BFS_L (ES : EncodingStrategy) =
-struct
-  let max_configs = 32
-
-  let eval (c : ES.sym_config) : (ES.sym_config list, string * string) result =
-    let w = Queue.create () in
-    Queue.push c w;
-
-    let err = ref None in
-    let outs = ref [] in
-    while Option.is_none !err && not ((Queue.is_empty w)) do
-      let l = Queue.length w in
-      let c = Queue.pop w in
-      match (ES.step c) with
-      | Result.Ok (cs', outs') -> begin
-        if l + List.length cs' <= max_configs then
-          Queue.add_seq w (List.to_seq cs')
-        else
-          Queue.push c w;
-        outs := !outs @ outs';
-      end
-      | Result.Error step_err -> begin
-        err := Some step_err;
-      end
-    done;
-
-    match !err with
-    | Some step_err -> Result.error step_err
-    | None -> Result.ok !outs
-end
-
-module BFS_L_Inc = BFS_L(IncrementalSE)
-
-module Half_BFS (ES : EncodingStrategy) =
-struct
-  let max_configs = 512
-
-  let eval (c : ES.sym_config) : (ES.sym_config list, string * string) result =
-    let w = Queue.create () in
-    Queue.push c w;
-
-    let err = ref None in
-    let outs = ref [] in
-    while Option.is_none !err && not ((Queue.is_empty w)) do
-      let c = Queue.pop w in
-      match (ES.step c) with
-      | Result.Ok (cs', outs') -> begin
-        Queue.add_seq w (List.to_seq cs');
-        outs := !outs @ outs';
-      end
-      | Result.Error step_err -> begin
-        err := Some step_err;
-      end;
-      let l = Queue.length w in
-      if l >= max_configs - 2 then
-        let filtered = Queue.of_seq (Seq.filter_map (fun c -> if Random.bool () then Some c else None) (Queue.to_seq w)) in
-        Queue.clear w;
-        Queue.transfer filtered w;
-    done;
-
-    match !err with
-    | Some step_err -> Result.error step_err
-    | None -> Result.ok !outs
-end
-
-module ProgressBFS (ES : EncodingStrategy) =
-struct
-  let eval (c : ES.sym_config) : (ES.sym_config list, string * string) result =
-    let max_configs = ref 2 in
-    let hot = Queue.create () in
-    Queue.push c hot;
-    let cold = Queue.create () in
-
-    let err = ref None in
-    let outs = ref [] in
-
-    while Option.is_none !err && not (Queue.is_empty hot && Queue.is_empty cold) do
-      while Option.is_none !err && not ((Queue.is_empty hot)) do
-        let l = Queue.length hot in
-        let c = Queue.pop hot in
-        match (ES.step c) with
-        | Result.Ok (cs', outs') -> begin
-          if l + List.length cs' <= !max_configs then
-            Queue.add_seq hot (List.to_seq cs')
-          else
-            Queue.add_seq cold (List.to_seq cs');
-          outs := !outs @ outs';
-        end
-        | Result.Error step_err -> begin
-          err := Some step_err
-        end;
-      done;
-      Queue.transfer cold hot;
-      (* only increase max size if we have a lot of splits *)
-      if Queue.length hot >= !max_configs * 3 / 4 then
-        max_configs := !max_configs * 2;
-    done;
-
-    match !err with
-    | Some step_err -> Result.error step_err
-    | None -> Result.ok !outs
-end
-
-module RS (ES : EncodingStrategy) =
-struct
-  let eval (c : ES.sym_config) : (ES.sym_config list, string * string) result =
-    let open Batteries in
-
-    let swap (v : ES.sym_config BatDynArray.t) (x : int) (y : int) =
-      let tmp = BatDynArray.get v x in
-      BatDynArray.set v x (BatDynArray.get v y);
-      BatDynArray.set v y tmp;
-    in
-
-    let w = BatDynArray.create () in
-    BatDynArray.add w c;
-
-    let err = ref None in
-    let outs = ref [] in
-    while Option.is_none !err && not ((BatDynArray.empty w)) do
-      if BatDynArray.length w > 1 then begin
-        let idx = Random.int (BatDynArray.length w) in
-        swap w idx (BatDynArray.length w - 1);
-      end;
-      let c = BatDynArray.last w in
-      BatDynArray.delete_last w;
-
-      match (ES.step c) with
-      | Result.Ok (cs', outs') -> begin
-        BatDynArray.append (BatDynArray.of_list cs') w;
-
-        outs := !outs @ outs';
-      end
-      | Result.Error step_err -> begin
-        err := Some step_err;
-      end;
-    done;
-
-    match !err with
-    | Some step_err -> Result.error step_err
-    | None -> Result.ok !outs
-end
-
-module RS_Inc = RS(IncrementalSE)
+let parse_encoding () =
+  match !Flags.encoding with
+  | "batch" -> HBatchSE.helper
+  | "incremental" -> HIncSE.helper
+  | _ -> failwith "unreachable"
 
 let func_to_globs (func : func_inst): Static_globals.t =
   match Func.get_inst func with
@@ -1107,19 +879,6 @@ let func_to_globs (func : func_inst): Static_globals.t =
     )
     | None -> Hashtbl.create 0
 
-let parse_strategies () =
-  match !Flags.encoding with
-  | "incremental" -> begin
-    match !Flags.policy with
-    | "depth" -> IncrementalSE.sym_config, DFS_Inc.eval, IncrementalSE.time_solver
-    | "breadth" -> IncrementalSE.sym_config, BFS_Inc.eval, IncrementalSE.time_solver
-    | "breadth-l" -> IncrementalSE.sym_config, BFS_L_Inc.eval, IncrementalSE.time_solver
-    | "random" -> IncrementalSE.sym_config, RS_Inc.eval, IncrementalSE.time_solver
-    | _ -> failwith "unreachable"
-  end
-  | "batch" -> failwith "TODO"
-  | _ -> failwith "unreachable"
-
 let invoke (func : func_inst) (vs : sym_expr list) : unit =
   let open Source in
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
@@ -1127,26 +886,11 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
     Crash.error at ("sym_invoke: " ^ s) in
   (* extract globals to symbolic config *)
   let globs = func_to_globs func in
-  let sym_config_cons, eval, time_solver = parse_strategies () in
-  let c = sym_config_cons empty_module_inst (List.rev vs) [SInvoke func @@ at]
+  let helper = parse_encoding () in
+  let (spec, reason, witness, loop_time, solver_time, paths) = helper empty_module_inst (List.rev vs) [SInvoke func @@ at]
     !inst.sym_memory globs in
 
-  loop_start := Sys.time ();
-
-  let (spec, reason, witness) = match (eval c) with
-  | Result.Ok outs -> (
-    paths := List.length outs;
-    (true, "{}", "[]")
-  )
-  | Result.Error (reason, witness) -> (
-    (false, reason, witness)
-  )
-  in
-
-  let loop_time = (Sys.time()) -. !loop_start in
-
   Io.safe_mkdir !Flags.output;
-  solver_time := !time_solver;
 
   (* Execution report *)
   let fmt_str = "{" ^
@@ -1155,8 +899,8 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
     "\"witness\" : "             ^ witness                        ^ ", " ^
     (* "\"coverage\" : \""          ^ (string_of_float coverage)     ^ "\", " ^ *)
     "\"loop_time\" : \""         ^ (string_of_float loop_time)    ^ "\", " ^
-    "\"solver_time\" : \""       ^ (string_of_float !solver_time) ^ "\", " ^
-    "\"paths_explored\" : "      ^ (string_of_int !paths)    ^ ", " ^
+    "\"solver_time\" : \""       ^ (string_of_float solver_time) ^ "\", " ^
+    "\"paths_explored\" : "      ^ (string_of_int paths)    ^ ", " ^
     "\"solver_counter\" : "      ^ (string_of_int !solver_counter)    ^ (*", " ^*)
     (* "\"instruction_counter\" : " ^ (string_of_int !step_cnt)      ^ ", " ^ *)
     (* "\"incomplete\" : "          ^ (string_of_bool !incomplete)   ^ *)
