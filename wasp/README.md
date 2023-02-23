@@ -38,17 +38,23 @@ Once you have OCaml and Dune, simply do
 dune build
 ```
 
-You'll get an exacutable named `./_build/install/default/bin/wasp.exe`.
-This is a byte code exacutable.
+You'll get two executables named `./_build/install/default/bin/wasp-ce.exe` and `./_build/install/default/bin/wasp-se.exe`.
+These are byte code executable for the concolic and static versions of WASP, respectively.
 
 ## Running
 
-You can call the executable with
+You can call the executables with
 
 ```
-wasp [option | file ...]
+wasp-ce [option | file ...]
 ```
-#### `./wasp: undefined symbol Z3_fixedpoint_pop`
+or
+```
+wasp-se [option | file ...]
+```
+
+From now on the examples will use `wasp-xe`, where you should replace `x` with `c` or `s`.
+#### `./wasp-xe: undefined symbol Z3_fixedpoint_pop`
 
 If you encounter this or other z3 symbol related errors 
 add the following line to your shell configuration file:
@@ -69,8 +75,8 @@ format. This option allows to convert between the
 two in both directions. For example:
 
 ```
-./wasp -d module.wast -o module.wasm
-./wasp -d module.wasm -o module.wast
+./wasp-xe -d module.wast -o module.wasm
+./wasp-xe -d module.wasm -o module.wast
 ```
 #### Command Line Expressions
 
@@ -78,7 +84,7 @@ The option `-e` allows to provide arbitrary script commands
 directly on the command line. For example:
 
 ```
-./wasp module.wasm -e '(invoke "foo")'
+./wasp-xe module.wasm -e '(invoke "foo")'
 ```
 #### Additional Details
 
