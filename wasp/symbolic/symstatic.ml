@@ -20,13 +20,6 @@ exception Trap = Trap.Error
 exception Crash = Crash.Error (* failure that cannot happen in valid code *)
 exception Exhaustion = Exhaustion.Error
 
-let memory_error at = function
-  | Symmem.Bounds -> "out of bounds memory access"
-  | Memory.SizeOverflow -> "memory size overflow"
-  | Memory.SizeLimit -> "memory size limit reached"
-  | Memory.Type -> Crash.error at "type mismatch at memory access"
-  | exn -> raise exn
-
 let numeric_error at = function
   | Evaluations.UnsupportedOp m ->  m ^ ": unsupported operation"
   | Numeric_error.IntegerOverflow -> "integer overflow"
@@ -159,28 +152,28 @@ module type Encoder =
       t -> (string * Types.value_type) list -> (string * string * string) list
   end
 
-module SymbolicExecutor (E : Encoder) =
+module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStrategy =
   struct
     type sym_config = {
       sym_frame  : sym_frame;
       sym_code   : sym_code;
-      sym_mem    : Symmem.t;
+      sym_mem    : SM.t;
       sym_budget : int;  (* to model stack overflow *)
       var_map    : Varmap.t;
       sym_globals: Static_globals.t;
       chunk_table: (int32, int32) Hashtbl.t;
       encoder : E.t;
     }
-    let clone (c : sym_config) : sym_config =
+    let clone (c : sym_config) : sym_config * sym_config =
       let sym_frame = clone_frame c.sym_frame in
       let sym_code = c.sym_code in
-      let sym_mem = Symmem.clone c.sym_mem in
+      let sm, sym_mem = SM.clone c.sym_mem in
       let sym_budget = c.sym_budget in
       let var_map = Hashtbl.copy c.var_map in
       let sym_globals = Static_globals.clone_globals c.sym_globals in
       let chunk_table = Hashtbl.copy c.chunk_table in
       let encoder = E.clone c.encoder in
-      {
+      {c with sym_mem = sm }, {
         sym_frame = sym_frame;
         sym_code = sym_code;
         sym_mem = sym_mem;
@@ -199,7 +192,7 @@ module SymbolicExecutor (E : Encoder) =
         : sym_config = {
       sym_frame  = sym_frame inst [];
       sym_code   = vs, es;
-      sym_mem    = Symmem.from_heap sym_m;
+      sym_mem    = SM.from_heap sym_m;
       sym_budget = 100000; (* models default recursion limit in a system *)
       var_map = Hashtbl.create 100;
       sym_globals = globs;
@@ -208,6 +201,13 @@ module SymbolicExecutor (E : Encoder) =
     }
 
     let time_solver = E.time_solver
+
+    let memory_error at = function
+      | SM.Bounds -> "out of bounds memory access"
+      | Memory.SizeOverflow -> "memory size overflow"
+      | Memory.SizeLimit -> "memory size limit reached"
+      | Memory.Type -> Crash.error at "type mismatch at memory access"
+      | exn -> raise exn
 
     let rec step (c : sym_config) : ((sym_config list * path_conditions list), string * string) result =
       let {
@@ -252,8 +252,8 @@ module SymbolicExecutor (E : Encoder) =
 
               let l = match (sat_then, sat_else) with
               | (true, true) ->
-                let c_clone = clone c in
-                E.add encoder co;
+                let c, c_clone = clone c in
+                E.add c.encoder co;
                 E.add c_clone.encoder negated_co;
                 [{ c with sym_code = v1 :: vs', es' }
                 ;{ c_clone with sym_code = v2 :: vs', es' }]
@@ -296,8 +296,8 @@ module SymbolicExecutor (E : Encoder) =
 
               let l = match (sat_then, sat_else) with
               | (true, true) ->
-                let c_clone = clone c in
-                E.add encoder co;
+                let c, c_clone = clone c in
+                E.add c.encoder co;
                 E.add c_clone.encoder negated_co;
                 [{ c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es'  }
                 ;{ c_clone with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' }]
@@ -336,8 +336,8 @@ module SymbolicExecutor (E : Encoder) =
 
               let l = match (sat_then, sat_else) with
               | (true, true) ->
-                let c_clone = clone c in
-                E.add encoder co;
+                let c, c_clone = clone c in
+                E.add c.encoder co;
                 E.add c_clone.encoder negated_co;
                 [{ c with sym_code = vs', [SPlain (Br x) @@ e.at] }
                 ;{ c_clone with sym_code = vs', es' }]
@@ -434,8 +434,8 @@ module SymbolicExecutor (E : Encoder) =
               end;
               let v =
                 match sz with
-                | None         -> Symmem.load_value mem ptr64 offset ty
-                | Some (sz, _) -> Symmem.load_packed sz mem ptr64 offset ty
+                | None         -> SM.load_value mem ptr64 offset ty
+                | Some (sz, _) -> SM.load_packed sz mem ptr64 offset ty
               in
               let es' = List.tl es in
               Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
@@ -495,8 +495,8 @@ module SymbolicExecutor (E : Encoder) =
                   raise (BugException (Overflow, e.at, ""))
               end;
               begin match sz with
-              | None    -> Symmem.store_value mem ptr64 offset ex
-              | Some sz -> Symmem.store_packed sz mem ptr64 offset ex
+              | None    -> SM.store_value mem ptr64 offset ex
+              | Some sz -> SM.store_packed sz mem ptr64 offset ex
               end;
               let es' = List.tl es in
               Result.ok ([ { c with sym_code = vs', es' } ], [])
@@ -657,7 +657,7 @@ module SymbolicExecutor (E : Encoder) =
 
           | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
             let base = I64_convert.extend_i32_u i in
-            let x = Varmap.next (Symmem.load_string mem base) in
+            let x = Varmap.next (SM.load_string mem base) in
             let v = to_symbolic ty x in
             let es' = List.tl es in
             Hashtbl.replace var_map x ty;
@@ -733,7 +733,7 @@ module SymbolicExecutor (E : Encoder) =
             Result.ok ([ { c with sym_code = vs, es' } ], [])
 
           | PrintMemory, vs ->
-            print_endline ("Memory State:\n" ^ (Symmem.to_string mem));
+            print_endline ("Memory State:\n" ^ (SM.to_string mem));
             let es' = List.tl es in
             Result.ok ([ { c with sym_code = vs, es' } ], [])
 
@@ -859,11 +859,12 @@ module SymbolicExecutor (E : Encoder) =
       )
   end
 
-module BatchSE = SymbolicExecutor(Encoding)
-module IncrementalSE = SymbolicExecutor(IncrementalEncoding)
+(* TODO: make MB configurable like search and encoding *)
+module LazyM_BatchE_SE = SymbolicExecutor(Encoding)(Symmem.LazySMem)
+module MapM_IncrementalE_SE = SymbolicExecutor(IncrementalEncoding)(Symmem.MapSMem)
 
-module HBatchSE = Strategies.Helper(BatchSE)
-module HIncSE = Strategies.Helper(IncrementalSE)
+module HBatchSE = Strategies.Helper(LazyM_BatchE_SE)
+module HIncSE = Strategies.Helper(MapM_IncrementalE_SE)
 
 let parse_encoding () =
   match !Flags.encoding with

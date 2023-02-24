@@ -2,25 +2,51 @@ type size = int32
 type address = int64
 type offset = int32
 
-type memory
-type t = memory
+module type MemoryBackend = sig
+  type t
 
-exception Bounds
+  exception Bounds
 
-val from_heap : Heap.t -> t
+  val store_byte : t -> address -> Symvalue.sym_expr -> unit
 
-val clone : t -> t
+  val load_byte : t -> address -> Symvalue.sym_expr
 
-val load_value : t -> address -> offset -> Types.value_type ->
-  Symvalue.sym_expr
+  val from_heap : Heap.t -> t
 
-val load_packed : Memory.pack_size -> t -> address -> offset
-    ->Types.value_type -> Symvalue.sym_expr
+  val clone : t -> t * t
 
-val load_string : t -> address -> string
+  val to_string : t -> string
+end
 
-val store_value : t -> address -> offset -> Symvalue.sym_expr -> unit
+module LazyMemory : MemoryBackend
 
-val store_packed : Memory.pack_size -> t -> address -> offset -> Symvalue.sym_expr -> unit
+module MapMemory : MemoryBackend
 
-val to_string : t -> string
+module type SymbolicMemory =
+  sig
+    type t
+
+    exception Bounds
+
+    val from_heap : Heap.t -> t
+
+    val clone : t -> t * t
+
+    val load_value : t -> address -> offset -> Types.value_type ->
+      Symvalue.sym_expr
+
+    val load_packed : Memory.pack_size -> t -> address -> offset
+        ->Types.value_type -> Symvalue.sym_expr
+
+    val load_string : t -> address -> string
+
+    val store_value : t -> address -> offset -> Symvalue.sym_expr -> unit
+
+    val store_packed : Memory.pack_size -> t -> address -> offset -> Symvalue.sym_expr -> unit
+
+    val to_string : t -> string
+
+  end
+
+module LazySMem : SymbolicMemory
+module MapSMem : SymbolicMemory

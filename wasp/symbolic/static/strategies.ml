@@ -38,7 +38,7 @@ module type EncodingStrategy =
   sig
     type sym_config
 
-    val clone : sym_config -> sym_config
+    val clone : sym_config -> sym_config * sym_config
 
     val time_solver : float ref
 
@@ -51,7 +51,6 @@ module type EncodingStrategy =
 
     val step : sym_config -> ((sym_config list * Symvalue.path_conditions list), string * string) result
   end
-
 
 module type WorkList =
 sig
