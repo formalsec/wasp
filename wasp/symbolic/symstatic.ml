@@ -279,17 +279,17 @@ module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStr
             Result.ok ([ { c with sym_code = vs, es0 :: (List.tl es) } ], [])
 
           | If (ts, es1, es2), ex :: vs' ->
-            (match simplify ex with
+            (let es' = List.tl es in
+            match simplify ex with
             | Value (I32 0l) ->
               (* if it is 0 *)
-              Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at]} ], [])
+              Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' } ], [])
             | Value (I32 _) ->
               (* if it is not 0 *)
-              Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at]} ], [])
+              Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' } ], [])
             | ex -> (
               let co = Option.get (to_constraint ex) in
               let negated_co = negate_relop co in
-              let es' = List.tl es in
 
               solver_counter := !solver_counter + 2;
               let sat_then, sat_else = E.fork encoder co in
@@ -715,7 +715,7 @@ module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStr
                 if not (Hashtbl.mem chunk_table base) then (
                   let string_binds = E.string_binds encoder (Varmap.binds var_map) in
                   let witness = Store.strings_to_json string_binds in
-                  [Interrupt (Bug (InvalidFree, witness)) @@ e.at]
+                  [Interrupt (Bug (InvalidFree, witness)) @@ e.at] @ List.tl es
                 ) else (
                   Hashtbl.remove chunk_table base;
                   List.tl es
@@ -770,7 +770,7 @@ module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStr
 
       | SLabel (n, es0, (vs', {it = STrapping msg; at} :: es')), vs ->
         (* TODO *)
-        Result.ok ([], [])
+        Trap.error e.at "trap"
 
       | SLabel (n, es0, (vs', {it = SReturning vs0; at} :: es')), vs ->
         let vs'' = take n vs0 e.at @ vs in
@@ -802,7 +802,7 @@ module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStr
 
       | SFrame (n, frame', (vs', {it = STrapping msg; at} :: es')), vs ->
         (* TODO *)
-        Result.ok ([], [])
+        Trap.error e.at "trap"
 
       | SFrame (n, frame', (vs', {it = SReturning vs0; at} :: es')), vs ->
         let vs'' = take n vs0 e.at @ vs in
