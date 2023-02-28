@@ -125,6 +125,45 @@ module MapMemory : MemoryBackend = struct
 
 end
 
+module Int64Map = Map.Make(Int64)
+
+module TreeMemory : MemoryBackend = struct
+  type t = { mutable tree: Symvalue.sym_expr Int64Map.t }
+
+  let store_byte
+      (map : t)
+      (a : address)
+      (b : Symvalue.sym_expr) =
+    map.tree <- Int64Map.add a b map.tree
+
+  let load_byte
+      (map : t)
+      (a : address)
+      : Symvalue.sym_expr =
+    match Int64Map.find_opt a map.tree with
+    | Some b -> b
+    | None -> Symvalue.Extract (Symvalue.Value (Values.I64 0L), 1, 0)
+
+  let from_heap (map : Heap.t) : t =
+    let concolic_seq = (Heap.to_seq map) in
+    let concolic_to_symbolic (k, (_, s)) = (k, s) in
+    { tree = Int64Map.of_seq (Seq.map concolic_to_symbolic concolic_seq)}
+
+  let clone (map : t) : t * t =
+    map, {tree = map.tree}
+
+  let to_string (map : t) : string =
+    let lst = List.sort (fun (a, _) (b, _) -> compare a b) (List.of_seq (Int64Map.to_seq map.tree)) in
+    List.fold_right (
+      fun (a, se) acc ->
+        "(" ^ (Int64.to_string a) ^ "->" ^
+        "(" ^ (Symvalue.to_string se) ^ ")" ^
+        ")\n" ^ acc
+    ) lst ""
+  
+  exception Bounds
+end
+
 module type SymbolicMemory = sig
   type t
 
@@ -341,3 +380,4 @@ end
 
 module LazySMem : SymbolicMemory = SMem(LazyMemory)
 module MapSMem : SymbolicMemory = SMem(MapMemory)
+module TreeSMem : SymbolicMemory = SMem(TreeMemory)

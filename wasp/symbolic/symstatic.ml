@@ -862,14 +862,17 @@ module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStr
 (* TODO: make MB configurable like search and encoding *)
 module LazyM_BatchE_SE = SymbolicExecutor(Encoding)(Symmem.LazySMem)
 module MapM_IncrementalE_SE = SymbolicExecutor(IncrementalEncoding)(Symmem.MapSMem)
+module TreeM_IncrementalE_SE = SymbolicExecutor(IncrementalEncoding)(Symmem.TreeSMem)
 
 module HBatchSE = Strategies.Helper(LazyM_BatchE_SE)
 module HIncSE = Strategies.Helper(MapM_IncrementalE_SE)
+module HIncTreeSE = Strategies.Helper(TreeM_IncrementalE_SE)
 
 let parse_encoding () =
   match !Flags.encoding with
   | "batch" -> HBatchSE.helper
   | "incremental" -> HIncSE.helper
+  | "incremental-tree" -> HIncTreeSE.helper
   | _ -> failwith "unreachable"
 
 let func_to_globs (func : func_inst): Static_globals.t =

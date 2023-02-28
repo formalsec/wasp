@@ -22,6 +22,8 @@ module LazyMemory : MemoryBackend
 
 module MapMemory : MemoryBackend
 
+module TreeMemory : MemoryBackend
+
 module type SymbolicMemory =
   sig
     type t
@@ -50,3 +52,4 @@ module type SymbolicMemory =
 
 module LazySMem : SymbolicMemory
 module MapSMem : SymbolicMemory
+module TreeSMem : SymbolicMemory
