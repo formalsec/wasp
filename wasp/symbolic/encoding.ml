@@ -466,6 +466,7 @@ let value_of_const model (c, t) =
   Option.map f interp
 
 let model (s : t) : Model.model =
+  assert (check s []);
   match Solver.get_model s.solver with
   | Some m -> m
   | None -> assert false (* should not happen after sat check *)
