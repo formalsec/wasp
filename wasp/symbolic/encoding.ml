@@ -404,7 +404,7 @@ let check (s : t) (es : sym_expr list) : bool =
   b
 
 let fork (s : t) (e : sym_expr) : bool * bool =
-  (check s [ simplify e ], check s [ negate_relop (simplify e) ])
+  (check s [ e ], check s [ negate_relop e ])
 
 let set s i n =
   let bs = Bytes.of_string s in
