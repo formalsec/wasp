@@ -153,7 +153,7 @@ module TreeMemory : MemoryBackend = struct
     map, {tree = map.tree}
 
   let to_string (map : t) : string =
-    let lst = List.sort (fun (a, _) (b, _) -> compare a b) (List.of_seq (Int64Map.to_seq map.tree)) in
+    let lst = (List.of_seq (Int64Map.to_seq map.tree)) in
     List.fold_right (
       fun (a, se) acc ->
         "(" ^ (Int64.to_string a) ^ "->" ^
