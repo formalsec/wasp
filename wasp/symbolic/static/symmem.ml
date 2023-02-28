@@ -125,9 +125,9 @@ module MapMemory : MemoryBackend = struct
 
 end
 
-module Int64Map = Map.Make(Int64)
-
 module TreeMemory : MemoryBackend = struct
+  module Int64Map = Map.Make(Int64)
+
   type t = { mutable tree: Symvalue.sym_expr Int64Map.t }
 
   let store_byte
