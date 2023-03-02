@@ -15,4 +15,5 @@ let static = ref false
 let queries = ref false
 let policy = ref "breadth"
 let encoding = ref "incremental"
+let memory = ref "map"
 let hashtbl_default_size = 128

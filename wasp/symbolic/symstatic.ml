@@ -152,7 +152,7 @@ module type Encoder =
       t -> (string * Types.value_type) list -> (string * string * string) list
   end
 
-module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStrategy =
+module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpreter =
   struct
     type sym_config = {
       sym_frame  : sym_frame;
@@ -859,21 +859,29 @@ module SymbolicExecutor (E : Encoder) (SM : Symmem.SymbolicMemory) : EncodingStr
       )
   end
 
-(* TODO: make MB configurable like search and encoding *)
-module LazyM_BatchE_SE = SymbolicExecutor(Encoding)(Symmem.LazySMem)
-module MapM_IncrementalE_SE = SymbolicExecutor(IncrementalEncoding)(Symmem.MapSMem)
-module TreeM_IncrementalE_SE = SymbolicExecutor(IncrementalEncoding)(Symmem.TreeSMem)
+module EncodingSelector (SM : Symmem.SymbolicMemory) = struct
+  module SI_SM = SymbolicInterpreter(SM)
 
-module HBatchSE = Strategies.Helper(LazyM_BatchE_SE)
-module HIncSE = Strategies.Helper(MapM_IncrementalE_SE)
-module HIncTreeSE = Strategies.Helper(TreeM_IncrementalE_SE)
+  module BatchHelper = Strategies.Helper(SI_SM(Encoding))
+  module IncrementalHelper = Strategies.Helper(SI_SM(IncrementalEncoding))
 
-let parse_encoding () =
-  match !Flags.encoding with
-  | "batch" -> HBatchSE.helper
-  | "incremental" -> HIncSE.helper
-  | "incremental-tree" -> HIncTreeSE.helper
-  | _ -> failwith "unreachable"
+  let parse_encoding () =
+    match !Flags.encoding with
+    | "batch" -> BatchHelper.helper
+    | "incremental" -> IncrementalHelper.helper
+    | _ -> failwith "Invalid encoding option"
+end
+
+module MapMem_EncondingSelector = EncodingSelector(Symmem.MapSMem)
+module LazyMem_EncondingSelector = EncodingSelector(Symmem.LazySMem)
+module TreeMem_EncondingSelector = EncodingSelector(Symmem.TreeSMem)
+
+let parse_memory_and_encoding () =
+  match !Flags.memory with
+  | "map" -> MapMem_EncondingSelector.parse_encoding ()
+  | "lazy" -> LazyMem_EncondingSelector.parse_encoding ()
+  | "tree" -> TreeMem_EncondingSelector.parse_encoding ()
+  | _ -> failwith "Invalid memory backend"
 
 let func_to_globs (func : func_inst): Static_globals.t =
   match Func.get_inst func with
@@ -890,7 +898,7 @@ let invoke (func : func_inst) (vs : sym_expr list) : unit =
     Crash.error at ("sym_invoke: " ^ s) in
   (* extract globals to symbolic config *)
   let globs = func_to_globs func in
-  let helper = parse_encoding () in
+  let helper = parse_memory_and_encoding () in
   let (spec, reason, witness, loop_time, solver_time, paths) = helper empty_module_inst (List.rev vs) [SInvoke func @@ at]
     !inst.sym_memory globs in
 

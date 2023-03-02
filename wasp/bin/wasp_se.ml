@@ -44,10 +44,13 @@ let argspec =
         " maximum instr interpreted during a model" );
       ( "--policy",
         Arg.Set_string Flags.policy,
-        " search policy random|depth|breadth (default: random)" );
+        " search policy random|depth|breadth|breadth-l|half-breadth (default: random)" );
       ( "--encoding",
         Arg.Set_string Flags.encoding,
         " encoding policy incremental|batch (default: incremental)" );
+      ( "--memory",
+        Arg.Set_string Flags.memory,
+        " memory backend map|lazy|tree (default: map)" );
       ( "--queries",
         Arg.Set Flags.queries,
         " output solver queries in .smt2 format" );

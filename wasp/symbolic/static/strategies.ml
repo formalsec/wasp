@@ -34,7 +34,7 @@ and sym_admin_instr' =
     *)
   | Interrupt of interruption
 
-module type EncodingStrategy =
+module type Interpreter =
   sig
     type sym_config
 
@@ -64,9 +64,9 @@ sig
   val length : 'a t -> int
 end
 
-module TreeStrategy (L : WorkList) (ES : EncodingStrategy) =
+module TreeStrategy (L : WorkList) (I : Interpreter) =
 struct
-  let eval (c : ES.sym_config) : (Symvalue.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Symvalue.path_conditions list, string * string) result =
     let w = L.create () in
     L.push c w;
 
@@ -74,7 +74,7 @@ struct
     let outs = ref [] in
     while Option.is_none !err && not ((L.is_empty w)) do
       let c = L.pop w in
-      match (ES.step c) with
+      match (I.step c) with
       | Result.Ok (cs', outs') -> begin
         L.add_seq w (List.to_seq cs');
         outs := !outs @ outs';
@@ -92,11 +92,11 @@ end
 module DFS = TreeStrategy(Stack)
 module BFS = TreeStrategy(Queue)
 
-module BFS_L (ES : EncodingStrategy) =
+module BFS_L (I : Interpreter) =
 struct
   let max_configs = 32
 
-  let eval (c : ES.sym_config) : (Symvalue.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Symvalue.path_conditions list, string * string) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -105,7 +105,7 @@ struct
     while Option.is_none !err && not ((Queue.is_empty w)) do
       let l = Queue.length w in
       let c = Queue.pop w in
-      match (ES.step c) with
+      match (I.step c) with
       | Result.Ok (cs', outs') -> begin
         if l + List.length cs' <= max_configs then
           Queue.add_seq w (List.to_seq cs')
@@ -123,11 +123,11 @@ struct
     | None -> Result.ok !outs
 end
 
-module Half_BFS (ES : EncodingStrategy) =
+module Half_BFS (I : Interpreter) =
 struct
   let max_configs = 512
 
-  let eval (c : ES.sym_config) : (Symvalue.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Symvalue.path_conditions list, string * string) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -135,7 +135,7 @@ struct
     let outs = ref [] in
     while Option.is_none !err && not ((Queue.is_empty w)) do
       let c = Queue.pop w in
-      match (ES.step c) with
+      match (I.step c) with
       | Result.Ok (cs', outs') -> begin
         Queue.add_seq w (List.to_seq cs');
         outs := !outs @ outs';
@@ -155,9 +155,9 @@ struct
     | None -> Result.ok !outs
 end
 
-module ProgressBFS (ES : EncodingStrategy) =
+module ProgressBFS (I : Interpreter) =
 struct
-  let eval (c : ES.sym_config) : (Symvalue.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Symvalue.path_conditions list, string * string) result =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
@@ -170,7 +170,7 @@ struct
       while Option.is_none !err && not ((Queue.is_empty hot)) do
         let l = Queue.length hot in
         let c = Queue.pop hot in
-        match (ES.step c) with
+        match (I.step c) with
         | Result.Ok (cs', outs') -> begin
           if l + List.length cs' <= !max_configs then
             Queue.add_seq hot (List.to_seq cs')
@@ -193,14 +193,14 @@ struct
     | None -> Result.ok !outs
 end
 
-module RS (ES : EncodingStrategy) =
+module RS (I : Interpreter) =
 struct
-  let sym_config = ES.sym_config
+  let sym_config = I.sym_config
 
-  let eval (c : ES.sym_config) : (Symvalue.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Symvalue.path_conditions list, string * string) result =
     let open Batteries in
 
-    let swap (v : ES.sym_config BatDynArray.t) (x : int) (y : int) =
+    let swap (v : I.sym_config BatDynArray.t) (x : int) (y : int) =
       let tmp = BatDynArray.get v x in
       BatDynArray.set v x (BatDynArray.get v y);
       BatDynArray.set v y tmp;
@@ -219,7 +219,7 @@ struct
       let c = BatDynArray.last w in
       BatDynArray.delete_last w;
 
-      match (ES.step c) with
+      match (I.step c) with
       | Result.Ok (cs', outs') -> begin
         BatDynArray.append (BatDynArray.of_list cs') w;
 
@@ -235,13 +235,13 @@ struct
     | None -> Result.ok !outs
 end
 
-module Helper (ES : EncodingStrategy) =
+module Helper (I : Interpreter) =
 struct
-  module DFS_ES = DFS(ES)
-  module BFS_ES = BFS(ES)
-  module BFS_L_ES = BFS_L(ES)
-  module Half_BFS_ES = Half_BFS(ES)
-  module RS_ES = RS(ES)
+  module DFS_I = DFS(I)
+  module BFS_I = BFS(I)
+  module BFS_L_I = BFS_L(I)
+  module Half_BFS_I = Half_BFS(I)
+  module RS_I = RS(I)
   let helper
       (inst : Instance.module_inst)
       (vs : Symvalue.sym_expr list)
@@ -249,14 +249,14 @@ struct
       (sym_m : Heap.t)
       (globs : Static_globals.t)
       : bool * string * string * float * float * int =
-    let c = ES.sym_config inst vs es sym_m globs in
+    let c = I.sym_config inst vs es sym_m globs in
 
     let eval = match !Flags.policy with
-    | "depth" -> DFS_ES.eval
-    | "breadth" -> BFS_ES.eval
-    | "breadth-l" -> BFS_L_ES.eval
-    | "half-breadth" -> Half_BFS_ES.eval
-    | "random" -> RS_ES.eval
+    | "depth" -> DFS_I.eval
+    | "breadth" -> BFS_I.eval
+    | "breadth-l" -> BFS_L_I.eval
+    | "half-breadth" -> Half_BFS_I.eval
+    | "random" -> RS_I.eval
     | _ -> failwith "unreachable"
     in
 
@@ -272,5 +272,5 @@ struct
 
     let loop_time = (Sys.time()) -. loop_start in
 
-    spec, reason, witness, loop_time, !ES.time_solver, paths
+    spec, reason, witness, loop_time, !I.time_solver, paths
 end
