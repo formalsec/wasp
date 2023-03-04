@@ -351,7 +351,8 @@ let rec step (c : config) : config =
             if not (Encoding.check solver formulas) then (vs', [], pc, bp)
             else
               let binds =
-                Encoding.value_binds solver (Store.get_key_types store)
+                Encoding.(
+                  model_binds (get_model solver) (Store.get_key_types store))
               in
               Store.update store binds;
               (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
@@ -375,7 +376,8 @@ let rec step (c : config) : config =
               let tree', _ = Execution_tree.move_true !tree in
               tree := tree';
               let binds =
-                Encoding.value_binds solver (Store.get_key_types store)
+                Encoding.(
+                  model_binds (get_model solver) (Store.get_key_types store))
               in
               Store.update store binds;
               Heap.update mem store;
@@ -623,7 +625,9 @@ let write_report spec reason witness loop_time : unit =
   Io.save_file (Filename.concat !Flags.output "report.json") report_str
 
 let update_config c glob code mem =
-  let binds = Encoding.value_binds solver (Store.get_key_types c.store) in
+  let binds =
+    Encoding.(model_binds (get_model solver) (Store.get_key_types c.store))
+  in
   Store.reset c.store;
   Store.init c.store binds;
   Globals.clear c.glob;
@@ -685,9 +689,8 @@ module Guided_search (L : Work_list) = struct
         | _ -> None
       in
       if not !skip then
-        write_test_case test_suite
-          (Store.to_json store)
-          (Option.is_some err) cntr;
+        write_test_case test_suite (Store.to_json store) (Option.is_some err)
+          cntr;
       if Option.is_some err then false
       else if L.is_empty wl then true
       else

@@ -465,19 +465,26 @@ let value_of_const model (c, t) =
   in
   Option.map f interp
 
-let model (s : t) : Model.model =
-  assert (check s []);
+let get_model (s : t) : Model.model =
   match Solver.get_model s.solver with
   | Some m -> m
   | None -> assert false (* should not happen after sat check *)
 
-let value_binds (s : t) (vars : (string * value_type) list) :
+let model (s : t) : Model.model =
+  assert (check s []);
+  get_model s
+
+let model_binds (model : Model.model) (vars : (string * value_type) list) :
     (string * value) list =
-  let model = model s in
   List.fold_left
     (fun a (x, t) ->
       let v = value_of_const model (Symvalue.to_symbolic t x, t) in
       Batteries.Option.map_default (fun v' -> (x, v') :: a) a v)
     [] vars
+
+let value_binds (s : t) (vars : (string * value_type) list) :
+    (string * value) list =
+  let model = model s in
+  model_binds model vars
 
 let string_binds s vars = []
