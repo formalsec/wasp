@@ -8,47 +8,36 @@ log = logging.getLogger(__name__)
 class WASP:
     def __init__(
             self,
-            smt_assume,
-            no_simplify,
-            static,
+            verbose=False,
             instr_limit=-1,
             time_limit=900,                  # default 15mins
             memory_limit=15*1024*1024*1024   # default 15Gib
         ):
-        self.smt_assume = smt_assume
-        self.no_simplify = no_simplify
-        self.static = static
-        self.instr_limit = instr_limit
-        self.time_limit = time_limit
+        self.verbose = verbose,
+        self.instr_limit  = instr_limit
+        self.time_limit   = time_limit
         self.memory_limit = memory_limit
 
     @staticmethod
     def limit_ram(limit):
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
-    def cmd(self, test_prog, entry_func, output_dir, policy):
-        args = []
-        if self.smt_assume:
-            args.append('--smt-assume')
-        if self.no_simplify:
-            args.append('--no-simplify')
-        if self.static:
-            args.append('-static')
-        return [
-            'wasp', test_prog,
-            '-t',
-            '-e', f'(invoke \"{entry_func}\")',
-            '-m', str(self.instr_limit),
-            '--workspace', output_dir,
-            '--policy', policy
-        ] + args
+    def cmd(self, prog, entry_func, args=[]):
+        args.append('-u')
+        if self.verbose:
+            args.append('-t')
+        if self.instr_limit > -1:
+            args.append('-m')
+            args.append(str(self.instr_limit))
+        args.append('-e')
+        args.append(f'(invoke \"{entry_func}\")')
+        return ['wasp', prog] + args
 
-    def run(self, 
-            test_file, 
+    def run(self,
+            prog,
             entry_func,
-            output_dir="output",
-            policy="random",
-            instr_limit=None, 
+            args,
+            instr_limit=None,
             time_limit=None
         ):
         # set options
@@ -63,15 +52,15 @@ class WASP:
         timeout = False
         stdout = None
         stderr = None
-        cmd = self.cmd(test_file, entry_func, output_dir, policy)
-        log.debug(f'WASP command: \'{" ".join(cmd)}\'')
-        try: 
+        cmd = self.cmd(prog, entry_func, args)
+        log.debug(f"WASP command: \"{' '.join(cmd)}\"")
+        try:
             result = subprocess.run(
                 cmd,
                 text=True,
                 check=True,
                 capture_output=True,
-                timeout=self.time_limit, 
+                timeout=self.time_limit,
                 preexec_fn=(lambda: WASP.limit_ram(self.memory_limit))
             )
             stdout = result.stdout
@@ -87,11 +76,11 @@ class WASP:
 
         total_time = time.time() - time_start
         return ExecutionResult(
-            filename=test_file, 
-            stdout=stdout, 
+            filename=prog,
+            stdout=stdout,
             stderr=stderr,
-            crashed=crashed, 
-            timeout=timeout, 
+            crashed=crashed,
+            timeout=timeout,
             time=total_time
         )
 

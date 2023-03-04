@@ -6,15 +6,21 @@ import pathlib
 
 script = pathlib.Path(__file__).resolve()
 project_dir = script.parent.parent.absolute()
-module_dir = project_dir
-bin_dir = project_dir / 'bin'
+module_dir  = project_dir
+python_dir  = project_dir / 'python-libs'
+binary_dir  = project_dir / 'bin'
+libs_dir    = project_dir / 'libs'
+
+os.environ['PATH'] = str(binary_dir) + os.pathsep + os.environ['PATH']
+
+if 'LD_LIBRARY_PATH' in os.environ:
+    os.environ['LD_LIBRARY_PATH'] = str(libs_dir) + os.pathsep + \
+        os.environ['LD_LIBRARY_PATH']
+else:
+    os.environ['LD_LIBRARY_PATH'] = str(libs_dir)
 
 sys.path.insert(0, str(module_dir))
-
-root_dir = script.parent.parent.parent.absolute()
-wasp_dir = root_dir / 'wasp'
-
-os.environ['PATH'] += os.pathsep + str(wasp_dir)
+sys.path.insert(0, str(python_dir))
 
 import wasp
 

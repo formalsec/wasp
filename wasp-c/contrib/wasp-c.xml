@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.18//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.18.dtd">
+<benchmark tool="wasp-c" displayName="WASP-C" timelimit="15 min" memlimit="15 GB" cpuCores="8">
+
+  <require cpuModel="Intel Xeon E3-1230 v5 @ 3.40 GHz" cpuCores="8"/>
+
+  <resultfiles>**/test-suite</resultfiles>
+
+  <option name="--smt-assume" />
+
+  <option name="--policy">breadth</option>
+
+  <option name="--test-comp" />
+
+  <rundefinition name="Test-Comp23_coverage-error-call">
+    <propertyfile>../sv-benchmarks/c/properties/coverage-error-call.prp</propertyfile>
+  </rundefinition>
+
+  <rundefinition name="Test-Comp23_coverage-branches">
+    <propertyfile>../sv-benchmarks/c/properties/coverage-branches.prp</propertyfile>
+  </rundefinition>
+
+  <tasks name="ReachSafety-Arrays">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Arrays.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-BitVectors">
+    <includesfile>../sv-benchmarks/c/ReachSafety-BitVectors.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-ControlFlow">
+    <includesfile>../sv-benchmarks/c/ReachSafety-ControlFlow.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-ECA">
+    <includesfile>../sv-benchmarks/c/ReachSafety-ECA.set</includesfile>
+    <excludesfile>excludes/ReachSafety-ECA-excludes.set</excludesfile>
+  </tasks>
+  <tasks name="ReachSafety-Floats">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Floats.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-Heap">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Heap.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-Loops">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Loops.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-ProductLines">
+    <includesfile>../sv-benchmarks/c/ReachSafety-ProductLines.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-Recursive">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Recursive.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-Sequentialized">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Sequentialized.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-XCSP">
+    <includesfile>../sv-benchmarks/c/ReachSafety-XCSP.set</includesfile>
+  </tasks>
+  <tasks name="ReachSafety-Combinations">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Combinations.set</includesfile>
+  </tasks>
+    <tasks name="ReachSafety-Hardware">
+    <includesfile>../sv-benchmarks/c/ReachSafety-Hardware.set</includesfile>
+  </tasks>
+
+  <tasks name="SoftwareSystems-BusyBox-MemSafety">
+    <includesfile>../sv-benchmarks/c/SoftwareSystems-BusyBox-MemSafety.set</includesfile>
+  </tasks>
+
+  <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
+    <includesfile>../sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
+    <excludesfile>../sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64Large-ReachSafety.set</excludesfile>
+  </tasks>
+
+  <tasks name="SoftwareSystems-SQLite-MemSafety">
+    <includesfile>../sv-benchmarks/c/SoftwareSystems-SQLite-MemSafety.set</includesfile>
+  </tasks>
+
+  <tasks name="Termination-MainHeap">
+    <includesfile>../sv-benchmarks/c/Termination-MainHeap.set</includesfile>
+  </tasks>
+
+</benchmark>
+

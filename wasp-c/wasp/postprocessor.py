@@ -1,21 +1,39 @@
 import re
 
 patterns = [
-    ('call \$__WASP_alloc', 'alloc'),
-    ('call \$__WASP_dealloc', 'free'),
-    ('call \$__WASP_assume', 'sym_assume'),
-    ('call \$__WASP_assert', 'sym_assert'),
-    ('call \$__WASP_symb_int', 'i32.symbolic'),
-    ('call \$__WASP_symb_long', 'i64.symbolic'),
-    ('call \$__WASP_symb_float', 'f32.symbolic'),
-    ('call \$__WASP_symb_double', 'f64.symbolic'),
-    ('call \$__WASP_is_symbolic', 'is_symbolic'),
-    ('call \$__WASP_print_stack', 'print_stack'),
-    ('call \$__WASP_print_pc', 'print_pc'),
-    ('call \$__logand', 'i32.__logand'),
-    ('call \$__logor', 'i32.__logor'),
-    ('anyfunc', 'funcref'),
-    ('\(elem \(;0;\) \(i32.const 1\) func', '(elem (;0;) (i32.const 1)')
+    # Test-Comp Patterns
+    (r"call \$assume$", "sym_assume"),
+    (r"call \$assume_abort_if_not$", "sym_assume"),
+    (r"call \$assume_cycle_if_not$", "sym_assume"),
+    (r"call \$assert", "sym_assert"),
+    (r"call \$__VERIFIER_nondet_bool", "b32.symbolic"),
+    (r"call \$__VERIFIER_nondet_char", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_uchar", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_short", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_ushort", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_int", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_uint", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_long", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_ulong", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_float", "f32.symbolic"),
+    (r"call \$__VERIFIER_nondet_double", "f64.symbolic"),
+    # Generic WASP-C Patterns
+    (r"call \$__WASP_alloc", "alloc"),
+    (r"call \$__WASP_dealloc", "free"),
+    (r"call \$__WASP_assume", "sym_assume"),
+    (r"call \$__WASP_assert", "sym_assert"),
+    (r"call \$__WASP_symb_int", "i32.symbolic"),
+    (r"call \$__WASP_symb_long", "i64.symbolic"),
+    (r"call \$__WASP_symb_float", "f32.symbolic"),
+    (r"call \$__WASP_symb_double", "f64.symbolic"),
+    (r"call \$__WASP_is_symbolic", "is_symbolic"),
+    (r"call \$__WASP_print_stack", "print_stack"),
+    (r"call \$__WASP_print_pc", "print_pc"),
+    (r"call \$__logand", "i32.__logand"),
+    (r"call \$__logor", "i32.__logor"),
+    (r"call \$__ternary", "__ternary_op"),
+    ("anyfunc", "funcref"),
+    ("\(elem \(;0;\) \(i32.const 1\) func", "(elem (;0;) (i32.const 1)")
 ]
 
 def sub_patterns(line):
@@ -25,4 +43,4 @@ def sub_patterns(line):
 
 def process(text):
     lines = text.splitlines()
-    return '\n'.join([sub_patterns(line) for line in lines])
+    return "\n".join([sub_patterns(line) for line in lines])
