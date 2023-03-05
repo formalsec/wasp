@@ -3,8 +3,8 @@ CC=clang
 LD=wasm-ld
 LIB=.
 SRC=.
-BIN=../bin
-BUILD=../_build
+BIN=../../bin
+BUILD=../../_build
 
 # Optimizations
 OPT ?= -O0

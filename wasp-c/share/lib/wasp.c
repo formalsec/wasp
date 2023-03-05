@@ -21,6 +21,7 @@ double __WASP_double(char *name) {
 }
 
 /* symbolic variable manipulation */
+void assume(int expr) { return __WASP_assume(expr); }
 void __WASP_assume(int expr) { }
 void __WASP_assert(int expr) { }
 int __WASP_is_symbolic(void *var, unsigned int sz) {
@@ -60,4 +61,8 @@ int __logor(int a, int b) {
     "i32.or;"
     "return;"
   );
+}
+
+int __ternary(int cond, int a, int b) {
+  return cond ? a : b;
 }

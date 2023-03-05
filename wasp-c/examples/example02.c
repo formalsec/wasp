@@ -1,8 +1,6 @@
 #include <wasp.h>
 
-int IFG(int cond, int id) {
-  return cond;
-}
+extern int __VERIFIER_nondet_int();
 
 void test(int a, int b) {
   if (a && b) {
@@ -15,8 +13,8 @@ void test(int a, int b) {
 }
 
 int main() {
-  int a = __WASP_symb_int("a");
-  int b = __WASP_symb_int("b");
+  int a = __VERIFIER_nondet_int();
+  int b = __VERIFIER_nondet_int();
   test(a, b);
   return 0;
 }

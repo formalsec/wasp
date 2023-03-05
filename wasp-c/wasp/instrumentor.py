@@ -1,6 +1,5 @@
 import sys
 import logging
-import tempfile
 
 from pycparser import c_ast, parse_file
 from pycparser.c_generator import CGenerator
@@ -15,7 +14,7 @@ class MethodNotImplemented(Exception):
 
     def __init__(self, name):
         self.name = name
-        self.message = f'visit_{name}: method not implemented'
+        self.message = f"visit_{name}: method not implemented"
         super().__init__(self.message)
 
 class ParsingError(Exception):
@@ -30,48 +29,49 @@ def process_text(text, src_file, includes, rm_boolops=True):
 
     # split includes from the program string
     lines = text.splitlines()
-    incl = filter(lambda l: l.startswith('#include'), lines)
-    incl = '\n'.join(list(incl))
+    incl = filter(lambda l: l.startswith("#include"), lines)
+    incl = "\n".join(list(incl)) + "#include <wasp-c.h>\n"
 
     try:
-        args = map(lambda path: f'-I{path}', includes)
+        args = map(lambda path: f"-I{path}", includes)
         ast = parse_file(
             src_file,
             use_cpp=True,
-            cpp_path='gcc',
-            cpp_args=[r'-E'] + list(args)
+            cpp_path="clang",
+            cpp_args=[r"-E"] + list(args)
         )
     except ParseError as e:
         raise ParsingError(str(e))
 
-    n_ast = visitor.visit(ast)          
+    n_ast = visitor.visit(ast)
     n_code = visitor.to_string(n_ast)
 
-    return incl + '\n' + n_code
+    return incl + "\n" + n_code
 
 def process_file(src_file, dst_file, includes, rm_boolops=True):
 
     def _split_includes(text):
         lines = text.splitlines()
-        includes = '\n'.join(list(filter(lambda l: l.startswith('#include'), 
+        includes = "\n".join(list(filter(lambda l: l.startswith("#include"), 
                                       lines)))
-        code = '\n'.join(list(filter(lambda l: not l.startswith('#include'), 
+        code = "\n".join(list(filter(lambda l: not l.startswith("#include"), 
                                      lines)))
         return includes, code
 
     # preprocess input file
-    with open(src_file, 'r') as src, open(dst_file, 'w') as dst:
+    with open(src_file, "r") as src:
         incls, code = _split_includes(src.read())
-        dst.write(incls + '\n' + 'void __start();' + '\n' + code)
+    with open(dst_file, "w") as dst:
+        dst.write(incls + "\n" + "void __start();" + "\n" + code)
 
     # parse input file
-    args = map(lambda inc: f'-I{inc}', includes)
+    args = map(lambda inc: f"-I{inc}", includes)
     try:
         ast = parse_file(
             dst_file,
             use_cpp=True,
-            cpp_path='gcc',
-            cpp_args=[r'-E'] + list(args)
+            cpp_path="clang",
+            cpp_args=[r"-E"] + list(args)
         )
     except ParseError as e:
         raise ParsingError(str(e))
@@ -81,10 +81,10 @@ def process_file(src_file, dst_file, includes, rm_boolops=True):
     n_code = visitor.to_string(visitor.visit(ast))
 
     lines = n_code.splitlines()
-    i = lines.index('void __start();')
+    i = lines.index("void __start();")
 
-    with open(dst_file, 'w') as dst:
-        dst.write(incls + '\n' + '\n'.join(lines[i+1:]))
+    with open(dst_file, "w") as dst:
+        dst.write(incls + "\n" + "#include <wasp.h>\n" + "\n".join(lines[i+1:]))
 
 class BinopVisitor(c_ast.NodeVisitor):
 
@@ -104,10 +104,10 @@ class BinopVisitor(c_ast.NodeVisitor):
         return fresh
 
     def _get_binop_func(self, op):
-        if op == '&&':
-            return '__logand'
-        elif op == '||':
-            return '__logor'
+        if op == "&&":
+            return "__logand"
+        elif op == "||":
+            return "__logor"
         else:
             raise RuntimeError
 
@@ -116,7 +116,7 @@ class BinopVisitor(c_ast.NodeVisitor):
 
     def visit_ArrayDecl(self, node):
         return node
-    
+
     def visit_ArrayRef(self, node):
         return node
 
@@ -129,7 +129,7 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_BinaryOp(self, node):
-        if (node.op in ['&&', '||']) and not self.boolops:
+        if (node.op in ["&&", "||"]) and not self.boolops:
             return c_ast.FuncCall(
                 c_ast.ID(self._get_binop_func(node.op)),
                 c_ast.ExprList([
@@ -196,11 +196,11 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_DoWhile(self, node):
-        n_cond = c_ast.FuncCall(
-            c_ast.ID('IFG'),
+        _ = c_ast.FuncCall(
+            c_ast.ID("IFG"),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(self._fresh_int()))
+                c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -213,7 +213,7 @@ class BinopVisitor(c_ast.NodeVisitor):
 
     def visit_EllipsisParam(self, node):
         return node
-       
+
     def visit_EmptyStatement(self, node):
         return node
 
@@ -239,11 +239,11 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_For(self, node):
-        n_cond = c_ast.FuncCall(
-            c_ast.ID('IFG'),
+        _ = c_ast.FuncCall(
+            c_ast.ID("IFG"),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(self._fresh_int()))
+                c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -282,13 +282,13 @@ class BinopVisitor(c_ast.NodeVisitor):
 
     def visit_IdentifierType(self, node):
         return node
-    
+
     def visit_If(self, node):
-        n_cond = c_ast.FuncCall(
-            c_ast.ID('IFG'),
+        _ = c_ast.FuncCall(
+            c_ast.ID("IFG"),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(self._fresh_int()))
+                c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -342,11 +342,11 @@ class BinopVisitor(c_ast.NodeVisitor):
         return node
 
     def visit_Switch(self, node):
-        n_cond = c_ast.FuncCall(
-            c_ast.ID('IFG'),
+        _ = c_ast.FuncCall(
+            c_ast.ID("IFG"),
             c_ast.ExprList([
                 self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(self._fresh_int()))
+                c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
         )
@@ -358,22 +358,22 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_TernaryOp(self, node):
-#        return c_ast.FuncCall(
-#            c_ast.ID('__ternary'),
-#            c_ast.ExprList([
-#                self._safe_visit(node.cond),
-#                self._safe_visit(node.iftrue),
-#                self._safe_visit(node.iffalse)
-#            ]),
-#            node.coord
-#        )
-        return c_ast.TernaryOp(
-            self._safe_visit(node.cond),
-            self._safe_visit(node.iftrue),
-            self._safe_visit(node.iffalse),
+        return c_ast.FuncCall(
+            c_ast.ID("__ternary"),
+            c_ast.ExprList([
+                self._safe_visit(node.cond),
+                self._safe_visit(node.iftrue),
+                self._safe_visit(node.iffalse)
+            ]),
             node.coord
         )
-#
+#        return c_ast.TernaryOp(
+#            self._safe_visit(node.cond),
+#            self._safe_visit(node.iftrue),
+#            self._safe_visit(node.iffalse),
+#            node.coord
+#        )
+
     def visit_TypeDecl(self, node):
         return node
 
@@ -382,23 +382,23 @@ class BinopVisitor(c_ast.NodeVisitor):
 
     def visit_Typename(self, node):
         return node
-    
+
     def visit_UnaryOp(self, node):
         return c_ast.UnaryOp(
             node.op,
             self._safe_visit(node.expr),
             node.coord
         )
-        
+
     def visit_Union(self, node):
         return node
 
     def visit_While(self, node):
-        n_cond = c_ast.FuncCall(
-            c_ast.ID('IFG'),
+        _ = c_ast.FuncCall(
+            c_ast.ID("IFG"),
             c_ast.ExprList([
-                self._safe_visit(node.cond), 
-                c_ast.Constant('int', str(self._fresh_int()))
+                self._safe_visit(node.cond),
+                c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
         )

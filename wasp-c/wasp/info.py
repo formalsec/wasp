@@ -1,3 +1,3 @@
-__NAME__ = 'wasp-c'
+__NAME__ = "wasp-c"
 
-__VERSION__ = '0.1'
+__VERSION__ = "0.1"
