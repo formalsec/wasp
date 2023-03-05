@@ -1,16 +1,15 @@
 import os
 import sys
 import glob
-import json
 import shutil
 import logging
 import argparse
 import subprocess
 
 from . import info
-
 from . import logger
 from . import testcomp
+from . import io
 from . import instrumentor as pre
 from . import postprocessor as post
 
@@ -29,6 +28,22 @@ def get_parser():
         "-v",
         action="version",
         version=f"version {info.__VERSION__}"
+    )
+
+    parser.add_argument(
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        default=False,
+        help="show messages verbose",
+    )
+
+    parser.add_argument(
+        "--backend",
+        dest="backend",
+        action="store",
+        default=None,
+        help="path to backend engine configuration file"
     )
 
     parser.add_argument(
@@ -59,14 +74,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--verbose",
-        dest="verbose",
-        action="store_true",
-        default=False,
-        help="show messages verbose",
-    )
-
-    parser.add_argument(
         "--rm-boolops",
         dest="boolops",
         action="store_true",
@@ -80,22 +87,6 @@ def get_parser():
         action="store",
         default="__original_main",
         help="entry function to start analysis"
-    )
-
-    parser.add_argument(
-        "--smt-assume",
-        dest="smt_assume",
-        action="store_true",
-        default=False,
-        help="use the solver to progress in the assume rule"
-    )
-
-    parser.add_argument(
-        "--no-simplify",
-        dest="no_simplify",
-        action="store_true",
-        default=False,
-        help="do not perform algebraic simplifications of symbolic expressions"
     )
 
     parser.add_argument(
@@ -113,22 +104,6 @@ def get_parser():
       action="store",
       default=None,
       help="prepare file for WASP analysis using post-processing"
-    )
-
-    parser.add_argument(
-        "--policy",
-        dest="policy",
-        action="store",
-        default="random",
-        help="search policy: random|depth|breadth"
-    )
-
-    parser.add_argument(
-        "--queries",
-        dest="queries",
-        action="store_true",
-        default=False,
-        help="output solver queries in .smt2 format"
     )
 
     parser.add_argument(
@@ -177,13 +152,7 @@ def preprocess_file(src_file, dst_file, includes, boolops, instrument=False):
     log.debug(f"Created \"{dst_file}\".")
     return 0
 
-def configure(
-        output_dir,
-        root_dir,
-        src_code,
-        includes,
-        entry_func
-    ):
+def configure(output_dir, root_dir, src_code, includes, entry_func):
     log.debug(f"Configuring compilation...")
 
     # Copy `Makefile" to `output_dir"
@@ -257,31 +226,16 @@ def postprocess_file(infile, outfile=None):
         f.write(n_text)
     return 0
 
-def get_wasp_args(args):
-    n_args = []
-    if args.smt_assume:
-        n_args.append("--smt-assume")
-    if args.no_simplify:
-        n_args.append("--no-simplify")
-    if args.queries:
-        n_args.append("--queries")
-    return n_args + [
-        "--workspace", args.output_dir,
-        "--policy", args.policy
-    ]
-
 def get_test_suite(testsuite):
     testcases = []
     for testcase in testsuite:
-        try:
-            with open(testcase, "r") as f:
-                inputs = json.load(f)
-                inputs = filter(lambda t: not (("__hb" in t["name"]) or \
-                                               ("ternary" in t["name"])),
-                                inputs)
-                testcases.append(inputs)
-        except json.decoder.JSONDecodeError:
-            pass
+        inputs = io.read_json(testcase)
+        if not inputs:
+            continue
+        inputs = filter(lambda t: not (("__hb" in t["name"]) or
+                                       ("ternary" in t["name"])),
+                        inputs)
+        testcases.append(inputs)
     return testcases
 
 def main(root_dir, argv=None):
@@ -320,7 +274,7 @@ def main(root_dir, argv=None):
 
     log.info("Setting up analysis files...")
 
-    includes = args.includes + [os.path.join(root_dir, "lib")]
+    includes = args.includes + [os.path.join(root_dir, "share", "lib")]
     harness = os.path.join(args.output_dir, "instrumented_file.c")
     if preprocess_file(args.file, harness, includes, args.boolops, \
                        args.test_comp) != 0:
@@ -338,20 +292,27 @@ def main(root_dir, argv=None):
         wasm_harness = os.path.splitext(harness)[0] + ".wat"
         if postprocess_file(wasm_harness) != 0:
             log.error(f"Failed to annotate Wasm module!")
-            return -1
+            return 1
+
+        backend_file = args.backend
+        if not backend_file:
+            backend_file = os.path.join(root_dir, "share", "conf",
+                                        "wasp-ce.json")
+        backend_conf = io.read_json(backend_file)
+        if not backend_conf:
+            log.error(f"Failed to load backend configuration!")
+            return 1
 
         # run WASP
-        analyser = WASP(verbose=args.verbose)
-        #analyser = exe.WASP(instr_limit=10000000,time_limit=20)
+        analyser = WASP(backend_conf, verbose=args.verbose)
         log.info("Starting WASP...")
-        res = analyser.run(wasm_harness, args.entry_func,
-                           args=get_wasp_args(args), time_limit=895)
-        if args.verbose:
+        res = analyser.run(wasm_harness, args.entry_func)
+        if args.verbose and res.stdout and res.stderr:
             log.debug("Exporting stdout and stdin...")
             with open(wasm_harness + ".out", "w") as out, \
                     open(wasm_harness + ".err", "w") as err:
-                out.write(res.stdout.encode("UTF-8"))
-                err.write(res.stderr.encode("UTF-8"))
+                out.write(res.stdout)
+                err.write(res.stderr)
         if res.crashed:
             log.error(f"WASP crashed")
         elif res.timeout:
