@@ -3,7 +3,7 @@ type count = int
 type counter = (name, count) Hashtbl.t
 type t = counter
 
-let create () : counter = Hashtbl.create 128
+let create () : counter = Hashtbl.create Flags.hashtbl_default_size
 let clear (cnt : counter) : unit = Hashtbl.clear cnt
 
 let reset (cnt : counter) : unit =

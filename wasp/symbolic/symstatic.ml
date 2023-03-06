@@ -194,9 +194,9 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
       sym_code   = vs, es;
       sym_mem    = SM.from_heap sym_m;
       sym_budget = 100000; (* models default recursion limit in a system *)
-      var_map = Hashtbl.create 100;
+      var_map = Hashtbl.create Flags.hashtbl_default_size;
       sym_globals = globs;
-      chunk_table = Hashtbl.create 512;
+      chunk_table = Hashtbl.create Flags.hashtbl_default_size;
       encoder = E.create ();
     }
 

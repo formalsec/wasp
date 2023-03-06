@@ -65,12 +65,12 @@ module LazyMemory : MemoryBackend = struct
 
   let clone (lmem : t) : t * t =
     let child1 = {
-      map = Hashtbl.create 64;
+      map = Hashtbl.create Flags.hashtbl_default_size;
       parent = Some lmem;
     }
     in
     let child2 = {
-      map = Hashtbl.create 64;
+      map = Hashtbl.create Flags.hashtbl_default_size;
       parent = Some lmem;
     }
     in
@@ -160,7 +160,7 @@ module TreeMemory : MemoryBackend = struct
         "(" ^ (Symvalue.to_string se) ^ ")" ^
         ")\n" ^ acc
     ) lst ""
-  
+
   exception Bounds
 end
 
