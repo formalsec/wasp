@@ -225,6 +225,76 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
       | Memory.Type -> Crash.error at "type mismatch at memory access"
       | exn -> raise exn
 
+    let concretize_alloc (c : sym_config) : sym_config list =
+      let {
+        sym_code = vs, es;
+        var_map = var_map;
+        chunk_table = chunk_table;
+        encoder = encoder;
+        _} = c
+      in
+      let e, es' = match es with
+      | e :: es' -> e, es'
+      | _ -> failwith "unreachable"
+      in
+      let s_size, s_base, vs' = match vs with
+      | s_size :: s_base :: vs' -> s_size, s_base, vs'
+      | _ -> failwith "unreachable"
+      in
+
+      let helper (size : int32 option): sym_config option  =
+        let size_cond = Option.map
+          (function size ->
+            Symvalue.I32Relop (Si32.I32Eq, s_size, Value (I32 size))
+            ) size
+        in
+        let cond_list = match size_cond with
+        | Some c -> [c]
+        | None -> []
+        in
+        match E.check encoder cond_list with
+        | false -> None
+        | true -> begin
+          let _, c = clone c in
+          begin
+            match size_cond with
+            | Some size_cond -> E.add c.encoder size_cond
+            | None -> ()
+          end;
+          let binds = E.value_binds c.encoder (Varmap.binds c.var_map)in
+          let logic_env = Store.create binds in
+
+          let open Source in
+          let c_size = Store.eval logic_env s_size in
+          let size = match c_size with
+          | I32 size -> size
+          | _ ->
+            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 size: " ^ Types.string_of_value_type (Values.type_of c_size));
+          in
+          let c_base = Store.eval logic_env s_base in
+          let base = match c_base with
+          | I32 base -> base
+          | _ ->
+            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 base: " ^ Types.string_of_value_type (Values.type_of c_base));
+          in
+
+          let base_cond = Symvalue.I32Relop (Si32.I32Eq, s_base, Value (I32 base)) in
+          E.add c.encoder base_cond;
+          Hashtbl.add c.chunk_table base size;
+
+          let sym_ptr = SymPtr (base, (Value (I32 0l))) in
+          Some { c with sym_code = sym_ptr :: List.tl vs, List.tl es }
+          end
+      in
+
+      let fixed_numbers = [4l; 0l; 256l; 4096l] in
+      let fixed_attempts = List.filter_map helper
+        (List.map Option.some fixed_numbers) in
+      if List.length fixed_attempts > 0 then
+        fixed_attempts
+      else
+        [Option.get (helper None)]
+
     let rec step (c : sym_config) : ((sym_config list * path_conditions list), string * string) result =
       let {
         sym_frame = frame;
@@ -697,33 +767,8 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
             let sym_ptr = SymPtr (base, (Value (I32 0l))) in
             Result.ok ([{c with sym_code = sym_ptr :: vs', List.tl es}], [])
 
-          | Alloc, s_size :: s_base :: vs' ->
-            let binds = E.value_binds encoder (Varmap.binds var_map)in
-            let logic_env = Store.create binds in
-
-            let c_size = Store.eval logic_env s_size in
-            let size = match c_size with
-            | I32 size -> size
-            | _ ->
-              failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 size: " ^ Types.string_of_value_type (Values.type_of c_size));
-            in
-            let c_base = Store.eval logic_env s_base in
-            let base = match c_base with
-            | I32 base -> base
-            | _ ->
-              failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 base: " ^ Types.string_of_value_type (Values.type_of c_base));
-            in
-
-            let size_cond = Symvalue.I32Relop (Si32.I32Eq, s_size, Value (I32 size))
-            and base_cond = Symvalue.I32Relop (Si32.I32Eq, s_base, Value (I32 base)) in
-
-            E.add encoder size_cond;
-            E.add encoder base_cond;
-            Hashtbl.add chunk_table base size;
-
-            let sym_ptr = SymPtr (base, (Value (I32 0l))) in
-            (* TODO: generate a configuration equal to the original with the conditions denied in the path_cond ? *)
-            Result.ok ([{ c with sym_code = sym_ptr :: vs', List.tl es }], [])
+          | Alloc, _ :: _ :: vs' ->
+            Result.ok (concretize_alloc c, [])
 
           | Free, ptr :: vs' -> (
             match simplify ptr with
