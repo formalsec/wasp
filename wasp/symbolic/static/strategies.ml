@@ -89,8 +89,31 @@ struct
     | None -> Result.ok !outs
 end
 
+module RandArray : WorkList = struct
+  type 'a t = 'a BatDynArray.t
+
+  exception Empty
+
+  let create () = BatDynArray.create ()
+  let is_empty a = BatDynArray.empty a
+  let push v a = BatDynArray.add a v
+  let add_seq (a : 'a t) (s : 'a Seq.t) : unit =
+    Seq.iter (fun v -> push v a) s
+
+  let length = BatDynArray.length
+
+  let pop (a : 'a t) : 'a =
+    let length = BatDynArray.length a in
+    let i = Random.int length in
+    let v = BatDynArray.get a i in
+    BatDynArray.set a i (BatDynArray.last a);
+    BatDynArray.delete_last a;
+    v
+end
+
 module DFS = TreeStrategy(Stack)
 module BFS = TreeStrategy(Queue)
+module RS = TreeStrategy(RandArray)
 
 module BFS_L (I : Interpreter) =
 struct
@@ -186,48 +209,6 @@ struct
       (* only increase max size if we have a lot of splits *)
       if Queue.length hot >= !max_configs * 3 / 4 then
         max_configs := !max_configs * 2;
-    done;
-
-    match !err with
-    | Some step_err -> Result.error step_err
-    | None -> Result.ok !outs
-end
-
-module RS (I : Interpreter) =
-struct
-  let sym_config = I.sym_config
-
-  let eval (c : I.sym_config) : (Symvalue.path_conditions list, string * string) result =
-    let open Batteries in
-
-    let swap (v : I.sym_config BatDynArray.t) (x : int) (y : int) =
-      let tmp = BatDynArray.get v x in
-      BatDynArray.set v x (BatDynArray.get v y);
-      BatDynArray.set v y tmp;
-    in
-
-    let w = BatDynArray.create () in
-    BatDynArray.add w c;
-
-    let err = ref None in
-    let outs = ref [] in
-    while Option.is_none !err && not ((BatDynArray.empty w)) do
-      if BatDynArray.length w > 1 then begin
-        let idx = Random.int (BatDynArray.length w) in
-        swap w idx (BatDynArray.length w - 1);
-      end;
-      let c = BatDynArray.last w in
-      BatDynArray.delete_last w;
-
-      match (I.step c) with
-      | Result.Ok (cs', outs') -> begin
-        BatDynArray.append (BatDynArray.of_list cs') w;
-
-        outs := !outs @ outs';
-      end
-      | Result.Error step_err -> begin
-        err := Some step_err;
-      end;
     done;
 
     match !err with

@@ -707,25 +707,9 @@ module Guided_search (L : Work_list) = struct
     write_report spec "{}" "[]" (Sys.time () -. !loop_start)
 end
 
-module RandArray : Work_list = struct
-  type 'a t = 'a BatDynArray.t
-
-  exception Empty
-
-  let create () = BatDynArray.create ()
-  let is_empty a = BatDynArray.empty a
-  let push v a = BatDynArray.add a v
-
-  let pop a =
-    let i = Random.int (BatDynArray.length a) in
-    let v = BatDynArray.get a i in
-    BatDynArray.delete a i;
-    v
-end
-
 module DFS = Guided_search (Stack)
 module BFS = Guided_search (Queue)
-module RND = Guided_search (RandArray)
+module RND = Guided_search (Strategies.RandArray)
 
 let set_timeout (time_limit : int) : unit =
   let alarm_handler i : unit =
