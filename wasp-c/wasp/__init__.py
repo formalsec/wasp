@@ -265,7 +265,7 @@ def main(root_dir, argv=None):
             log.error("Please specify a property file for test-comp!")
             return 1
 
-        if os.path.exists(test_comp_dir):
+        if not os.path.exists(test_comp_dir):
             os.makedirs(test_comp_dir)
 
     if not os.path.exists(args.output_dir):

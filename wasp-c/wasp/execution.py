@@ -28,15 +28,16 @@ class WASP:
         ]
         return args + self.config["additional_args"]
 
-    def run(self, file, func, timeout=900, memout=15*1024*1024):
+    def run(self, file, func, timeout=900, memout=15*1024*1024*1024):
         time_start = time.time()
-        crashed, timeout = False, False
+        crashed, timed = False, False
         stdout, stderr = None, None
         try:
             args = self.get_args()
-            log.debug(f"WASP args: \"{args}\"")
+            cmd = [self.engine, file, "-e", f"(invoke \"{func}\")"] + args
+            log.debug(f"WASP args: \"{cmd}\"")
             result = subprocess.run(
-                [self.engine, file, "-e", f"(invoke \"{func}\")"] + args,
+                cmd,
                 text=True,
                 check=True,
                 capture_output=True,
@@ -48,11 +49,11 @@ class WASP:
             crashed = True
             stdout, stderr = e.stdout, e.stderr
         except subprocess.TimeoutExpired as e:
-            timeout = True
+            timed = True
             stdout, stderr = e.stdout, e.stderr
 
         total_time = time.time() - time_start
-        return ExecutionResult(file, stdout, stderr, crashed, timeout,
+        return ExecutionResult(file, stdout, stderr, crashed, timed,
                                total_time)
 
 class ExecutionResult:

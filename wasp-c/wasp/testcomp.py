@@ -101,22 +101,22 @@ patterns = [
                 "unsigned :[h1] __VERIFIER_nondet_u:[h1](char *)"),
         ("return __VERIFIER_nondet_:[[h1]](...)", \
                 "return __VERIFIER_nondet_:[h1](\"return_:[id()]\")"),
-        (r":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]__VERIFIER_nondet_:[h2]()", \
+        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]__VERIFIER_nondet_:[h2]()", \
                 ":[h1] = __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        (r":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*](:[cast]):[~\s*]__VERIFIER_nondet_:[h2]()", \
+        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*](:[cast]):[~\s*]__VERIFIER_nondet_:[h2]()", \
                 ":[h1] = (:[cast]) __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        (r":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]:[ops]:[~\s*]__VERIFIER_nondet_:[h2]()", \
+        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]:[ops]:[~\s*]__VERIFIER_nondet_:[h2]()", \
                 ":[h1] = :[ops] __VERIFIER_nondet_:[h2](\":[h1]\")"),
         (":[[h1]] = __VERIFIER_nondet_:[h2]()", \
                 ":[h1] = __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        (r"if:[~\s*](:[~\s*]__VERIFIER_nondet_:[h1]():[~\s*])", \
+        ("if:[~\s*](:[~\s*]__VERIFIER_nondet_:[h1]():[~\s*])", \
                 "if (__VERIFIER_nondet_:[h1](\"if_:[id()]\"))"),
-        (r":[[cond]]:[~\s*](:[h2]__VERIFIER_nondet_:[h1]():[h3])", \
+        (":[[cond]]:[~\s*](:[h2]__VERIFIER_nondet_:[h1]():[h3])", \
                 ":[cond] (:[h2]__VERIFIER_nondet_:[h1](\":[cond]_:[id()]\"):[h3])"),
         ("void assume(...) {...}", ""),
         ("void assert(...) {...}", ""),
         ("void abort(...) {...}" , ""),
-        (r"__attribute__:[~\s?](...)", ""),
+        ("__attribute__:[~\s?](...)", ""),
         ("__restrict", ""),
         ("__inline", ""),
         ("void reach_error() {...}", "void reach_error() { __WASP_assert(0); }"),
