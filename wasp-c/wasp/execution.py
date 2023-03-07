@@ -15,7 +15,7 @@ class WASP:
     def limit_ram(limit):
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
-    def get_args(self):
+    def get_args(self, output):
         args = []
         if not self.config["type_checker"]:
             args.append("-u")
@@ -24,16 +24,16 @@ class WASP:
         args += [
             "--policy", self.config["policy"],
             "--timeout", str(self.config["timeout"]),
-            "--workspace", self.config["workspace"]
+            "--workspace", output
         ]
         return args + self.config["additional_args"]
 
-    def run(self, file, func, timeout=900, memout=15*1024*1024*1024):
+    def run(self, file, func, output, timeout=900, memout=15*1024*1024*1024):
         time_start = time.time()
         crashed, timed = False, False
         stdout, stderr = None, None
         try:
-            args = self.get_args()
+            args = self.get_args(output)
             cmd = [self.engine, file, "-e", f"(invoke \"{func}\")"] + args
             log.debug(f"WASP args: \"{cmd}\"")
             result = subprocess.run(

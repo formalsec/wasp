@@ -1,7 +1,6 @@
 {
   "tool" : "wasp-ce",
   "policy" : "breadth",
-  "workspace" : "wasp-out",
   "type_checker" : false,
   "timeout" : 895,
   "debug" : true,
