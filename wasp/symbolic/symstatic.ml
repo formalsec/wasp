@@ -287,7 +287,7 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
           end
       in
 
-      let fixed_numbers = [4l; 0l; 256l; 4096l] in
+      let fixed_numbers = [0l; 1l; 2l; 4l; 8l; 256l; 4096l] in
       let fixed_attempts = List.filter_map helper
         (List.map Option.some fixed_numbers) in
       if List.length fixed_attempts > 0 then
