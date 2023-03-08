@@ -36,6 +36,14 @@ unsigned int __VERIFIER_nondet_uint(char *name) {
 	return (unsigned int) __WASP_symb_int(name);
 }
 
+__int128 __VERIFIER_nondet_int128(char *name) {
+	return __WASP_symb_int(name);
+}
+
+unsigned __int128 __VERIFIER_nondet_uint128(char *name) {
+	return (unsigned __int128) __WASP_symb_int(name);
+}
+
 unsigned int __VERIFIER_nondet_charp(char *name) {
 	return (unsigned int) __WASP_symb_int(name);
 }

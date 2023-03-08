@@ -38,6 +38,7 @@ extern FILE *stdin, *stdout, *stderr;
 #define _IOLBF 1
 #define _IOFBF 2
 
+int puts(const char *);
 int printf(const char *format, ...);
 int fprintf(FILE *stream, const char *format, ...);
 int sprintf(char *str, const char *format, ...);

@@ -91,6 +91,7 @@ class BinopVisitor(c_ast.NodeVisitor):
     def __init__(self, boolops=False):
         self.counter = 0
         self.boolops = boolops
+        self.ctx = [ "" ]
 
     def _safe_visit(self, node):
         return self.visit(node) if node is not None else node
@@ -181,7 +182,17 @@ class BinopVisitor(c_ast.NodeVisitor):
         return node
 
     def visit_Decl(self, node):
-        return node
+        return c_ast.Decl(
+            node.name,
+            node.quals,
+            node.align,
+            node.storage,
+            node.funcspec,
+            self._safe_visit(node.type),
+            node.init,
+            node.bitsize,
+            node.coord
+        )
 
     def visit_DeclList(self, node):
         return c_ast.DeclList(
@@ -264,11 +275,17 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_FuncDecl(self, node):
-        return node
+        n_args = node.args
+        if self.ctx[-1] == "main" and n_args:
+            n_args = None
+        return c_ast.FuncDecl(n_args, node.type, node.coord)
 
     def visit_FuncDef(self, node):
+        self.ctx.append(node.decl.name)
+        n_decl = self._safe_visit(node.decl)
+        self.ctx.pop()
         return c_ast.FuncDef(
-            node.decl,
+            n_decl,
             node.param_decls,
             self._safe_visit(node.body),
             node.coord

@@ -13,6 +13,8 @@ patterns = [
     (r"call \$__VERIFIER_nondet_ushort", "i32.symbolic"),
     (r"call \$__VERIFIER_nondet_int", "i32.symbolic"),
     (r"call \$__VERIFIER_nondet_uint", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_int128", "i32.symbolic"),
+    (r"call \$__VERIFIER_nondet_uint128", "i32.symbolic"),
     (r"call \$__VERIFIER_nondet_long", "i32.symbolic"),
     (r"call \$__VERIFIER_nondet_ulong", "i32.symbolic"),
     (r"call \$__VERIFIER_nondet_float", "f32.symbolic"),

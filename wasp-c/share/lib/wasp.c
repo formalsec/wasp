@@ -16,7 +16,7 @@ long long __WASP_symb_long(char *name) {
 float __WASP_symb_float(char *name) {
   return (float)0;
 }
-double __WASP_double(char *name) {
+double __WASP_symb_double(char *name) {
   return (double)0;
 }
 

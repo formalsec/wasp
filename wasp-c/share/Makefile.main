@@ -27,12 +27,12 @@ WARN += -Wno-implicit-function-declaration
 
 INCLUDES += -I$(LIBC_INC)
 
-CFLAGS += -g -emit-llvm --target=wasm32 -m32
+CFLAGS += -std=c99 -g -emit-llvm --target=wasm32 -m32
 CFLAGS += -ffreestanding -fbracket-depth=512 -fno-jump-tables
 CFLAGS += $(INCLUDES)
 CFLAGS += $(WARN) -c
 
-LDFLAGS += -L$(LIBC_DIR)
+LDFLAGS += -L$(LIBC_DIR) -z stack-size=1073741824
 LDFLAGS += --no-entry --export=$(ENTRY_FUN)
 LDFLAGS += -lc
 
