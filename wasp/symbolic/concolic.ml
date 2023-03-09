@@ -669,44 +669,40 @@ module Guided_search (L : Work_list) = struct
     and code0 = c.code
     and mem0 = Heap.memcpy c.mem in
     let wl = L.create () in
-    let skip = ref false in
+    let rec eval (c : config) : config =
+      match c.code with
+      | vs, [] -> c
+      | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
+      | vs, { it = Interrupt i; at } :: es -> c
+      | vs, es ->
+          let c' = step c in
+          List.iter (fun pc -> L.push pc wl) c'.bp;
+          eval { c' with bp = [] }
+    in
+    let rec find_sat_pc pcs =
+      if L.is_empty pcs then false
+      else if not (Encoding.check solver (L.pop pcs)) then find_sat_pc pcs
+      else true
+    in
     let rec loop c =
-      let rec eval (c : config) : config =
-        match c.code with
-        | vs, [] -> c
-        | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-        | vs, { it = Interrupt (Restart pc); at } :: _ ->
-            skip := true;
-            iterations := !iterations - 1;
-            { c with code = ([], []) }
-        | vs, { it = Interrupt i; at } :: es -> c
-        | vs, es ->
-            let c' = step c in
-            List.iter (fun pc -> L.push pc wl) c'.bp;
-            eval { c' with bp = [] }
-      in
-      skip := false;
       iterations := !iterations + 1;
       let { code = _, es; store; bp; _ } = eval c in
       List.iter (fun pc -> L.push pc wl) bp;
       let err =
         match es with
-        | { it = Interrupt i; at } :: _ -> Some (i, at)
-        | _ -> None
+        | { it = Interrupt (Restart _); at } :: _ -> 
+            iterations := !iterations - 1;
+            None
+        | { it = Interrupt i; at } :: _ ->
+            write_test_case test_suite (Store.to_json store) true cntr;
+            Some (i, at)
+        | _ ->
+            write_test_case test_suite (Store.to_json store) false cntr;
+            None
       in
-      if not !skip then
-        write_test_case test_suite (Store.to_json store) (Option.is_some err)
-          cntr;
       if Option.is_some err then false
-      else if L.is_empty wl then true
-      else
-        let rec find_sat_pc pcs =
-          if L.is_empty pcs then false
-          else if not (Encoding.check solver (L.pop pcs)) then find_sat_pc pcs
-          else true
-        in
-        if not (find_sat_pc wl) then true
-        else loop (update_config c glob0 code0 mem0)
+      else if L.is_empty wl || not (find_sat_pc wl) then true
+      else loop (update_config c glob0 code0 mem0)
     in
     loop_start := Sys.time ();
     let spec = loop c in
