@@ -28,7 +28,7 @@ class WASP:
         ]
         return args + self.config["additional_args"]
 
-    def run(self, file, func, output, timeout=900, memout=15*1024*1024*1024):
+    def run(self, file, func, output, timeout=-1, memout=15*1024*1024*1024):
         time_start = time.time()
         crashed, timed = False, False
         stdout, stderr = None, None
@@ -41,7 +41,7 @@ class WASP:
                 text=True,
                 check=True,
                 capture_output=True,
-                timeout=timeout,
+                timeout=timeout if timeout >= 0 else None,
                 preexec_fn=(lambda: WASP.limit_ram(memout))
             )
             stdout, stderr = result.stdout, result.stderr

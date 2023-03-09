@@ -27,6 +27,8 @@ def get_parser():
                         version=f"version {info.__VERSION__}")
     parser.add_argument("--verbose", dest="verbose", action="store_true",
                         default=False, help="show messages verbose")
+    parser.add_argument("--timeout", dest="timeout", action="store", type=int,
+                        default=-1, help="timelimit for analysis")
     parser.add_argument("--backend", dest="backend", action="store",
                         default=None,
                         help="path to backend engine configuration file")
@@ -221,7 +223,8 @@ def main(root_dir, argv=None):
         # run WASP
         analyser = WASP(backend_conf, verbose=args.verbose)
         log.info("Starting WASP...")
-        res = analyser.run(wasm_harness, args.entry_func, args.output_dir)
+        res = analyser.run(wasm_harness, args.entry_func, args.output_dir,
+                           timeout=args.timeout)
         if args.verbose and res.stdout and res.stderr:
             log.debug("Exporting stdout and stdin...")
             with open(wasm_harness + ".out", "w") as out, \
