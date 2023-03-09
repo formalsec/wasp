@@ -42,9 +42,9 @@ type policy = Random | Depth | Breadth
 type bug = Overflow | UAF | InvalidFree
 
 type interruption =
-  | IntLimit
-  | AssFail of path_conditions
-  | AsmFail of path_conditions
+  | Limit
+  | Failure of path_conditions
+  | Restart of path_conditions
   | Bug of bug
 
 type 'a stack = 'a list
@@ -336,7 +336,7 @@ let rec step (c : config) : config =
         | Dup, v :: vs' -> (v :: v :: vs', [], pc, bp)
         | SymAssert, (I32 0l, ex) :: vs' ->
             debug ">>> Assert FAILED! Stopping...";
-            (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
+            (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssert, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
         | SymAssert, (I32 i, ex) :: vs' ->
@@ -348,15 +348,15 @@ let rec step (c : config) : config =
                   model_binds (get_model solver) (Store.get_key_types store))
               in
               Store.update store binds;
-              (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
+              (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            if i = 0l then (vs', [ Interrupt (AsmFail pc) @@ e.at ], pc, bp)
+            if i = 0l then (vs', [ Interrupt (Restart pc) @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
               let br = branch_on_cond false ex pc tree in
               let pc' = add_constraint ~neg:true ex pc in
-              (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc', br :: bp)
+              (vs', [ Interrupt (Restart pc') @@ e.at ], pc', br :: bp)
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
@@ -560,7 +560,7 @@ let rec step (c : config) : config =
   let e' =
     step_cnt := !step_cnt + 1;
     if (not (!Flags.inst_limit = -1)) && !step_cnt >= !Flags.inst_limit then
-      [ Interrupt IntLimit @@ e.at ]
+      [ Interrupt Limit @@ e.at ]
     else []
   in
   { c with code = (vs', e' @ es' @ List.tl es); pc = pc'; bp = bp' }
@@ -640,7 +640,7 @@ module Guided_search (L : Work_list) = struct
         match c.code with
         | vs, [] -> c
         | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-        | vs, { it = Interrupt (AsmFail pc); at } :: _ ->
+        | vs, { it = Interrupt (Restart pc); at } :: _ ->
             skip := true;
             iterations := !iterations - 1;
             { c with code = ([], []) }
