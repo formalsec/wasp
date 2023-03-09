@@ -93,11 +93,7 @@ let config inst vs es mem glob tree =
     budget = 100000;
   }
 
-exception InstrLimit of config
-exception AssumeFail of config * path_conditions
-exception AssertFail of config * region
 exception BugException of config * region * bug
-exception Unsatisfiable
 
 let head = ref Execution_tree.Leaf
 let step_cnt = ref 0
