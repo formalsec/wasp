@@ -447,7 +447,7 @@ let int64_of_fp (fp : Expr.expr) (ebits : int) (sbits : int) : int64 =
     v
 
 let value_of_const model (c, t) =
-  let interp = Model.get_const_interp_e model (encode_sym_expr c) in
+  let interp = Model.eval model (encode_sym_expr c) true in
   let f e =
     let v =
       if BitVector.is_bv e then int64_of_bv e

@@ -164,7 +164,7 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then add_constraint ~neg:bval c pc else []
+  if to_branch then Some (add_constraint ~neg:bval c pc) else None
 
 let rec step (c : config) : config =
   let { frame; glob; code = vs, es; mem; store; heap; pc; bp; tree; _ } = c in
@@ -192,26 +192,46 @@ let rec step (c : config) : config =
             else (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' ->
             if i = 0l then
-              let br = branch_on_cond false ex pc tree in
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond false ex pc tree)
+              in
               let pc' = add_constraint ~neg:true ex pc in
-              (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', br :: bp)
+              (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', bp')
             else
-              let br = branch_on_cond true ex pc tree in
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond true ex pc tree)
+              in
               let pc' = add_constraint ex pc in
-              (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', br :: bp)
+              (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', bp')
         | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             if i = 0l then (vs', [], pc, bp)
             else (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' ->
             if i = 0l then
-              let br = branch_on_cond false ex pc tree in
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond false ex pc tree)
+              in
               let pc' = add_constraint ~neg:true ex pc in
-              (vs', [], pc', br :: bp)
+              (vs', [], pc', bp')
             else
-              let br = branch_on_cond true ex pc tree in
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond true ex pc tree)
+              in
               let pc' = add_constraint ex pc in
-              (vs', [ Plain (Br x) @@ e.at ], pc', br :: bp)
+              (vs', [ Plain (Br x) @@ e.at ], pc', bp')
         | BrTable (xs, x), (I32 i, _) :: vs'
           when I32.ge_u i (Lib.List32.length xs) ->
             (vs', [ Plain (Br x) @@ e.at ], pc, bp)
@@ -230,11 +250,21 @@ let rec step (c : config) : config =
             if i = 0l then (v2 :: vs', [], pc, bp) else (v1 :: vs', [], pc, bp)
         | Select, (I32 i, ve) :: v2 :: v1 :: vs' ->
             if i = 0l then
-              let br = branch_on_cond false ve pc tree in
-              (v2 :: vs', [], add_constraint ~neg:true ve pc, br :: bp)
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond false ve pc tree)
+              in
+              (v2 :: vs', [], add_constraint ~neg:true ve pc, bp')
             else
-              let br = branch_on_cond true ve pc tree in
-              (v1 :: vs', [], add_constraint ve pc, br :: bp)
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond true ve pc tree)
+              in
+              (v1 :: vs', [], add_constraint ve pc, bp')
         | LocalGet x, vs -> (!(local frame x) :: vs, [], pc, bp)
         | LocalSet x, (v, ex) :: vs' ->
             local frame x := (v, simplify ex);
@@ -354,9 +384,14 @@ let rec step (c : config) : config =
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
-              let br = branch_on_cond false ex pc tree in
+              let bp' =
+                Batteries.Option.map_default
+                  (fun br -> br :: bp)
+                  bp
+                  (branch_on_cond false ex pc tree)
+              in
               let pc' = add_constraint ~neg:true ex pc in
-              (vs', [ Interrupt (Restart pc') @@ e.at ], pc', br :: bp)
+              (vs', [ Interrupt (Restart pc') @@ e.at ], pc', bp')
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
@@ -647,13 +682,13 @@ module Guided_search (L : Work_list) = struct
         | vs, { it = Interrupt i; at } :: es -> c
         | vs, es ->
             let c' = step c in
-            List.iter (fun pc -> if not (pc = []) then L.push pc wl) c'.bp;
+            List.iter (fun pc -> L.push pc wl) c'.bp;
             eval { c' with bp = [] }
       in
       skip := false;
       iterations := !iterations + 1;
       let { code = _, es; store; bp; _ } = eval c in
-      List.iter (fun pc -> if not (pc = []) then L.push pc wl) bp;
+      List.iter (fun pc -> L.push pc wl) bp;
       let err =
         match es with
         | { it = Interrupt i; at } :: _ -> Some (i, at)
