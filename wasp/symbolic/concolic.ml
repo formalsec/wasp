@@ -190,33 +190,36 @@ let rec step (c : config) : config =
               [ Label (0, [ e' @@ e.at ], ([], List.map plain es')) @@ e.at ],
               pc,
               bp )
-        | If (ts, es1, es2), (I32 0l, ex) :: vs' when is_concrete (simplify ex)
-          ->
-            (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc, bp)
-        | If (ts, es1, es2), (I32 0l, ex) :: vs' ->
-            let br = branch_on_cond false ex pc tree in
-            let pc' = add_constraint ~neg:true ex pc in
-            (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', br :: bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' when is_concrete (simplify ex)
           ->
-            (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
+            if i = 0l then
+              (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc, bp)
+            else
+              (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' ->
-            let br = branch_on_cond true ex pc tree in
-            let pc' = add_constraint ex pc in
-            (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', br :: bp)
+            if i = 0l then
+              let br = branch_on_cond false ex pc tree in
+              let pc' = add_constraint ~neg:true ex pc in
+              (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', br :: bp)
+            else
+              let br = branch_on_cond true ex pc tree in
+              let pc' = add_constraint ex pc in
+              (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', br :: bp)
         | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
-        | BrIf x, (I32 0l, ex) :: vs' when is_concrete (simplify ex) ->
-            (vs', [], pc, bp)
-        | BrIf x, (I32 0l, ex) :: vs' ->
-            let br = branch_on_cond false ex pc tree in
-            let pc' = add_constraint ~neg:true ex pc in
-            (vs', [], pc', br :: bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            (vs', [ Plain (Br x) @@ e.at ], pc, bp)
+            if i = 0l then
+              (vs', [], pc, bp)
+            else
+              (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' ->
-            let br = branch_on_cond true ex pc tree in
-            let pc' = add_constraint ex pc in
-            (vs', [ Plain (Br x) @@ e.at ], pc', br :: bp)
+            if i = 0l then
+              let br = branch_on_cond false ex pc tree in
+              let pc' = add_constraint ~neg:true ex pc in
+              (vs', [], pc', br :: bp)
+            else
+              let br = branch_on_cond true ex pc tree in
+              let pc' = add_constraint ex pc in
+              (vs', [ Plain (Br x) @@ e.at ], pc', br :: bp)
         | BrTable (xs, x), (I32 i, _) :: vs'
           when I32.ge_u i (Lib.List32.length xs) ->
             (vs', [ Plain (Br x) @@ e.at ], pc, bp)
@@ -230,18 +233,19 @@ let rec step (c : config) : config =
               (vs, [ Trapping "indirect call type mismatch" @@ e.at ], pc, bp)
             else (vs, [ Invoke func @@ e.at ], pc, bp)
         | Drop, v :: vs' -> (vs', [], pc, bp)
-        | Select, (I32 0l, ve) :: v2 :: v1 :: vs' when is_concrete (simplify ve)
+        | Select, (I32 i, ve) :: v2 :: v1 :: vs' when is_concrete (simplify ve)
           ->
-            (v2 :: vs', [], pc, bp)
-        | Select, (I32 0l, ve) :: v2 :: v1 :: vs' ->
-            let br = branch_on_cond false ve pc tree in
-            (v2 :: vs', [], add_constraint ~neg:true ve pc, br :: bp)
-        | Select, (I32 i, ex) :: v2 :: v1 :: vs' when is_concrete (simplify ex)
-          ->
-            (v1 :: vs', [], pc, bp)
-        | Select, (I32 i, ex) :: v2 :: v1 :: vs' ->
-            let br = branch_on_cond true ex pc tree in
-            (v1 :: vs', [], add_constraint ex pc, br :: bp)
+            if i = 0l then
+              (v2 :: vs', [], pc, bp)
+            else
+              (v1 :: vs', [], pc, bp)
+        | Select, (I32 i, ve) :: v2 :: v1 :: vs' ->
+            if i = 0l then
+              let br = branch_on_cond false ve pc tree in
+              (v2 :: vs', [], add_constraint ~neg:true ve pc, br :: bp)
+            else
+              let br = branch_on_cond true ve pc tree in
+              (v1 :: vs', [], add_constraint ve pc, br :: bp)
         | LocalGet x, vs -> (!(local frame x) :: vs, [], pc, bp)
         | LocalSet x, (v, ex) :: vs' ->
             local frame x := (v, simplify ex);
@@ -356,8 +360,11 @@ let rec step (c : config) : config =
               in
               Store.update store binds;
               (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
-        | SymAssume, (I32 0l, ex) :: vs' when is_concrete (simplify ex) ->
-            (vs', [ Interrupt (AsmFail pc) @@ e.at ], pc, bp)
+        | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
+            if i = 0l then
+              (vs', [ Interrupt (AsmFail pc) @@ e.at ], pc, bp)
+            else
+              (vs', [], pc, bp)
         | SymAssume, (I32 0l, ex) :: vs' when not !Flags.smt_assume ->
             let br = branch_on_cond false ex pc tree in
             let pc' = add_constraint ~neg:true ex pc in
@@ -384,8 +391,6 @@ let rec step (c : config) : config =
               let f (_, s) = (Store.eval store s, s) in
               List.iter (fun a -> a := f !a) frame.locals;
               (List.map f vs', [], pc', bp)
-        | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             debug ">>> Assume passed. Continuing execution...";
             let tree', _ = Execution_tree.move_true !tree in
