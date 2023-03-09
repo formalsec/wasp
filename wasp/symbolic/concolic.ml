@@ -192,10 +192,8 @@ let rec step (c : config) : config =
               bp )
         | If (ts, es1, es2), (I32 i, ex) :: vs' when is_concrete (simplify ex)
           ->
-            if i = 0l then
-              (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc, bp)
-            else
-              (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
+            if i = 0l then (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc, bp)
+            else (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' ->
             if i = 0l then
               let br = branch_on_cond false ex pc tree in
@@ -207,10 +205,8 @@ let rec step (c : config) : config =
               (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', br :: bp)
         | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            if i = 0l then
-              (vs', [], pc, bp)
-            else
-              (vs', [ Plain (Br x) @@ e.at ], pc, bp)
+            if i = 0l then (vs', [], pc, bp)
+            else (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' ->
             if i = 0l then
               let br = branch_on_cond false ex pc tree in
@@ -235,10 +231,7 @@ let rec step (c : config) : config =
         | Drop, v :: vs' -> (vs', [], pc, bp)
         | Select, (I32 i, ve) :: v2 :: v1 :: vs' when is_concrete (simplify ve)
           ->
-            if i = 0l then
-              (v2 :: vs', [], pc, bp)
-            else
-              (v1 :: vs', [], pc, bp)
+            if i = 0l then (v2 :: vs', [], pc, bp) else (v1 :: vs', [], pc, bp)
         | Select, (I32 i, ve) :: v2 :: v1 :: vs' ->
             if i = 0l then
               let br = branch_on_cond false ve pc tree in
@@ -361,41 +354,18 @@ let rec step (c : config) : config =
               Store.update store binds;
               (vs', [ Interrupt (AssFail pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
+            if i = 0l then (vs', [ Interrupt (AsmFail pc) @@ e.at ], pc, bp)
+            else (vs', [], pc, bp)
+        | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
-              (vs', [ Interrupt (AsmFail pc) @@ e.at ], pc, bp)
-            else
-              (vs', [], pc, bp)
-        | SymAssume, (I32 0l, ex) :: vs' when not !Flags.smt_assume ->
-            let br = branch_on_cond false ex pc tree in
-            let pc' = add_constraint ~neg:true ex pc in
-            (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc', br :: bp)
-        | SymAssume, (I32 0l, ex) :: vs' ->
-            debug
-              (">>> Assumed false {line> "
-              ^ Source.string_of_pos e.at.left
-              ^ "}.");
-            let pc' = add_constraint ex pc in
-            if not (Encoding.check solver pc') then
               let br = branch_on_cond false ex pc tree in
-              let pc_fls = add_constraint ~neg:true ex pc in
-              (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc_fls, br :: bp)
-            else
+              let pc' = add_constraint ~neg:true ex pc in
+              (vs', [ Interrupt (AsmFail pc') @@ e.at ], pc', br :: bp)
+            else (
+              debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
               tree := tree';
-              let binds =
-                Encoding.(
-                  model_binds (get_model solver) (Store.get_key_types store))
-              in
-              Store.update store binds;
-              Heap.update mem store;
-              let f (_, s) = (Store.eval store s, s) in
-              List.iter (fun a -> a := f !a) frame.locals;
-              (List.map f vs', [], pc', bp)
-        | SymAssume, (I32 i, ex) :: vs' ->
-            debug ">>> Assume passed. Continuing execution...";
-            let tree', _ = Execution_tree.move_true !tree in
-            tree := tree';
-            (vs', [], add_constraint ex pc, bp)
+              (vs', [], add_constraint ex pc, bp))
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
             let base = I64_convert.extend_i32_u i in
             let x = Store.next store (Heap.load_string mem base) in
