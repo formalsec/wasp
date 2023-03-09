@@ -33,12 +33,12 @@ def process_text(text, src_file, includes, rm_boolops=True):
     incl = "\n".join(list(incl)) + "#include <wasp-c.h>\n"
 
     try:
-        args = map(lambda path: f"-I{path}", includes)
+        args = list(map(lambda path: f"-I{path}", includes))
         ast = parse_file(
             src_file,
             use_cpp=True,
             cpp_path="clang",
-            cpp_args=[r"-E"] + list(args)
+            cpp_args=[r"-E"] + args
         )
     except ParseError as e:
         raise ParsingError(str(e))

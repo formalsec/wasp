@@ -23,114 +23,37 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument(
-        "--version",
-        "-v",
-        action="version",
-        version=f"version {info.__VERSION__}"
-    )
-
-    parser.add_argument(
-        "--verbose",
-        dest="verbose",
-        action="store_true",
-        default=False,
-        help="show messages verbose",
-    )
-
-    parser.add_argument(
-        "--backend",
-        dest="backend",
-        action="store",
-        default=None,
-        help="path to backend engine configuration file"
-    )
-
-    parser.add_argument(
-        "--output",
-        "-o",
-        dest="output_dir",
-        action="store",
-        default="wasp-out",
-        help="output directory to write to",
-    )
-
-    parser.add_argument(
-        "--include",
-        "-I",
-        dest="includes",
-        action="append",
-        default=[],
-        help="include headers path",
-    )
-
-    parser.add_argument(
-        "--source",
-        "-S",
-        dest="source",
-        action="store",
-        default="",
-        help="lib source code"
-    )
-
-    parser.add_argument(
-        "--rm-boolops",
-        dest="boolops",
-        action="store_true",
-        default=False,
-        help="remove short-circuit evaluation"
-    )
-
-    parser.add_argument(
-        "--entry",
-        dest="entry_func",
-        action="store",
-        default="__original_main",
-        help="entry function to start analysis"
-    )
-
-    parser.add_argument(
-
-        "--compile-only",
-        dest="compile_only",
-        action="store_true",
-        default=False,
-        help="compile the source file without running WASP"
-    )
-
-    parser.add_argument(
-      "--postprocess",
-      dest="postprocess",
-      action="store",
-      default=None,
-      help="prepare file for WASP analysis using post-processing"
-    )
-
-    parser.add_argument(
-        "--test-comp",
-        dest="test_comp",
-        action="store_true",
-        default=False,
-        help="test-comp instrumentation and xml test suite"
-    )
-
-    parser.add_argument(
-        "--property",
-        "-p",
-        dest="property",
-        action="store",
-        default=None,
-        help="property file"
-    )
-
-    parser.add_argument(
-        "--arch",
-        dest="arch",
-        action="store",
-        default="32",
-        help="data model"
-    )
-
+    parser.add_argument("--version", "-v", action="version",
+                        version=f"version {info.__VERSION__}")
+    parser.add_argument("--verbose", dest="verbose", action="store_true",
+                        default=False, help="show messages verbose")
+    parser.add_argument("--backend", dest="backend", action="store",
+                        default=None,
+                        help="path to backend engine configuration file")
+    parser.add_argument("--output", "-o", dest="output_dir", action="store",
+                        default="wasp-out", help="output directory to write to")
+    parser.add_argument("--include", "-I", dest="includes", action="append",
+                        default=[], help="include headers path")
+    parser.add_argument("--source", "-S", dest="source", action="store",
+                        default="", help="lib source code")
+    parser.add_argument("--rm-boolops", dest="boolops", action="store_true",
+                        default=False, help="remove short-circuit evaluation")
+    parser.add_argument("--entry", dest="entry_func", action="store",
+                        default="__original_main",
+                        help="entry function to start analysis")
+    parser.add_argument("--compile-only", dest="compile_only",
+                        action="store_true", default=False,
+                        help="compile the source file without running WASP")
+    parser.add_argument("--postprocess", dest="postprocess", action="store",
+                        default=None,
+                        help="post-processing file for WASP analysis")
+    parser.add_argument("--test-comp", dest="test_comp", action="store_true",
+                        default=False,
+                        help="test-comp instrumentation and xml test suite")
+    parser.add_argument("--property", "-p", dest="property", action="store",
+                        default=None, help="property file")
+    parser.add_argument("--arch", dest="arch", action="store", default="32",
+                        help="data model")
     parser.add_argument("file", help="file to analyse")
 
     return parser
@@ -167,12 +90,8 @@ def configure(output_dir, root_dir, src_code, includes, entry_func):
     if not os.path.exists(os.path.join(libs, "libc.a")):
         log.debug("Compiling libc.a...")
         try:
-            subprocess.run(
-                ["make", "-C", incl],
-                text=True,
-                check=True,
-                capture_output=True
-            )
+            subprocess.run(["make", "-C", incl], text=True, check=True,
+                           capture_output=True)
         except subprocess.CalledProcessError as e:
             log.error(e.stdout)
             log.error(e.stderr)
@@ -198,12 +117,8 @@ def configure(output_dir, root_dir, src_code, includes, entry_func):
 def compile_sources(sources):
     log.debug(f"Compiling sources in \"{sources}\"...")
     try:
-        subprocess.run(
-            ["make", "-C", sources],
-            text=True,
-            check=True,
-            capture_output=True
-        )
+        subprocess.run(["make", "-C", sources], text=True, check=True,
+                       capture_output=True)
     except subprocess.CalledProcessError as e:
         log.error(e.stdout)
         log.error(e.stderr)
