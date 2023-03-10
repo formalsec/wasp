@@ -278,8 +278,8 @@ let rec encode_sym_expr ?(bool_to_bv = false) (e : sym_expr) : Expr.expr =
   | Value v -> encode_value v
   | Ptr p -> encode_value p
   | SymPtr (base, offset) ->
-      let base' = encode_value (I32 base) in
-      let offset' = encode_sym_expr offset in
+      let base' = encode_value (I32 base)
+      and offset' = encode_sym_expr offset in
       Zi32.encode_binop Si32.I32Add base' offset'
   | I32Unop (op, e) ->
       let e' = encode_sym_expr e in

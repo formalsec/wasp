@@ -40,13 +40,7 @@ let numeric_error at = function
 
 type policy = Random | Depth | Breadth
 type bug = Overflow | UAF | InvalidFree
-
-type interruption =
-  | Limit
-  | Failure of path_conditions
-  | Restart of path_conditions
-  | Bug of bug
-
+type interruption = Limit | Failure of path_conditions | Bug of bug
 type 'a stack = 'a list
 type frame = { inst : module_inst; locals : sym_value ref list }
 type pc = sym_expr list
@@ -63,6 +57,7 @@ and sym_admin_instr' =
   | Label of int * instr list * code
   | Frame of int * frame * code
   | Interrupt of interruption
+  | Restart of path_conditions
 
 type config = {
   frame : frame;
@@ -124,6 +119,11 @@ let string_of_bug : bug -> string = function
   | Overflow -> "Overflow"
   | UAF -> "Use After Free"
   | InvalidFree -> "Invalid Free"
+
+let string_of_interruption : interruption -> string = function
+  | Limit -> "Instruction Limit"
+  | Failure _ -> "Assertion Failure"
+  | Bug b -> string_of_bug b
 
 let plain e = Plain e.it @@ e.at
 
@@ -380,18 +380,12 @@ let rec step (c : config) : config =
               Store.update store binds;
               (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            if i = 0l then (vs', [ Interrupt (Restart pc) @@ e.at ], pc, bp)
+            let unsat = I32Relop (Si32.I32Eq, Value (I32 0l), Value (I32 1l)) in
+            if i = 0l then (vs', [ Restart [ unsat ] @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
-              let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
-                  (branch_on_cond false ex pc tree)
-              in
-              let pc' = add_constraint ~neg:true ex pc in
-              (vs', [ Interrupt (Restart pc') @@ e.at ], pc', bp')
+              (vs', [ Restart (add_constraint ex pc) @@ e.at ], pc, bp)
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
@@ -517,14 +511,14 @@ let rec step (c : config) : config =
         | _ -> Crash.error e.at "missing or ill-typed operand on stack")
     | Trapping msg, vs -> assert false
     | Interrupt i, vs -> assert false
+    | Restart pc, vs -> assert false
     | Returning vs', vs -> Crash.error e.at "undefined frame"
     | Breaking (k, vs'), vs -> Crash.error e.at "undefined label"
     | Label (n, es0, (vs', [])), vs -> (vs' @ vs, [], pc, bp)
+    | Label (n, es0, (vs', { it = Restart pc; at } :: es')), vs ->
+        (vs, [ Restart pc @@ at; Label (n, es0, (vs', es')) @@ e.at ], pc, bp)
     | Label (n, es0, (vs', { it = Interrupt i; at } :: es')), vs ->
-        ( vs,
-          [ Interrupt i @@ at ] @ [ Label (n, es0, (vs', es')) @@ e.at ],
-          pc,
-          bp )
+        (vs, [ Interrupt i @@ at; Label (n, es0, (vs', es')) @@ e.at ], pc, bp)
     | Label (n, es0, (vs', { it = Trapping msg; at } :: es')), vs ->
         (vs, [ Trapping msg @@ at ], pc, bp)
     | Label (n, es0, (vs', { it = Returning vs0; at } :: es')), vs ->
@@ -537,9 +531,11 @@ let rec step (c : config) : config =
         let c' = step { c with code = code' } in
         (vs, [ Label (n, es0, c'.code) @@ e.at ], c'.pc, c'.bp)
     | Frame (n, frame', (vs', [])), vs -> (vs' @ vs, [], pc, bp)
+    | Frame (n, frame', (vs', { it = Restart pc; at } :: es')), vs ->
+        (vs, [ Restart pc @@ at; Frame (n, frame', (vs', es')) @@ e.at ], pc, bp)
     | Frame (n, frame', (vs', { it = Interrupt i; at } :: es')), vs ->
         ( vs,
-          [ Interrupt i @@ at ] @ [ Frame (n, frame', (vs', es')) @@ e.at ],
+          [ Interrupt i @@ at; Frame (n, frame', (vs', es')) @@ e.at ],
           pc,
           bp )
     | Frame (n, frame', (vs', { it = Trapping msg; at } :: es')), vs ->
@@ -600,25 +596,26 @@ let rec step (c : config) : config =
   in
   { c with code = (vs', e' @ es' @ List.tl es); pc = pc'; bp = bp' }
 
-let get_reason error : string =
-  let type_str, r = error in
-  let region_str =
-    Source.string_of_pos r.left
-    ^ if r.right = r.left then "" else "-" ^ string_of_pos r.right
+let get_reason (err_t, at) : string =
+  let loc =
+    Source.string_of_pos at.left
+    ^ if at.right = at.left then "" else "-" ^ string_of_pos at.right
   in
-  "{" ^ "\"type\" : \"" ^ type_str ^ "\", " ^ "\"line\" : \"" ^ region_str
-  ^ "\"" ^ "}"
+  "{" ^ "\"type\" : \"" ^ err_t ^ "\", " ^ "\"line\" : \"" ^ loc ^ "\"" ^ "}"
 
-let write_test_case out_dir test_data is_witness cnt : unit =
+let write_test_case ?(witness = false) out_dir test_data cnt : unit =
   if not (test_data = "[]") then
     let i = cnt () in
     let filename =
-      if is_witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
+      if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
       else Printf.sprintf "%s/test_%05d.json" out_dir i
     in
     Io.save_file filename test_data
 
-let write_report spec reason witness loop_time : unit =
+let write_report error loop_time : unit =
+  let spec, reason =
+    match error with None -> (true, "{}") | Some e -> (false, get_reason e)
+  in
   let report_str =
     "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
     ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
@@ -630,7 +627,40 @@ let write_report spec reason witness loop_time : unit =
   in
   Io.save_file (Filename.concat !Flags.output "report.json") report_str
 
-let update_config c glob code mem =
+let rec update_admin_instr f e =
+  let it =
+    match e.it with
+    | Plain e -> Plain e
+    | Invoke f -> Invoke f
+    | Trapping exn -> Trapping exn
+    | Returning vs -> Returning (List.map f vs)
+    | Breaking (n, vs) -> Breaking (n, List.map f vs)
+    | Label (n, es0, (vs, es)) ->
+        Label (n, es0, (List.map f vs, List.map (update_admin_instr f) es))
+    | Frame (n, frame, (vs, es)) ->
+        List.iter (fun l -> l := f !l) frame.locals;
+        Frame (n, frame, (List.map f vs, List.map (update_admin_instr f) es))
+    | Interrupt i -> Interrupt i
+    | Restart pc -> Restart pc
+  in
+  { it; at = e.at }
+
+let update c (vs, es) pc =
+  let binds =
+    Encoding.(model_binds (get_model solver) (Store.get_key_types c.store))
+  in
+  let tree', _ = Execution_tree.move_true !(c.tree) in
+  c.tree := tree';
+  Store.update c.store binds;
+  Heap.update c.mem c.store;
+  let f store (_, expr) = (Store.eval store expr, expr) in
+  List.iter (fun l -> l := f c.store !l) c.frame.locals;
+  let code =
+    (List.map (f c.store) vs, List.map (update_admin_instr (f c.store)) es)
+  in
+  { c with code; pc }
+
+let reset c glob code mem =
   let binds =
     Encoding.(model_binds (get_model solver) (Store.get_key_types c.store))
   in
@@ -673,6 +703,7 @@ module Guided_search (L : Work_list) = struct
       match c.code with
       | vs, [] -> c
       | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
+      | vs, { it = Restart pc; at } :: es -> c
       | vs, { it = Interrupt i; at } :: es -> c
       | vs, es ->
           let c' = step c in
@@ -684,29 +715,29 @@ module Guided_search (L : Work_list) = struct
       else if not (Encoding.check solver (L.pop pcs)) then find_sat_pc pcs
       else true
     in
+    (* Main concolic loop *)
     let rec loop c =
       iterations := !iterations + 1;
-      let { code = _, es; store; bp; _ } = eval c in
+      let { code; store; bp; _ } = eval c in
       List.iter (fun pc -> L.push pc wl) bp;
-      let err =
-        match es with
-        | { it = Interrupt (Restart _); at } :: _ -> 
-            iterations := !iterations - 1;
-            None
-        | { it = Interrupt i; at } :: _ ->
-            write_test_case test_suite (Store.to_json store) true cntr;
-            Some (i, at)
-        | _ ->
-            write_test_case test_suite (Store.to_json store) false cntr;
-            None
-      in
-      if Option.is_some err then false
-      else if L.is_empty wl || not (find_sat_pc wl) then true
-      else loop (update_config c glob0 code0 mem0)
+      match code with
+      | vs, { it = Interrupt Limit; at } :: _ -> None
+      | vs, { it = Interrupt i; at } :: _ ->
+          write_test_case test_suite ~witness:true (Store.to_json store) cntr;
+          Some (string_of_interruption i, at)
+      | vs, { it = Restart pc; _ } :: es ->
+          iterations := !iterations - 1;
+          if Encoding.check solver pc then loop (update c (vs, es) pc)
+          else if L.is_empty wl || not (find_sat_pc wl) then None
+          else loop (reset c glob0 code0 mem0)
+      | _ ->
+          write_test_case test_suite (Store.to_json store) cntr;
+          if L.is_empty wl || not (find_sat_pc wl) then None
+          else loop (reset c glob0 code0 mem0)
     in
     loop_start := Sys.time ();
-    let spec = loop c in
-    write_report spec "{}" "[]" (Sys.time () -. !loop_start)
+    let error = loop c in
+    write_report error (Sys.time () -. !loop_start)
 end
 
 module DFS = Guided_search (Stack)
@@ -717,7 +748,7 @@ let set_timeout (time_limit : int) : unit =
   let alarm_handler i : unit =
     Encoding.interrupt ();
     let loop_time = Sys.time () -. !loop_start in
-    write_report true "{}" "[]" loop_time;
+    write_report None loop_time;
     exit 0
   in
   if time_limit > 0 then (
