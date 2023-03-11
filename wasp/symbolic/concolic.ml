@@ -422,39 +422,34 @@ let rec step (c : config) : config =
                 [])
             in
             (vs', es', pc, bp)
-        (* Deprecated *)
-        | SymInt32 x, vs' -> Crash.error e.at "SymInt32: deprecated!"
-        | SymInt64 x, vs' -> Crash.error e.at "SymInt64: deprecated!"
-        | SymFloat32 x, vs' -> Crash.error e.at "SymFloat32: deprecated!"
-        | SymFloat64 x, vs' -> Crash.error e.at "SymFloat64: deprecated!"
         | GetSymInt32 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, Symvalue.Symbolic (SymInt32, x)) :: vs', [], pc, bp)
+            ((v, to_symbolic I32Type x) :: vs', [], pc, bp)
         | GetSymInt64 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, Symvalue.Symbolic (SymInt64, x)) :: vs', [], pc, bp)
+            ((v, to_symbolic I64Type x) :: vs', [], pc, bp)
         | GetSymFloat32 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, Symvalue.Symbolic (SymFloat32, x)) :: vs', [], pc, bp)
+            ((v, to_symbolic F32Type x) :: vs', [], pc, bp)
         | GetSymFloat64 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, Symvalue.Symbolic (SymFloat64, x)) :: vs', [], pc, bp)
+            ((v, to_symbolic F64Type x) :: vs', [], pc, bp)
         | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs' ->
             let r = I32 (if c = 0l then r2 else r1) in
             let s_c' = to_constraint (simplify s_c) in
@@ -475,9 +470,9 @@ let rec step (c : config) : config =
             (v :: vs', [], pc', bp)
         | PrintStack, vs' ->
             debug
-              ("Stack @ "
-              ^ Source.string_of_pos e.at.left
-              ^ ":\n" ^ string_of_sym_value vs');
+              (Source.string_of_pos e.at.left
+              ^ ":VS:\n"
+              ^ string_of_sym_value vs');
             (vs', [], pc, bp)
         | PrintPC, vs' ->
             debug
@@ -486,7 +481,7 @@ let rec step (c : config) : config =
               ^ Formula.(pp_to_string (to_formula pc)));
             (vs', [], pc, bp)
         | PrintMemory, vs' ->
-            debug ("Memory dump:\n" ^ Heap.to_string mem);
+            debug ("Mem:\n" ^ Heap.to_string mem);
             (vs', [], pc, bp)
         | PrintBtree, vs' ->
             Printf.printf "B TREE STATE: \n\n";
