@@ -38,8 +38,8 @@ def get_parser():
                         default=[], help="include headers path")
     parser.add_argument("--source", "-S", dest="source", action="store",
                         default="", help="lib source code")
-    parser.add_argument("--rm-boolops", dest="boolops", action="store_true",
-                        default=False, help="remove short-circuit evaluation")
+    parser.add_argument("--rm-boolops", dest="rm_boolops", action="store_true",
+                        default=False, help="use short-circuit evaluation")
     parser.add_argument("--entry", dest="entry_func", action="store",
                         default="__original_main",
                         help="entry function to start analysis")
@@ -64,13 +64,13 @@ def parse(argv):
     parser = get_parser()
     return parser.parse_args(argv)
 
-def preprocess_file(src_file, dst_file, includes, boolops, instrument=False):
+def preprocess_file(src_file, dst_file, includes, rm_boolops, instrument=False):
     log.debug(f"Processing \"{src_file}\"...")
     if instrument:
         testcomp.instrument(src_file, dst_file)
         src_file = dst_file
     try:
-        pre.process_file(src_file, dst_file, includes, boolops)
+        pre.process_file(src_file, dst_file, includes, not rm_boolops)
     except pre.ParsingError as e:
         log.error("ParsingError: " + e.message)
         return 1
@@ -193,7 +193,7 @@ def main(root_dir, argv=None):
 
     includes = args.includes + [os.path.join(root_dir, "share", "lib")]
     harness = os.path.join(args.output_dir, "instrumented_file.c")
-    if preprocess_file(args.file, harness, includes, args.boolops, \
+    if preprocess_file(args.file, harness, includes, args.rm_boolops, \
                        args.test_comp) != 0:
         log.error(f"Failed to process input file \"{args.file}\"!")
         return 1

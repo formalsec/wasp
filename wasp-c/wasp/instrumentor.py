@@ -24,8 +24,8 @@ class ParsingError(Exception):
         super().__init__(self.message)
 
 
-def process_text(text, src_file, includes, rm_boolops=True):
-    visitor = BinopVisitor(boolops=not rm_boolops)
+def process_text(text, src_file, includes, boolops=True):
+    visitor = BinopVisitor(boolops=boolops)
 
     # split includes from the program string
     lines = text.splitlines()
@@ -48,7 +48,7 @@ def process_text(text, src_file, includes, rm_boolops=True):
 
     return incl + "\n" + n_code
 
-def process_file(src_file, dst_file, includes, rm_boolops=True):
+def process_file(src_file, dst_file, includes, boolops=True):
 
     def _split_includes(text):
         lines = text.splitlines()
@@ -77,7 +77,7 @@ def process_file(src_file, dst_file, includes, rm_boolops=True):
         raise ParsingError(str(e))
 
     # visit AST
-    visitor = BinopVisitor(boolops=not rm_boolops)
+    visitor = BinopVisitor(boolops=boolops)
     n_code = visitor.to_string(visitor.visit(ast))
 
     lines = n_code.splitlines()
@@ -88,7 +88,7 @@ def process_file(src_file, dst_file, includes, rm_boolops=True):
 
 class BinopVisitor(c_ast.NodeVisitor):
 
-    def __init__(self, boolops=False):
+    def __init__(self, boolops=True):
         self.counter = 0
         self.boolops = boolops
         self.ctx = [ "" ]
@@ -130,7 +130,7 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_BinaryOp(self, node):
-        if (node.op in ["&&", "||"]) and not self.boolops:
+        if (node.op in ["&&", "||"]) and self.boolops:
             return c_ast.FuncCall(
                 c_ast.ID(self._get_binop_func(node.op)),
                 c_ast.ExprList([
@@ -210,7 +210,7 @@ class BinopVisitor(c_ast.NodeVisitor):
         _ = c_ast.FuncCall(
             c_ast.ID("IFG"),
             c_ast.ExprList([
-                self._safe_visit(node.cond), 
+                self._safe_visit(node.cond),
                 c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
@@ -245,7 +245,7 @@ class BinopVisitor(c_ast.NodeVisitor):
 
     def visit_FileAST(self, node):
         return c_ast.FileAST(
-            list(map(self._safe_visit, node.ext)), 
+            list(map(self._safe_visit, node.ext)),
             node.coord
         )
 
@@ -253,7 +253,7 @@ class BinopVisitor(c_ast.NodeVisitor):
         _ = c_ast.FuncCall(
             c_ast.ID("IFG"),
             c_ast.ExprList([
-                self._safe_visit(node.cond), 
+                self._safe_visit(node.cond),
                 c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
@@ -304,7 +304,7 @@ class BinopVisitor(c_ast.NodeVisitor):
         _ = c_ast.FuncCall(
             c_ast.ID("IFG"),
             c_ast.ExprList([
-                self._safe_visit(node.cond), 
+                self._safe_visit(node.cond),
                 c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
@@ -362,7 +362,7 @@ class BinopVisitor(c_ast.NodeVisitor):
         _ = c_ast.FuncCall(
             c_ast.ID("IFG"),
             c_ast.ExprList([
-                self._safe_visit(node.cond), 
+                self._safe_visit(node.cond),
                 c_ast.Constant("int", str(self._fresh_int()))
             ]),
             node.coord
@@ -375,21 +375,21 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_TernaryOp(self, node):
-        return c_ast.FuncCall(
-            c_ast.ID("__ternary"),
-            c_ast.ExprList([
-                self._safe_visit(node.cond),
-                self._safe_visit(node.iftrue),
-                self._safe_visit(node.iffalse)
-            ]),
-            node.coord
-        )
-#        return c_ast.TernaryOp(
-#            self._safe_visit(node.cond),
-#            self._safe_visit(node.iftrue),
-#            self._safe_visit(node.iffalse),
+#        return c_ast.FuncCall(
+#            c_ast.ID("__ternary"),
+#            c_ast.ExprList([
+#                self._safe_visit(node.cond),
+#                self._safe_visit(node.iftrue),
+#                self._safe_visit(node.iffalse)
+#            ]),
 #            node.coord
 #        )
+        return c_ast.TernaryOp(
+            self._safe_visit(node.cond),
+            self._safe_visit(node.iftrue),
+            self._safe_visit(node.iffalse),
+            node.coord
+        )
 
     def visit_TypeDecl(self, node):
         return node
