@@ -164,9 +164,25 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
       chunk_table: (int32, int32) Hashtbl.t;
       encoder : E.t;
     }
+    let rec clone_admin_instr e =
+      let it =
+        match e.Source.it with
+        | SPlain e -> SPlain e
+        | SInvoke f -> SInvoke f
+        | STrapping exn -> STrapping exn
+        | SReturning vs -> SReturning vs
+        | SBreaking (n, vs) -> SBreaking (n, vs)
+        | SLabel (n, es0, (vs, es)) ->
+            SLabel (n, es0, (vs, List.map clone_admin_instr es))
+        | SFrame (n, frame, (vs, es)) ->
+            SFrame (n, clone_frame frame, (vs, List.map clone_admin_instr es))
+        | Interrupt i -> Interrupt i
+      in
+      { Source.it; Source.at = e.Source.at }
     let clone (c : sym_config) : sym_config * sym_config =
+      let (vs, es) = c.sym_code in
       let sym_frame = clone_frame c.sym_frame in
-      let sym_code = c.sym_code in
+      let sym_code = (vs, List.map clone_admin_instr es) in
       let sm, sym_mem = SM.clone c.sym_mem in
       let sym_budget = c.sym_budget in
       let var_map = Hashtbl.copy c.var_map in
