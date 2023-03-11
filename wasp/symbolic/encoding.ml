@@ -278,8 +278,8 @@ let rec encode_sym_expr ?(bool_to_bv = false) (e : sym_expr) : Expr.expr =
   | Value v -> encode_value v
   | Ptr p -> encode_value p
   | SymPtr (base, offset) ->
-      let base' = encode_value (I32 base) in
-      let offset' = encode_sym_expr offset in
+      let base' = encode_value (I32 base)
+      and offset' = encode_sym_expr offset in
       Zi32.encode_binop Si32.I32Add base' offset'
   | I32Unop (op, e) ->
       let e' = encode_sym_expr e in
@@ -447,7 +447,7 @@ let int64_of_fp (fp : Expr.expr) (ebits : int) (sbits : int) : int64 =
     v
 
 let value_of_const model (c, t) =
-  let interp = Model.get_const_interp_e model (encode_sym_expr c) in
+  let interp = Model.eval model (encode_sym_expr c) true in
   let f e =
     let v =
       if BitVector.is_bv e then int64_of_bv e

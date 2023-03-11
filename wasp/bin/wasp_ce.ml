@@ -41,9 +41,6 @@ let argspec =
       ( "-m",
         Arg.Set_int Flags.inst_limit,
         " maximum instr interpreted during a model" );
-      ( "--smt-assume",
-        Arg.Set Flags.smt_assume,
-        " use the solver to progress in the assume rule" );
       ( "--no-simplify",
         Arg.Clear Flags.simplify,
         " do not perform algebraic simplifications of symbolic expressions" );
