@@ -38,8 +38,8 @@ def get_parser():
                         default=[], help="include headers path")
     parser.add_argument("--source", "-S", dest="source", action="store",
                         default="", help="lib source code")
-    parser.add_argument("--rm-boolops", dest="boolops", action="store_true",
-                        default=False, help="remove short-circuit evaluation")
+    parser.add_argument("--no-boolops", dest="boolops", action="store_false",
+                        default=True, help="do not remove short-circuit evaluation")
     parser.add_argument("--entry", dest="entry_func", action="store",
                         default="__original_main",
                         help="entry function to start analysis")
