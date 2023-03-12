@@ -393,7 +393,8 @@ let rec step (c : config) : config =
               (vs', [], add_constraint ex pc, bp))
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
             let base = I64_convert.extend_i32_u i in
-            let x = Store.next store (Heap.load_string mem base) in
+            let symbol = if i = 0l then "x" else Heap.load_string mem base in
+            let x = Store.next store symbol in
             let v = Store.get store x ty b in
             ((v, to_symbolic ty x) :: vs', [], pc, bp)
         | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
@@ -471,8 +472,7 @@ let rec step (c : config) : config =
         | PrintStack, vs' ->
             debug
               (Source.string_of_pos e.at.left
-              ^ ":VS:\n"
-              ^ string_of_sym_value vs');
+              ^ ":VS:\n" ^ string_of_sym_value vs');
             (vs', [], pc, bp)
         | PrintPC, vs' ->
             debug

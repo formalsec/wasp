@@ -673,7 +673,8 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
 
           | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
             let base = I64_convert.extend_i32_u i in
-            let x = Varmap.next (SM.load_string mem base) in
+            let symbol = if i = 0l then "x" else SM.load_string mem base in
+            let x = Varmap.next symbol in
             let v = to_symbolic ty x in
             let es' = List.tl es in
             Hashtbl.replace var_map x ty;
