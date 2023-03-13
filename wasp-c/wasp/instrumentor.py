@@ -268,9 +268,13 @@ class BinopVisitor(c_ast.NodeVisitor):
         )
 
     def visit_FuncCall(self, node):
+        tmp = self.boolops
+        self.boolops = True
+        n_args = self._safe_visit(node.args)
+        self.boolops = tmp
         return c_ast.FuncCall(
             node.name,
-            self._safe_visit(node.args),
+            n_args,
             node.coord
         )
 

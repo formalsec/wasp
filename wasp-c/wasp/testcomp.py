@@ -93,26 +93,26 @@ class XMLSuiteGenerator:
                 f.write(data.decode("UTF-8"))
 
 patterns = [
-        (":[[h1]] __VERIFIER_nondet_:[[h2]](:[_])", \
-                ":[h1] __VERIFIER_nondet_:[h2](char *)"),
-        (":[[h1]] *__VERIFIER_nondet_:[[h2]](:[_])", \
-                ":[h1] *__VERIFIER_nondet_:[h2](char *)"),
-        ("unsigned :[[h1]] __VERIFIER_nondet_u:[[h1]](:[_])", \
-                "unsigned :[h1] __VERIFIER_nondet_u:[h1](char *)"),
-        ("return __VERIFIER_nondet_:[[h1]](...)", \
-                "return __VERIFIER_nondet_:[h1](\"return_:[id()]\")"),
-        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]__VERIFIER_nondet_:[h2]()", \
-                ":[h1] = __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*](:[cast]):[~\s*]__VERIFIER_nondet_:[h2]()", \
-                ":[h1] = (:[cast]) __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]:[ops]:[~\s*]__VERIFIER_nondet_:[h2]()", \
-                ":[h1] = :[ops] __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        (":[[h1]] = __VERIFIER_nondet_:[h2]()", \
-                ":[h1] = __VERIFIER_nondet_:[h2](\":[h1]\")"),
-        ("if:[~\s*](:[~\s*]__VERIFIER_nondet_:[h1]():[~\s*])", \
-                "if (__VERIFIER_nondet_:[h1](\"if_:[id()]\"))"),
-        (":[[cond]]:[~\s*](:[h2]__VERIFIER_nondet_:[h1]():[h3])", \
-                ":[cond] (:[h2]__VERIFIER_nondet_:[h1](\":[cond]_:[id()]\"):[h3])"),
+#        (":[[h1]] __VERIFIER_nondet_:[[h2]](:[_])", \
+#                ":[h1] __VERIFIER_nondet_:[h2](char *)"),
+#        (":[[h1]] *__VERIFIER_nondet_:[[h2]](:[_])", \
+#                ":[h1] *__VERIFIER_nondet_:[h2](char *)"),
+#        ("unsigned :[[h1]] __VERIFIER_nondet_u:[[h1]](:[_])", \
+#                "unsigned :[h1] __VERIFIER_nondet_u:[h1](char *)"),
+#        ("return __VERIFIER_nondet_:[[h1]](...)", \
+#                "return __VERIFIER_nondet_:[h1](\"return_:[id()]\")"),
+#        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]__VERIFIER_nondet_:[h2]()", \
+#                ":[h1] = __VERIFIER_nondet_:[h2](\":[h1]\")"),
+#        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*](:[cast]):[~\s*]__VERIFIER_nondet_:[h2]()", \
+#                ":[h1] = (:[cast]) __VERIFIER_nondet_:[h2](\":[h1]\")"),
+#        (":[h1~\w+(\[\s*\w+\s*\])*]:[~\s*]=:[~\s*]:[ops]:[~\s*]__VERIFIER_nondet_:[h2]()", \
+#                ":[h1] = :[ops] __VERIFIER_nondet_:[h2](\":[h1]\")"),
+#        (":[[h1]] = __VERIFIER_nondet_:[h2]()", \
+#                ":[h1] = __VERIFIER_nondet_:[h2](\":[h1]\")"),
+#        ("if:[~\s*](:[~\s*]__VERIFIER_nondet_:[h1]():[~\s*])", \
+#                "if (__VERIFIER_nondet_:[h1](\"if_:[id()]\"))"),
+#        (":[[cond]]:[~\s*](:[h2]__VERIFIER_nondet_:[h1]():[h3])", \
+#                ":[cond] (:[h2]__VERIFIER_nondet_:[h1](\":[cond]_:[id()]\"):[h3])"),
         ("void assume(...) {...}", ""),
         ("void assert(...) {...}", ""),
         ("void abort(...) {...}" , ""),
@@ -121,8 +121,8 @@ patterns = [
         ("__inline", ""),
         ("void reach_error() {...}", "void reach_error() { __WASP_assert(0); }"),
         ("__extension__", ""),
-        ("__VERIFIER_nondet_:[h2]()", \
-                "__VERIFIER_nondet_:[h2](\":[id()]\")")
+#        ("__VERIFIER_nondet_:[h2]()", \
+#                "__VERIFIER_nondet_:[h2](\":[id()]\")")
 ]
 
 def instrument(input_file, output_file):
