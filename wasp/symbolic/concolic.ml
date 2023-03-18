@@ -413,7 +413,7 @@ let rec step (c : config) : config =
               (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
             Hashtbl.add heap b a;
-            ((I32 b, Ptr (I32 b)) :: vs', [], pc, bp)
+            ((I32 b, SymPtr (b, (Value (I32 0l)))) :: vs', [], pc, bp)
         | Free, (I32 i, _) :: vs' ->
             let es' =
               if not (Hashtbl.mem heap i) then

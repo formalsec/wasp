@@ -722,11 +722,10 @@ module SymbolicInterpreter (SM : Symmem.SymbolicMemory) (E : Encoder) : Interpre
 
           | SymAssume, ex :: vs' ->
             (match simplify ex with
-            | Ptr   (I32 0l)
             | Value (I32 0l) ->
               (* if it is 0 *)
               Result.ok ([], [])
-            | Ptr   (I32 _)
+            | SymPtr (_, Value I32 0l)
             | Value (I32 _) ->
               (* if it is not 0 *)
               Result.ok ([ { c with sym_code = vs, List.tl es } ], [])

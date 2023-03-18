@@ -130,7 +130,7 @@ let eval_testop (e : sym_value) (op : testop) : sym_value =
 	let s' =
 		begin match s with
     | Value _ -> Value c'
-    | Ptr   _ -> Value c'
+    | SymPtr (b, Value _) -> Value c'
 		| _ ->
         begin match op with
 				| Values.I32 I32Op.Eqz -> I32Relop (I32Eq, s, Value (Values.I32 0l))

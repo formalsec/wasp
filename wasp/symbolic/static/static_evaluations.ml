@@ -121,7 +121,10 @@ let eval_binop (s1 : sym_expr) (s2 : sym_expr) (op : Ast.binop) : sym_expr =
 (*  Evaluate a test operation  *)
 let eval_testop (e : sym_expr) (op : testop) : sym_expr =
   begin match e with
-  | Value c | Ptr c -> Value (Values.value_of_bool (Eval_numeric.eval_testop op c))
+  | Value c -> Value (Values.value_of_bool (Eval_numeric.eval_testop op c))
+  | SymPtr (b, Value (Values.I32 o)) ->
+    let c = Values.I32 (Int32.add b o) in
+    Value (Values.value_of_bool (Eval_numeric.eval_testop op c))
   | _ ->
       begin match op with
       | Values.I32 I32Op.Eqz -> I32Relop (I32Eq, e, Value (Values.I32 0l))

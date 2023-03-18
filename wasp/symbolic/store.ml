@@ -116,8 +116,7 @@ let to_expr (s : t) : sym_expr list =
     s.map []
 
 let rec eval (env : t) (e : sym_expr) : value =
-  match e with
-  | Ptr p -> p
+  match simplify e with
   | SymPtr (b, o) ->
       let b = I32 b in
       Eval_numeric.eval_binop (I32 Ast.I32Op.Add) b (eval env o)

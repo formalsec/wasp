@@ -109,7 +109,6 @@ let load_value (mem : memory) (a : address) (o : offset) (t : value_type) :
         let e : sym_expr =
           match expr with
           | Value (I64 v) -> Value (I32 (Int64.to_int32 v))
-          | Ptr (I64 p) -> Ptr (I32 (Int64.to_int32 p))
           | _ -> expr
         in
         (I32 (Int64.to_int32 n), e)
@@ -142,7 +141,6 @@ let store_value (mem : memory) (a : address) (o : offset) (v : sym_value) : unit
         let e : sym_expr =
           match sv with
           | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
-          | Ptr (I32 x) -> Ptr (I64 (Int64.of_int32 x))
           | _ -> sv
         in
         (Int64.of_int32 x, e)
@@ -187,7 +185,7 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension) (mem : memory)
         match t with
         | I32Type -> Value (I32 (Int64.to_int32 x))
         | _ -> Value (I64 x))
-    | Ptr p -> Ptr p
+    | SymPtr (b, o) -> SymPtr (b, o)
     | _ ->
         let rec loop acc i =
           if i >= Types.size t then acc

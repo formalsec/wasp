@@ -261,7 +261,6 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       | Types.I32Type -> begin
         match expr with
         | Symvalue.Value (I64 v) -> Symvalue.Value (I32 (Int64.to_int32 v))
-        | Symvalue.Ptr   (I64 p) -> Symvalue.Ptr   (I32 (Int64.to_int32 p))
         | _ -> expr
       end
       | Types.I64Type -> expr

@@ -276,7 +276,6 @@ let encode_value (v : value) : Expr.expr =
 let rec encode_sym_expr ?(bool_to_bv = false) (e : sym_expr) : Expr.expr =
   match e with
   | Value v -> encode_value v
-  | Ptr p -> encode_value p
   | SymPtr (base, offset) ->
       let base' = encode_value (I32 base)
       and offset' = encode_sym_expr offset in

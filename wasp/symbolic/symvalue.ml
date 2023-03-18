@@ -9,8 +9,7 @@ type symbolic = SymInt8 | SymInt16 | SymInt32 | SymInt64 |
 type sym_expr =
   (* Value *)
   | Value    of value
-  | Ptr      of value
-  (* SymStatic *)
+  (* Ptr *)
   | SymPtr   of int32 * sym_expr
   (* I32 operations *)
   | I32Binop of Si32.binop * sym_expr * sym_expr
@@ -74,7 +73,6 @@ let negate_relop (e : sym_expr) : sym_expr =
 let rec length (e : sym_expr) : int =
   begin match e with
   | Value v -> 1
-  | Ptr p   -> 1
   | SymPtr _ -> 1
   (* I32 *)
   | I32Unop  (op, e)      -> 1 + (length e)
@@ -107,7 +105,6 @@ let rec get_symbols (e : sym_expr) : (string * symbolic) list =
   begin match e with
   (* Value - holds no symbols *)
   | Value _ -> []
-  | Ptr _   -> []
   | SymPtr (_, offset)   -> (get_symbols offset)
   (* I32 *)
   | I32Unop  (op, e1)     -> (get_symbols e1)
@@ -151,9 +148,6 @@ let rec to_string (e : sym_expr) : string =
   begin match e with
   | Value v ->
       string_of_value v
-  | Ptr p ->
-      let str_p = string_of_value p in
-      "(Ptr " ^ str_p ^ ")"
   | SymPtr (base, offset) ->
       let str_o = to_string offset in
       "(SymPtr " ^ Int32.to_string base ^ " + " ^ str_o ^ ")"
@@ -252,9 +246,6 @@ let rec pp_to_string (e : sym_expr) : string =
 	begin match e with
   | Value v ->
       Values.string_of_value v
-  | Ptr p ->
-      let str_p = string_of_value p in
-      "(Ptr " ^ str_p ^ ")"
   | SymPtr (base, offset) ->
       let str_o = pp_to_string offset in
       "(SymPtr " ^ Int32.to_string base ^ " + " ^ str_o ^ ")"
@@ -363,7 +354,6 @@ let rec type_of (e : sym_expr) : value_type  =
   let rec concat_length (e' : sym_expr) : int =
     begin match e' with
     | Value v    -> Types.size (Values.type_of v)
-    | Ptr _      -> 4
     | SymPtr _   -> 4
     | I32Unop  _ -> 4
     | I32Binop _ -> 4
@@ -395,7 +385,6 @@ let rec type_of (e : sym_expr) : value_type  =
   in
   begin match e with
   | Value v    -> Values.type_of v
-  | Ptr _      -> I32Type
   | SymPtr _   -> I32Type
   | I32Unop  _ -> I32Type
   | I32Binop _ -> I32Type
@@ -437,7 +426,6 @@ let rec type_of (e : sym_expr) : value_type  =
 let rec get_ptr (e : sym_expr) : value option =
   (* FIXME: this function can be "simplified" *)
   begin match e with
-  | Ptr p   -> Some p
   | Value _ -> None
   | SymPtr (base, _) -> Some (I32 base)
   | I32Unop (_, e) -> get_ptr e
@@ -499,7 +487,7 @@ let is_value (e : sym_expr) : bool =
   match e with Value _ -> true | _ -> false
 
 let is_concrete (e : sym_expr) : bool =
-  match e with Value _ | Ptr _ -> true | _ -> false
+  match e with Value _ | SymPtr (_, Value _) -> true | _ -> false
 
 let is_relop (e : sym_expr) : bool =
   match e with
@@ -571,7 +559,6 @@ let nland32 (x : int32) n =
 let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
   begin match e with
   | Value v -> Value v
-  | Ptr v   -> Ptr v
   | SymPtr (base, offset) -> SymPtr (base, new_simplify offset)
   | I32Binop (op, e1, e2) ->
       let e1' = new_simplify e1
@@ -711,8 +698,7 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     let e1' = new_simplify e1
     and e2' = new_simplify e2 in
     begin match e1', e2' with
-    | Value v1, Value v2 | Ptr   v1, Value v2
-    | Value v1, Ptr   v2 | Ptr   v1, Ptr   v2 ->
+    | Value v1, Value v2 ->
       let op' = I32 (i32relop_to_astop op) in
       let ret = Eval_numeric.eval_relop op' v1 v2 in
       Value (Values.value_of_bool ret)
@@ -746,9 +732,6 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
 
   | Extract (s, h, l) when extract = true ->
     begin match s with
-    | Ptr (I64 p) ->
-      let p' = nland64 Int64.(shift_right p (l * 8)) (h - l) in
-      Ptr (I64  p')
     | Value (I64 x) ->
       let x' = nland64 (Int64.shift_right x (l * 8)) (h - l) in
       Value (I64 x')
@@ -760,13 +743,6 @@ let rec new_simplify ?(extract = true) (e : sym_expr)  : sym_expr =
     let e1' = new_simplify ~extract:false e1
     and e2' = new_simplify ~extract:false e2 in
     begin match e1', e2' with
-    | Extract (Ptr (I64 p2), h2, l2), Extract (Ptr (I64 p1), h1, l1) ->
-      let d1 = (h1 - l1) and d2 = (h2 - l2) in
-      let p1' = nland64 (Int64.shift_right p1 (l1 * 8)) d1
-      and p2' = nland64 (Int64.shift_right p2 (l2 * 8)) d2 in
-      let p = Int64.(logor (shift_left p2' (d1 * 8)) p1') in
-      Extract (Ptr (I64 p), d1 + d2, 0)
-
     | Extract (Value (I64 x2), h2, l2), Extract (Value (I64 x1), h1, l1) ->
       let d1 = (h1 - l1) and d2 = (h2 - l2) in
       let x1' = nland64 (Int64.shift_right x1 (l1 * 8)) d1
@@ -963,8 +939,7 @@ let simplify ?(extract=false) (e : sym_expr) : sym_expr =
 let rewrite (cond : sym_expr) asgn : sym_expr =
   let var, v = asgn in
   let t, x = var in
-  let rec loop e =  match e with
-    | Ptr p   -> Ptr p
+  let rec loop (e : sym_expr): sym_expr =  match e with
     | Value v -> Value v
     | SymPtr (base, offset) -> SymPtr (base, offset)
     | I32Unop  (op, e')     -> I32Unop  (op, loop e')
