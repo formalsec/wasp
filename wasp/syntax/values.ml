@@ -29,8 +29,8 @@ let default_value = function
 let value_of_bool b = I32 (if b then 1l else 0l)
 
 let pp_string_of_value = function
-  | I32 i -> Int32.to_string i
-  | I64 i -> Int64.to_string i
+  | I32 i -> Int32.to_string i ^ "l"
+  | I64 i -> Int64.to_string i ^ "L"
   | F32 f -> string_of_float (F32.to_float f)
   | F64 f -> string_of_float (F64.to_float f)
 
