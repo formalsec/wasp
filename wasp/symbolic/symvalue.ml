@@ -334,7 +334,7 @@ let rec pp_to_string (e : sym_expr) : string =
   | Concat (e1, e2) ->
       let str_e1 = pp_to_string e1
       and str_e2 = pp_to_string e2 in
-      "(" ^ str_e1 ^ " + " ^ str_e2 ^ ")"
+      "(" ^ str_e1 ^ " ++ " ^ str_e2 ^ ")"
   end
 
 (*  String representation of a list of path conditions  *)
