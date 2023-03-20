@@ -392,8 +392,7 @@ let rec step (c : config) : config =
             if not (Encoding.Batch.check solver formulas) then (vs', [], pc, bp)
             else
               let binds =
-                Encoding.Batch.(
-                  model_binds (get_model solver) (Store.get_key_types store))
+                Encoding.Batch.value_binds solver (Store.get_key_types store)
               in
               Store.update store binds;
               (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
@@ -670,10 +669,7 @@ let rec update_admin_instr f e =
   { it; at = e.at }
 
 let update c (vs, es) pc =
-  let binds =
-    Encoding.Batch.(
-      model_binds (get_model solver) (Store.get_key_types c.store))
-  in
+  let binds = Encoding.Batch.value_binds solver (Store.get_key_types c.store) in
   let tree', _ = Execution_tree.move_true !(c.tree) in
   c.tree := tree';
   Store.update c.store binds;
@@ -686,10 +682,7 @@ let update c (vs, es) pc =
   { c with code; pc }
 
 let reset c glob code mem =
-  let binds =
-    Encoding.Batch.(
-      model_binds (get_model solver) (Store.get_key_types c.store))
-  in
+  let binds = Encoding.Batch.value_binds solver (Store.get_key_types c.store) in
   Store.reset c.store;
   Store.init c.store binds;
   Globals.clear c.glob;

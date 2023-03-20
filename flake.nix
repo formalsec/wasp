@@ -88,6 +88,7 @@
             buildInputs = [
               ocamlPackages.z3
               ocamlPackages.batteries
+              ocamlPackages.base
             ];
 
             preBuild = ''
