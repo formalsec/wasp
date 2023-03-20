@@ -153,7 +153,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     sym_code : sym_code;
     sym_mem : SM.t;
     sym_budget : int; (* to model stack overflow *)
-    var_map : Varmap.t;
+    varmap : Varmap.t;
     sym_globals : Globals.t;
     chunk_table : (int32, int32) Hashtbl.t;
     encoder : E.t;
@@ -184,7 +184,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let sym_code = (vs, List.map clone_admin_instr es) in
     let sm, sym_mem = SM.clone c.sym_mem in
     let sym_budget = c.sym_budget in
-    let var_map = Hashtbl.copy c.var_map in
+    let varmap = Varmap.copy c.varmap in
     let sym_globals = Globals.clone_globals c.sym_globals in
     let chunk_table = Hashtbl.copy c.chunk_table in
     let encoder = E.clone c.encoder in
@@ -194,7 +194,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
         sym_code;
         sym_mem;
         sym_budget;
-        var_map;
+        varmap;
         sym_globals;
         chunk_table;
         encoder;
@@ -209,7 +209,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       sym_mem = SM.from_heap sym_m;
       (* models default recursion limit in a system *)
       sym_budget = 100000;
-      var_map = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
+      varmap = Varmap.create ();
       sym_globals = globs;
       chunk_table = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
       encoder = E.create ();
@@ -225,7 +225,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     | exn -> raise exn
 
   let concretize_alloc (c : sym_config) : sym_config list =
-    let { sym_code = vs, es; var_map; chunk_table; encoder; _ } = c in
+    let { sym_code = vs, es; varmap; chunk_table; encoder; _ } = c in
     let e, es' =
       match es with e :: es' -> (e, es') | _ -> failwith "unreachable"
     in
@@ -249,7 +249,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
           (match size_cond with
           | Some size_cond -> E.add c.encoder size_cond
           | None -> ());
-          let binds = E.value_binds c.encoder (Varmap.binds c.var_map) in
+          let binds = E.value_binds c.encoder (Varmap.binds c.varmap) in
           let logic_env = Concolic.Store.create binds in
 
           let open Interpreter.Source in
@@ -296,7 +296,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       sym_frame = frame;
       sym_code = vs, es;
       sym_mem = mem;
-      var_map;
+      varmap;
       chunk_table;
       encoder;
       _;
@@ -308,7 +308,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     match es with
     | [] ->
         assert (E.check encoder []);
-        let string_binds = E.string_binds encoder (Varmap.binds var_map) in
+        let string_binds = E.string_binds encoder (Varmap.binds varmap) in
         let witness = Concolic.Store.strings_to_json string_binds in
         Concolic.Eval.write_test_case witness;
         let open E in
@@ -568,7 +568,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | Some ptr -> ptr
                   | None ->
                       let binds =
-                        E.value_binds encoder (Varmap.binds var_map)
+                        E.value_binds encoder (Varmap.binds varmap)
                       in
                       let logic_env = Concolic.Store.create binds in
 
@@ -626,7 +626,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 with
                 | BugException (b, at, _) ->
                     let string_binds =
-                      E.string_binds encoder (Varmap.binds var_map)
+                      E.string_binds encoder (Varmap.binds varmap)
                     in
                     let witness = Concolic.Store.strings_to_json string_binds in
                     Concolic.Eval.write_test_case ~witness:true witness;
@@ -657,7 +657,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | Some ptr -> ptr
                   | None ->
                       let binds =
-                        E.value_binds encoder (Varmap.binds var_map)
+                        E.value_binds encoder (Varmap.binds varmap)
                       in
                       let logic_env = Concolic.Store.create binds in
 
@@ -708,7 +708,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 with
                 | BugException (b, at, _) ->
                     let string_binds =
-                      E.string_binds encoder (Varmap.binds var_map)
+                      E.string_binds encoder (Varmap.binds varmap)
                     in
                     let witness = Concolic.Store.strings_to_json string_binds in
                     Concolic.Eval.write_test_case ~witness:true witness;
@@ -884,7 +884,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | SymAssert, Num (I32 0l) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
                 let string_binds =
-                  E.string_binds encoder (Varmap.binds var_map)
+                  E.string_binds encoder (Varmap.binds varmap)
                 in
                 let witness = Concolic.Store.strings_to_json string_binds in
                 Concolic.Eval.write_test_case ~witness:true witness;
@@ -903,7 +903,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 if sat then (
                   E.add encoder constr;
                   let string_binds =
-                    E.string_binds encoder (Varmap.binds var_map)
+                    E.string_binds encoder (Varmap.binds varmap)
                   in
                   let witness = Concolic.Store.strings_to_json string_binds in
                   debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
@@ -933,11 +933,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | Symbolic (ty, b), Num (I32 i) :: vs' ->
                 let base = I64_convert.extend_i32_u i in
                 let symbol = if i = 0l then "x" else SM.load_string mem base in
-                let x = Varmap.next symbol in
+                let x = Varmap.next varmap symbol in
                 let ty' = Evaluations.to_num_type ty in
                 let v = symbolic ty' x in
                 let es' = List.tl es in
-                Hashtbl.replace var_map x ty';
+                Varmap.add varmap x ty';
                 Result.ok
                   (Continuation [ { c with sym_code = (v :: vs', es') } ])
             | Boolop boolop, v1 :: v2 :: vs' -> (
@@ -976,7 +976,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     let es' =
                       if not (Hashtbl.mem chunk_table base) then
                         let string_binds =
-                          E.string_binds encoder (Varmap.binds var_map)
+                          E.string_binds encoder (Varmap.binds varmap)
                         in
                         let witness =
                           Concolic.Store.strings_to_json string_binds
@@ -1110,7 +1110,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                    sym_code = code';
                    sym_mem = c.sym_mem;
                    sym_budget = c.sym_budget - 1;
-                   var_map = c.var_map;
+                   varmap = c.varmap;
                    sym_globals = c.sym_globals;
                    chunk_table = c.chunk_table;
                    encoder = c.encoder;

@@ -5,6 +5,7 @@ type t = counter
 
 let create () : counter = Hashtbl.create Interpreter.Flags.hashtbl_default_size
 let clear (cnt : counter) : unit = Hashtbl.clear cnt
+let copy (cnt : t) : t = Hashtbl.copy cnt
 
 let reset (cnt : counter) : unit =
   Seq.iter (fun (k, _) -> Hashtbl.replace cnt k 0) (Hashtbl.to_seq cnt)
