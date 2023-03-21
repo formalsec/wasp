@@ -704,18 +704,8 @@ let reset c glob code mem =
     budget = 100000;
   }
 
-module type Work_list = sig
-  type 'a t
 
-  exception Empty
-
-  val create : unit -> 'a t
-  val pop : 'a t -> 'a
-  val push : 'a -> 'a t -> unit
-  val is_empty : 'a t -> bool
-end
-
-module Guided_search (L : Work_list) = struct
+module Guided_search (L : Strategies.WorkList) = struct
   let invoke (c : config) (test_suite : string) =
     let glob0 = Globals.copy c.glob
     and code0 = c.code
