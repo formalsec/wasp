@@ -93,7 +93,6 @@ exception BugException of config * region * bug
 
 let head = ref Execution_tree.Leaf
 let step_cnt = ref 0
-let solver_cnt = ref 0
 let iterations = ref 0
 let solver_time = ref 0.
 let loop_start = ref 0.
@@ -645,9 +644,9 @@ let write_report error loop_time : unit =
     "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
     ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
     ^ "\"solver_time\" : \""
-    ^ string_of_float !Encoding.Batch.time_solver
+    ^ string_of_float !Encoding.Batch.solver_time
     ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int !iterations ^ ", "
-    ^ "\"solver_counter\" : " ^ string_of_int !solver_cnt ^ ", "
+    ^ "\"solver_counter\" : " ^ string_of_int !Encoding.Batch.solver_count ^ ", "
     ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
   in
   Interpreter.Io.save_file
@@ -704,8 +703,7 @@ let reset c glob code mem =
     budget = 100000;
   }
 
-
-module Guided_search (L : Strategies.WorkList) = struct
+module Guided_search (L : Wlist.WorkList) = struct
   let invoke (c : config) (test_suite : string) =
     let glob0 = Globals.copy c.glob
     and code0 = c.code

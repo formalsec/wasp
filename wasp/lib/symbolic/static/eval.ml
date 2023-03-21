@@ -134,7 +134,6 @@ module type Encoder = sig
   type s
   type t = { solver : s; pc : pc ref }
 
-  val time_solver : float ref
   val create : unit -> t
   val clone : t -> t
   val add : t -> expr -> unit
@@ -214,8 +213,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       chunk_table = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
       encoder = E.create ();
     }
-
-  let time_solver = E.time_solver
 
   let memory_error at = function
     | SM.Bounds -> "out of bounds memory access"
@@ -1183,7 +1180,7 @@ let write_report (error : (string * Interpreter.Source.region) option)
     | Some e -> (false, Concolic.Eval.get_reason e)
   in
   let time_solver =
-    !Encoding.Incremental.time_solver +. !Encoding.Batch.time_solver
+    !Encoding.Incremental.solver_time +. !Encoding.Batch.solver_time
   in
   let report_str =
     "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
@@ -1213,7 +1210,7 @@ let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
   let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
   Interpreter.Io.safe_mkdir test_suite;
 
-  let spec, reason, loop_time, solver_time, paths =
+  let spec, reason, loop_time, paths =
     helper empty_module_inst (List.rev vs) [ SInvoke func @@ at ] mem0 globs
   in
 

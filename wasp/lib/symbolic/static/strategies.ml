@@ -34,7 +34,6 @@ module type Interpreter = sig
   type step_res = End of Expression.pc | Continuation of sym_config list
 
   val clone : sym_config -> sym_config * sym_config
-  val time_solver : float ref
 
   val sym_config :
     Interpreter.Instance.module_inst ->
@@ -199,7 +198,7 @@ module Helper (I : Interpreter) = struct
 
   let helper (inst : Interpreter.Instance.module_inst) (vs : Expression.t list)
       (es : sym_admin_instr list) (sym_m : Concolic.Heap.t) (globs : Globals.t)
-      : bool * (string * Interpreter.Source.region) option * float * float * int
+      : bool * (string * Interpreter.Source.region) option * float * int
       =
     let c = I.sym_config inst vs es sym_m globs in
 
@@ -222,5 +221,5 @@ module Helper (I : Interpreter) = struct
 
     let loop_time = Sys.time () -. loop_start in
 
-    (spec, reason, loop_time, !I.time_solver, paths)
+    (spec, reason, loop_time, paths)
 end
