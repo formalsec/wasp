@@ -13,6 +13,13 @@ let create () : t =
     typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
   }
 
+let to_store (varmap : t) (binds : (string * Num.t) list) : Concolic.Store.t =
+  let sym = varmap.sym in
+  let ord = varmap.ord in
+  let map = Hashtbl.create Interpreter.Flags.hashtbl_default_size in
+  Hashtbl.add_seq map (List.to_seq binds);
+  Concolic.Store.from_parts sym ord map
+
 let next (varmap : t) (x : string) : string =
   let id = Counter.get_and_inc varmap.sym x in
   if id = 0 then x else x ^ "_" ^ string_of_int id

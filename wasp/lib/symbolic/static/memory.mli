@@ -16,6 +16,7 @@ module type MemoryBackend = sig
   val from_heap : Concolic.Heap.t -> t
   val clone : t -> t * t
   val to_string : t -> string
+  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
 end
 
 module LazyMemory : MemoryBackend
@@ -38,6 +39,7 @@ module type SymbolicMemory = sig
   val store_value : t -> address -> offset -> Expression.t -> unit
   val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
   val to_string : t -> string
+  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
 end
 
 module LazySMem : SymbolicMemory

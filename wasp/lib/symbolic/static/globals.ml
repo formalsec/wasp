@@ -13,6 +13,18 @@ let clone_globals (map : t) : t = Hashtbl.copy map
 exception Type
 exception NotMutable
 
+let to_globals (sym_g : t) (expr_to_value : Expression.t -> Num.t) :
+    Concolic.Globals.t =
+  let sym_to_conc ((idx, g) : int32 * global) : int32 * (Num.t * Expression.t) =
+    let c = expr_to_value g.content in
+    (idx, (c, g.content))
+  in
+  let g = Concolic.Globals.create () in
+  let sym_seq = Hashtbl.to_seq sym_g in
+  let conc_seq = Seq.map sym_to_conc sym_seq in
+  Concolic.Globals.add_seq g conc_seq;
+  g
+
 let alloc (GlobalType (t, mut)) v =
   if type_of v <> Evaluations.to_num_type t then raise Type;
   { content = v; mut }

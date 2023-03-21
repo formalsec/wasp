@@ -214,6 +214,77 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       encoder = E.create ();
     }
 
+  let to_concolic (c : sym_config) : Concolic.Eval.config =
+    let open Concolic.Eval in
+    let store =
+      let binds = E.value_binds c.encoder (Varmap.binds c.varmap) in
+      Varmap.to_store c.varmap binds
+    in
+    let expr_to_value (ex : expr) : Num.t = Concolic.Store.eval store ex in
+    let frame_to_conc (f : sym_frame) : Concolic.Eval.frame =
+      let { sym_inst; sym_locals } = f in
+      let locals =
+        List.map
+          (fun r_ex ->
+            let ex = !r_ex in
+            ref (expr_to_value ex, ex))
+          sym_locals
+      in
+      { inst = sym_inst; locals }
+    in
+    let frame = frame_to_conc c.sym_frame in
+    let glob = Globals.to_globals c.sym_globals expr_to_value in
+    let vs_to_conc (vs : expr stack) : value stack =
+      List.map (fun ex -> (expr_to_value ex, ex)) vs
+    in
+    let rec code_to_conc (code : sym_code) =
+      let vs, es = code in
+      let vs = vs_to_conc vs in
+      let es = List.map sym_instr_to_conc es in
+      (vs, es)
+    and sym_instr_to_conc (instr : Strategies.sym_admin_instr) :
+        Concolic.Eval.sym_admin_instr =
+      let open Interpreter.Source in
+      let { at; it } = instr in
+      let it =
+        match it with
+        | Strategies.SPlain p -> Concolic.Eval.Plain p
+        | Strategies.SInvoke i -> Concolic.Eval.Invoke i
+        | Strategies.STrapping t -> Concolic.Eval.Trapping t
+        | Strategies.SReturning vs -> Concolic.Eval.Returning (vs_to_conc vs)
+        | Strategies.SBreaking (n, vs) ->
+            Concolic.Eval.Breaking (n, vs_to_conc vs)
+        | Strategies.SLabel (l, insts, code) ->
+            Concolic.Eval.Label (l, insts, code_to_conc code)
+        | Strategies.SFrame (f, frame, code) ->
+            Concolic.Eval.Frame (f, frame_to_conc frame, code_to_conc code)
+        | Strategies.Interrupt i -> failwith "TODO: uniform interrupts"
+      in
+      { at; it }
+    in
+    let code = code_to_conc c.sym_code in
+    let mem = SM.to_heap c.sym_mem expr_to_value in
+    let heap = c.chunk_table in
+    let pc =
+      let open E in
+      !(c.encoder.pc)
+    in
+    let bp = [] in
+    let tree = ref Concolic.Eval.head in
+    let budget = c.sym_budget in
+    { frame; glob; code; mem; store; heap; pc; bp; tree; budget }
+
+  let concolic_invoke (c : sym_config) :
+      (string * Interpreter.Source.region) option =
+    Concolic.Eval.head := Concolic.Execution_tree.Leaf;
+    debug "-- Switching to concolic mode...";
+    let open E in
+    let assertion = Encoding.Formula.to_formula !(c.encoder.pc) in
+    debug ("-- path_condition = " ^ Encoding.Formula.pp_to_string assertion);
+    let conc_c = to_concolic c in
+    let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
+    Concolic.Eval.BFS.s_invoke conc_c test_suite
+
   let memory_error at = function
     | SM.Bounds -> "out of bounds memory access"
     | Interpreter.Memory.SizeOverflow -> "memory size overflow"
@@ -564,9 +635,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   match concretize_ptr sym_ptr with
                   | Some ptr -> ptr
                   | None ->
-                      let binds =
-                        E.value_binds encoder (Varmap.binds varmap)
-                      in
+                      let binds = E.value_binds encoder (Varmap.binds varmap) in
                       let logic_env = Concolic.Store.create binds in
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
@@ -653,9 +722,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   match concretize_ptr sym_ptr with
                   | Some ptr -> ptr
                   | None ->
-                      let binds =
-                        E.value_binds encoder (Varmap.binds varmap)
-                      in
+                      let binds = E.value_binds encoder (Varmap.binds varmap) in
                       let logic_env = Concolic.Store.create binds in
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in

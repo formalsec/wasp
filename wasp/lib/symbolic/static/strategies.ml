@@ -44,22 +44,12 @@ module type Interpreter = sig
     sym_config
 
   val step : sym_config -> (step_res, string * Interpreter.Source.region) result
+
+  val concolic_invoke :
+    sym_config -> (string * Interpreter.Source.region) option
 end
 
-module type WorkList = sig
-  type 'a t
-
-  exception Empty
-
-  val create : unit -> 'a t
-  val push : 'a -> 'a t -> unit
-  val pop : 'a t -> 'a
-  val add_seq : 'a t -> 'a Seq.t -> unit
-  val is_empty : 'a t -> bool
-  val length : 'a t -> int
-end
-
-module TreeStrategy (L : WorkList) (I : Interpreter) = struct
+module TreeStrategy (L : Wlist.WorkList) (I : Interpreter) = struct
   let eval (c : I.sym_config) :
       (Expression.pc list, string * Interpreter.Source.region) result =
     let w = L.create () in
@@ -189,17 +179,49 @@ module ProgressBFS (I : Interpreter) = struct
     | None -> Result.ok !outs
 end
 
+module Hybrid (I : Interpreter) = struct
+  let max_configs = 32
+
+  let eval (c : I.sym_config) :
+      (Expression.pc list, string * Interpreter.Source.region) result =
+    let w = Queue.create () in
+    Queue.push c w;
+
+    let err = ref None in
+    let outs = ref [] in
+    while Option.is_none !err && not (Queue.is_empty w) do
+      let l = Queue.length w in
+      let c = Queue.pop w in
+
+      if l >= max_configs then
+        match I.concolic_invoke c with
+        | Some step_err -> err := Some step_err
+        | None -> ()
+      else
+        match I.step c with
+        | Result.Ok step_res -> (
+            match step_res with
+            | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
+            | I.End e -> outs := e :: !outs)
+        | Result.Error step_err -> err := Some step_err
+    done;
+
+    match !err with
+    | Some step_err -> Result.error step_err
+    | None -> Result.ok !outs
+end
+
 module Helper (I : Interpreter) = struct
   module DFS_I = DFS (I)
   module BFS_I = BFS (I)
   module BFS_L_I = BFS_L (I)
   module Half_BFS_I = Half_BFS (I)
   module RS_I = RS (I)
+  module Hybrid_I = Hybrid (I)
 
   let helper (inst : Interpreter.Instance.module_inst) (vs : Expression.t list)
       (es : sym_admin_instr list) (sym_m : Concolic.Heap.t) (globs : Globals.t)
-      : bool * (string * Interpreter.Source.region) option * float * int
-      =
+      : bool * (string * Interpreter.Source.region) option * float * int =
     let c = I.sym_config inst vs es sym_m globs in
 
     let eval =
@@ -209,6 +231,7 @@ module Helper (I : Interpreter) = struct
       | "breadth-l" -> BFS_L_I.eval
       | "half-breadth" -> Half_BFS_I.eval
       | "random" -> RS_I.eval
+      | "hybrid" -> Hybrid_I.eval
       | _ -> failwith "unreachable"
     in
 

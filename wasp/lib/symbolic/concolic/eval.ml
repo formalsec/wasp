@@ -75,6 +75,34 @@ type config = {
 
 let frame inst locals = { inst; locals }
 
+let clone_frame (f : frame) : frame =
+  frame f.inst (List.map (fun l -> ref !l) f.locals)
+
+let rec clone_admin_instr e =
+  let it =
+    match e.it with
+    | Label (n, es0, (vs, es)) ->
+        Label (n, es0, (vs, List.map clone_admin_instr es))
+    | Frame (n, frame, (vs, es)) ->
+        Frame (n, clone_frame frame, (vs, List.map clone_admin_instr es))
+    | _ -> e.it
+  in
+  { it; at = e.at }
+
+let clone (c : config) : config =
+  let vs, es = c.code in
+  let frame = clone_frame c.frame
+  and glob = Globals.copy c.glob
+  and code = (vs, List.map clone_admin_instr es)
+  and mem = Heap.memcpy c.mem
+  and store = Store.copy c.store
+  and heap = Hashtbl.copy c.heap
+  and pc = c.pc
+  and bp = []
+  and tree = ref !(c.tree)
+  and budget = c.budget in
+  { frame; glob; code; mem; store; heap; pc; bp; tree; budget }
+
 let config inst vs es mem glob tree =
   {
     frame = frame inst [];
@@ -646,8 +674,9 @@ let write_report error loop_time : unit =
     ^ "\"solver_time\" : \""
     ^ string_of_float !Encoding.Batch.solver_time
     ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int !iterations ^ ", "
-    ^ "\"solver_counter\" : " ^ string_of_int !Encoding.Batch.solver_count ^ ", "
-    ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
+    ^ "\"solver_counter\" : "
+    ^ string_of_int !Encoding.Batch.solver_count
+    ^ ", " ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
   in
   Interpreter.Io.save_file
     (Filename.concat !Interpreter.Flags.output "report.json")
@@ -703,6 +732,19 @@ let reset c glob code mem =
     budget = 100000;
   }
 
+let s_reset (c : config) : config =
+  let binds = Encoding.Batch.value_binds solver (Store.get_key_types c.store) in
+  Store.update c.store binds;
+  Heap.update c.mem c.store;
+  let f store (_, expr) = (Store.eval store expr, expr) in
+  List.iter (fun l -> l := f c.store !l) c.frame.locals;
+  c.tree := head;
+  let vs, es = c.code in
+  let code =
+    (List.map (f c.store) vs, List.map (update_admin_instr (f c.store)) es)
+  in
+  { c with code }
+
 module Guided_search (L : Wlist.WorkList) = struct
   let invoke (c : config) (test_suite : string) =
     let glob0 = Globals.copy c.glob
@@ -748,6 +790,49 @@ module Guided_search (L : Wlist.WorkList) = struct
     loop_start := Sys.time ();
     let error = loop c in
     write_report error (Sys.time () -. !loop_start)
+
+  let s_invoke (c : config) (test_suite : string) : (string * region) option =
+    let c0 = clone c in
+    let wl = L.create () in
+    let rec eval (c : config) : config =
+      match c.code with
+      | vs, [] -> c
+      | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
+      | vs, { it = Restart pc; at } :: es -> c
+      | vs, { it = Interrupt i; at } :: es -> c
+      | vs, es ->
+          let c' = step c in
+          List.iter (fun pc -> L.push pc wl) c'.bp;
+          eval { c' with bp = [] }
+    in
+    let rec find_sat_pc pcs =
+      if L.is_empty pcs then false
+      else if not (Encoding.Batch.check solver (L.pop pcs)) then find_sat_pc pcs
+      else true
+    in
+    (* Main concolic loop *)
+    let rec loop (c : config) =
+      iterations := !iterations + 1;
+      let { code; store; bp; pc; _ } = eval c in
+      List.iter (fun pc -> L.push pc wl) bp;
+      match code with
+      | vs, { it = Interrupt Limit; at } :: _ -> None
+      | vs, { it = Interrupt i; at } :: _ ->
+          write_test_case ~witness:true (Store.to_json store);
+          Some (string_of_interruption i, at)
+      | vs, { it = Restart pc; _ } :: es ->
+          print_endline "--- attempting restart ---";
+          iterations := !iterations - 1;
+          if Encoding.Batch.check solver pc then loop (update c (vs, es) pc)
+          else if L.is_empty wl || not (find_sat_pc wl) then None
+          else loop (s_reset (clone c0))
+      | _ ->
+          write_test_case (Store.to_json store);
+          if L.is_empty wl || not (find_sat_pc wl) then None
+          else loop (s_reset (clone c0))
+    in
+    let error = loop c in
+    error
 end
 
 module DFS = Guided_search (Stack)

@@ -17,6 +17,7 @@ module type MemoryBackend = sig
   val from_heap : Concolic.Heap.t -> t
   val clone : t -> t * t
   val to_string : t -> string
+  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
 end
 
 module LazyMemory : MemoryBackend = struct
@@ -78,6 +79,10 @@ module LazyMemory : MemoryBackend = struct
         "(" ^ Int64.to_string a ^ "->" ^ "(" ^ Expression.to_string se ^ ")"
         ^ ")\n" ^ acc)
       lst ""
+
+  let to_heap (map : t) (expr_to_value : Expression.t -> Num.t) :
+      Concolic.Heap.t =
+    failwith "TODO: LazyMemory.to_heap is not implemented"
 end
 
 module MapMemory : MemoryBackend = struct
@@ -110,6 +115,28 @@ module MapMemory : MemoryBackend = struct
         ^ ")\n" ^ acc)
       lst ""
 
+  let to_heap (map : t) (expr_to_value : Expression.t -> Num.t) :
+      Concolic.Heap.t =
+    let sz = Hashtbl.length map in
+    let mem = Concolic.Heap.alloc sz in
+    let address_symb_seq = Hashtbl.to_seq map in
+    let address_conc_seq =
+      Seq.map
+        (fun (a, b) ->
+          let c = expr_to_value b in
+          let cb =
+            match c with
+            | I64 cb -> Int64.to_int cb
+            | _ ->
+                failwith
+                  ("Memory should be composed of bytes: " ^ Num.string_of_num c)
+          in
+          (a, (cb, b)))
+        address_symb_seq
+    in
+    Concolic.Heap.add_seq mem address_conc_seq;
+    mem
+
   exception Bounds
 end
 
@@ -141,6 +168,10 @@ module TreeMemory : MemoryBackend = struct
         ^ ")\n" ^ acc)
       lst ""
 
+  let to_heap (map : t) (expr_to_value : Expression.t -> Num.t) :
+      Concolic.Heap.t =
+    failwith "TODO"
+
   exception Bounds
 end
 
@@ -160,6 +191,7 @@ module type SymbolicMemory = sig
   val store_value : t -> address -> offset -> Expression.t -> unit
   val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
   val to_string : t -> string
+  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
 end
 
 module SMem (MB : MemoryBackend) : SymbolicMemory = struct
@@ -309,6 +341,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     storen mem a o (length_pack_size sz) value
 
   let to_string = MB.to_string
+  let to_heap = MB.to_heap
 end
 
 module LazySMem : SymbolicMemory = SMem (LazyMemory)

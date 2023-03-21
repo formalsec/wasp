@@ -19,10 +19,20 @@ let reset (s : t) : unit =
   Hashtbl.clear s.map;
   BatDynArray.clear s.ord
 
+let copy (s : t) : t =
+  let sym = Counter.copy s.sym
+  and ord = BatDynArray.copy s.ord
+  and map = Hashtbl.copy s.map in
+  { sym; ord; map }
+
 let clear (s : t) : unit = Hashtbl.clear s.map
 
 let init (s : t) (binds : bind list) : unit =
   List.iter (fun (k, v) -> Hashtbl.add s.map k v) binds
+
+let from_parts (sym : Counter.t) (ord : name BatDynArray.t)
+    (map : (name, Num.t) Hashtbl.t) : t =
+  { sym; ord; map }
 
 let create (binds : bind list) : t =
   let s =
