@@ -350,10 +350,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
           Some { c with sym_code = (sym_ptr :: List.tl vs, List.tl es) }
     in
 
-    (* TODO: add flag to configure these *)
-    let fixed_numbers = [ 0l; 1l; 2l; 4l; 8l; 256l; 4096l ] in
     let fixed_attempts =
-      List.filter_map helper (List.map Option.some fixed_numbers)
+      List.filter_map helper
+        (List.map Option.some
+           (List.map Int32.of_int !Interpreter.Flags.fixed_numbers))
     in
     if List.length fixed_attempts > 0 then fixed_attempts
     else [ Option.get (helper None) ]

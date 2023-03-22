@@ -57,6 +57,9 @@ let argspec =
       ( "--queries",
         Arg.Set Flags.queries,
         " output solver queries in .smt2 format" );
+      ( "--allocs",
+        Arg.Int (fun i -> Flags.fixed_numbers := i :: !Flags.fixed_numbers),
+        " add allocation size to be tested on symbolic allocations" );
     ]
 
 let () =
