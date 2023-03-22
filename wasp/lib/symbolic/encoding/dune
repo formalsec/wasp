@@ -1,0 +1,3 @@
+(library
+  (name encoding)
+  (libraries z3 syntax interpreter))

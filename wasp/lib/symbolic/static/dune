@@ -1,0 +1,3 @@
+(library
+  (name static)
+  (libraries batteries interpreter common syntax encoding concolic))

@@ -1,0 +1,6 @@
+(include_subdirs no)
+
+(library
+ (name wasp)
+ (modules :standard \ btree)
+ (libraries batteries interpreter syntax concolic static))

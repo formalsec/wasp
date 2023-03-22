@@ -1,3 +1,4 @@
+open Interpreter
 let name = "WebAssembly Static Executor"
 let version = "v0.1"
 
@@ -61,12 +62,12 @@ let () =
   try
     configure ();
     Arg.parse argspec (fun file -> add_arg ("(input " ^ quote file ^ ")")) usage;
-    List.iter (fun arg -> if not (Symrun.run_string_se arg) then exit 1) !args;
+    List.iter (fun arg -> if not (Wasp.Run.run_string_se arg) then exit 1) !args;
     if !args = [] then Flags.interactive := true;
     if !Flags.interactive then (
       Flags.print_sig := true;
       banner ();
-      Symrun.run_stdin ())
+      Wasp.Run.run_stdin ())
   with exn ->
     flush_all ();
     prerr_endline
