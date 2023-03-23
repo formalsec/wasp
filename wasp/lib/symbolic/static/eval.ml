@@ -1184,7 +1184,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
         | SReturning vs', vs -> Crash.error e.at "undefined frame"
         | SBreaking (k, vs'), vs -> Crash.error e.at "undefined label"
         | SInvoke func, vs when c.sym_budget = 0 ->
-            Exhaustion.error e.at "call stack exhausted"
+            (* stop execution if call stack is too deep *)
+            Result.ok (Continuation [])
         | SInvoke func, vs -> (
             let (FuncType (ins, out)) = Func.type_of func in
             let n = List.length ins in
