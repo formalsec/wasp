@@ -1,4 +1,3 @@
-open Syntax
 open Interpreter
 
 type size = int32
@@ -10,9 +9,9 @@ module type MemoryBackend = sig
 
   exception Bounds
 
-  val store_byte : t -> address -> Val.sym_expr -> unit
+  val store_byte : t -> address -> Expression.t -> unit
 
-  val load_byte : t -> address -> Val.sym_expr
+  val load_byte : t -> address -> Expression.t
 
   val from_heap : Concolic.Heap.t -> t
 
@@ -38,16 +37,16 @@ module type SymbolicMemory =
     val clone : t -> t * t
 
     val load_value : t -> address -> offset -> Types.value_type ->
-      Val.sym_expr
+      Expression.t
 
     val load_packed : Memory.pack_size -> t -> address -> offset
-        ->Types.value_type -> Val.sym_expr
+        ->Types.value_type -> Expression.t
 
     val load_string : t -> address -> string
 
-    val store_value : t -> address -> offset -> Val.sym_expr -> unit
+    val store_value : t -> address -> offset -> Expression.t -> unit
 
-    val store_packed : Memory.pack_size -> t -> address -> offset -> Val.sym_expr -> unit
+    val store_packed : Memory.pack_size -> t -> address -> offset -> Expression.t -> unit
 
     val to_string : t -> string
 

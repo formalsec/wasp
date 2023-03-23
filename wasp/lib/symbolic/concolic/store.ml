@@ -1,9 +1,9 @@
 open Common
-open Syntax.I32
-open Syntax.I64
-open Syntax.F32
-open Syntax.F64
-open Syntax.Val
+open Expression.I32
+open Expression.I64
+open Expression.F32
+open Expression.F64
+open Expression
 open Interpreter
 open Interpreter.Types
 open Interpreter.Values
@@ -109,10 +109,10 @@ let to_expr (s : t) : sym_expr list =
     (fun k v acc ->
       let e =
         match v with
-        | I32 _ -> I32Relop (Syntax.I32.I32Eq, Symbolic (SymInt32, k), Value v)
-        | I64 _ -> I64Relop (Syntax.I64.I64Eq, Symbolic (SymInt64, k), Value v)
-        | F32 _ -> F32Relop (Syntax.F32.F32Eq, Symbolic (SymFloat32, k), Value v)
-        | F64 _ -> F64Relop (Syntax.F64.F64Eq, Symbolic (SymFloat64, k), Value v)
+        | I32 _ -> I32Relop (Expression.I32.I32Eq, Symbolic (SymInt32, k), Value v)
+        | I64 _ -> I64Relop (Expression.I64.I64Eq, Symbolic (SymInt64, k), Value v)
+        | F32 _ -> F32Relop (Expression.F32.F32Eq, Symbolic (SymFloat32, k), Value v)
+        | F64 _ -> F64Relop (Expression.F64.F64Eq, Symbolic (SymFloat64, k), Value v)
       in
       e :: acc)
     s.map []

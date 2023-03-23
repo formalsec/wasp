@@ -1,4 +1,3 @@
-open Syntax
 type bug =
   | Overflow
   | UAF
@@ -6,7 +5,7 @@ type bug =
 
 type interruption =
   | IntLimit
-  | AsmFail of Val.path_conditions
+  | AsmFail of Expression.path_conditions
   | AssFail of string
   | Bug of bug * string
 
@@ -14,19 +13,19 @@ type interruption =
 type sym_frame =
 {
   sym_inst : Interpreter.Instance.module_inst;
-  sym_locals : Val.sym_expr ref list; (*  Locals can be symbolic  *)
+  sym_locals : Expression.t ref list; (*  Locals can be symbolic  *)
 }
 
 (*  Symbolic code  *)
-type sym_code = Val.sym_expr list * sym_admin_instr list
+type sym_code = Expression.t list * sym_admin_instr list
 and sym_admin_instr = sym_admin_instr' Interpreter.Source.phrase
 and instr = Interpreter.Ast.instr' Interpreter.Source.phrase
 and sym_admin_instr' =
   | SPlain of Interpreter.Ast.instr'
   | SInvoke of Interpreter.Instance.func_inst
   | STrapping of string
-  | SReturning of Val.sym_expr list
-  | SBreaking of int32 * Val.sym_expr list
+  | SReturning of Expression.t list
+  | SBreaking of int32 * Expression.t list
   | SLabel of int * instr list * sym_code
   | SFrame of int * sym_frame * sym_code
   (**
@@ -45,12 +44,12 @@ module type Interpreter =
 
     val sym_config :
       Interpreter.Instance.module_inst ->
-      Val.sym_expr list ->
+      Expression.t list ->
       sym_admin_instr list ->
       Concolic.Heap.t ->
       Globals.t -> sym_config
 
-    val step : sym_config -> ((sym_config list * Val.path_conditions list), string * string) result
+    val step : sym_config -> ((sym_config list * Expression.path_conditions list), string * string) result
   end
 
 module type WorkList =
@@ -67,7 +66,7 @@ end
 
 module TreeStrategy (L : WorkList) (I : Interpreter) =
 struct
-  let eval (c : I.sym_config) : (Val.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
     let w = L.create () in
     L.push c w;
 
@@ -98,7 +97,7 @@ module BFS_L (I : Interpreter) =
 struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) : (Val.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -129,7 +128,7 @@ module Half_BFS (I : Interpreter) =
 struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) : (Val.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -159,7 +158,7 @@ end
 
 module ProgressBFS (I : Interpreter) =
 struct
-  let eval (c : I.sym_config) : (Val.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
@@ -204,7 +203,7 @@ struct
   module RS_I = RS(I)
   let helper
       (inst : Interpreter.Instance.module_inst)
-      (vs : Val.sym_expr list)
+      (vs : Expression.t list)
       (es : sym_admin_instr list)
       (sym_m : Concolic.Heap.t)
       (globs : Globals.t)

@@ -519,10 +519,10 @@ and run_quote_script script invoke =
 
 let invoke_ce f vs inst =
   Concolic.Eval.main f
-    (List.map (fun v -> (v.it, Syntax.Val.Value v.it)) vs) inst
+    (List.map (fun v -> (v.it, Expression.Value v.it)) vs) inst
 
 let invoke_se f vs _ =
-  Static.Eval.invoke f (List.map (fun v -> Syntax.Val.Value v.it) vs)
+  Static.Eval.invoke f (List.map (fun v -> Expression.Value v.it) vs)
 
 let run_file file = input_file file run_script
 let run_string_ce string = input_string string (fun s -> run_script s invoke_ce)

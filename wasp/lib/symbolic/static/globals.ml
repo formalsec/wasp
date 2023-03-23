@@ -1,5 +1,4 @@
-open Syntax
-open Syntax.Val
+open Expression
 open Interpreter.Types
 open Interpreter.Instance
 
@@ -40,7 +39,7 @@ let store (map : global_map) (x : int32) (ex : sym_expr): unit =
   match Hashtbl.find_opt map x with
   | Some(g) -> begin
     if g.mut <> Mutable then raise NotMutable;
-    if Val.type_of ex <> Val.type_of g.content then raise Type;
+    if Expression.type_of ex <> Expression.type_of g.content then raise Type;
     Hashtbl.replace map x {g with content = ex}
   end
   | None ->

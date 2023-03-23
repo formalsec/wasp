@@ -1,5 +1,5 @@
 open Z3
-open Syntax.Val
+open Expression
 open Formula
 open Interpreter
 open Interpreter.Types
@@ -33,7 +33,7 @@ let encode_bool (to_bv : bool) (cond : Expr.expr) : Expr.expr =
   if to_bv then Boolean.mk_ite ctx cond bv_true bv_false else cond
 
 module Zi32 = struct
-  open Syntax.I32
+  open Expression.I32
 
   let encode_value (i : int) : Expr.expr = Expr.mk_numeral_int ctx i bv32_sort
 
@@ -89,7 +89,7 @@ module Zi32 = struct
 end
 
 module Zi64 = struct
-  open Syntax.I64
+  open Expression.I64
 
   let encode_value (i : int) : Expr.expr = Expr.mk_numeral_int ctx i bv64_sort
 
@@ -148,7 +148,7 @@ module Zi64 = struct
 end
 
 module Zf32 = struct
-  open Syntax.F32
+  open Expression.F32
 
   let encode_value (f : float) : Expr.expr =
     FloatingPoint.mk_numeral_f ctx f fp32_sort
@@ -208,7 +208,7 @@ module Zf32 = struct
 end
 
 module Zf64 = struct
-  open Syntax.F64
+  open Expression.F64
 
   let encode_value (f : float) : Expr.expr =
     FloatingPoint.mk_numeral_f ctx f fp64_sort
@@ -280,7 +280,7 @@ let rec encode_sym_expr ?(bool_to_bv = false) (e : sym_expr) : Expr.expr =
   | SymPtr (base, offset) ->
       let base' = encode_value (I32 base)
       and offset' = encode_sym_expr offset in
-      Zi32.encode_binop Syntax.I32.I32Add base' offset'
+      Zi32.encode_binop Expression.I32.I32Add base' offset'
   | I32Unop (op, e) ->
       let e' = encode_sym_expr e in
       Zi32.encode_unop op e'

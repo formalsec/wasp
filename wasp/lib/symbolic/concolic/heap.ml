@@ -1,5 +1,4 @@
-open Syntax
-open Syntax.Val
+open Expression
 
 open Interpreter
 open Interpreter.Types
@@ -8,7 +7,7 @@ open Interpreter.Values
 type size = int32
 type address = int64
 type offset = int32
-type store = int * Val.sym_expr
+type store = int * sym_expr
 type memory = (address, store) Hashtbl.t
 type t = memory
 
@@ -37,7 +36,7 @@ let to_string (mem : memory) : string =
   List.fold_right
     (fun (a, (v, e)) b ->
       "(" ^ Int64.to_string a ^ "->" ^ "(" ^ string_of_int v ^ ", "
-      ^ Val.to_string e ^ ")" ^ ")\n" ^ b)
+      ^ Expression.to_string e ^ ")" ^ ")\n" ^ b)
     lst ""
 
 let load_byte (mem : memory) (a : address) : store =
@@ -120,16 +119,16 @@ let load_value (mem : memory) (a : address) (o : offset) (t : value_type) :
         let e : sym_expr =
           match expr with
           | Value (I64 v) -> Value (F32 (F32.of_bits (Int64.to_int32 v)))
-          | I32Cvtop (Syntax.I32.I32ReinterpretFloat, v) -> v
-          | _ -> F32Cvtop (Syntax.F32.F32ReinterpretInt, expr)
+          | I32Cvtop (Expression.I32.I32ReinterpretFloat, v) -> v
+          | _ -> F32Cvtop (Expression.F32.F32ReinterpretInt, expr)
         in
         (F32 (F32.of_bits (Int64.to_int32 n)), e)
     | F64Type ->
         let e : sym_expr =
           match expr with
           | Value (I64 v) -> Value (F64 (F64.of_bits v))
-          | I64Cvtop (Syntax.I64.I64ReinterpretFloat, v) -> v
-          | _ -> F64Cvtop (Syntax.F64.F64ReinterpretInt, expr)
+          | I64Cvtop (Expression.I64.I64ReinterpretFloat, v) -> v
+          | _ -> F64Cvtop (Expression.F64.F64ReinterpretInt, expr)
         in
         (F64 (F64.of_bits n), e)
   in
@@ -152,14 +151,14 @@ let store_value (mem : memory) (a : address) (o : offset) (v : sym_value) : unit
         let e : sym_expr =
           match sv with
           | Value (F32 x) -> Value (I64 (Int64.of_int32 (F32.to_bits x)))
-          | _ -> I32Cvtop (Syntax.I32.I32ReinterpretFloat, sv)
+          | _ -> I32Cvtop (Expression.I32.I32ReinterpretFloat, sv)
         in
         (Int64.of_int32 (F32.to_bits x), e)
     | F64 x ->
         let e : sym_expr =
           match sv with
           | Value (F64 x) -> Value (I64 (F64.to_bits x))
-          | _ -> I64Cvtop (Syntax.I64.I64ReinterpretFloat, sv)
+          | _ -> I64Cvtop (Expression.I64.I64ReinterpretFloat, sv)
         in
         (F64.to_bits x, e)
   in

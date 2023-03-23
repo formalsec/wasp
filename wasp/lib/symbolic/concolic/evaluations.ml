@@ -1,8 +1,8 @@
-open Syntax.I32
-open Syntax.I64
-open Syntax.F32
-open Syntax.F64
-open Syntax.Val
+open Expression.I32
+open Expression.I64
+open Expression.F32
+open Expression.F64
+open Expression
 open Interpreter
 open Interpreter.Ast
 

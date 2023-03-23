@@ -1,4 +1,4 @@
-open Syntax.Val
+open Expression
 
 type globals = (int32, sym_value) Hashtbl.t
 type t = globals

@@ -1,5 +1,4 @@
 open Z3
-open Syntax
 open Interpreter
 open Interpreter.Types
 open Interpreter.Values
@@ -17,7 +16,7 @@ let time_call f acc =
 type s = Solver.solver
 type t = {
   solver : s;
-  pc : Val.path_conditions ref;
+  pc : Expression.path_conditions ref;
 }
 
 let ctx =
@@ -52,7 +51,7 @@ let encode_bool (to_bv : bool) (cond : Expr.expr) : Expr.expr =
 
 module Zi32 =
 struct
-  open Syntax.I32
+  open Expression.I32
 
   let encode_value (i : int) : Expr.expr =
     Expr.mk_numeral_int ctx i bv32_sort
@@ -110,7 +109,7 @@ end
 
 module Zi64 =
 struct
-  open Syntax.I64
+  open Expression.I64
 
   let encode_value (i : int) : Expr.expr =
     Expr.mk_numeral_int ctx i bv64_sort
@@ -171,7 +170,7 @@ end
 
 module Zf32 =
 struct
-  open Syntax.F32
+  open Expression.F32
 
   let encode_value (f : float) : Expr.expr =
     FloatingPoint.mk_numeral_f ctx f fp32_sort
@@ -230,7 +229,7 @@ end
 
 module Zf64 =
 struct
-  open Syntax.F64
+  open Expression.F64
 
   let encode_value (f : float) : Expr.expr =
     FloatingPoint.mk_numeral_f ctx f fp64_sort
@@ -295,15 +294,15 @@ let encode_value (v : Values.value) : Z3.Expr.expr =
   | Values.F32 f -> Zf32.encode_value (F32.to_float f)
   | Values.F64 f -> Zf64.encode_value (F64.to_float f)
 
-let rec encode_sym_expr ?(bool_to_bv=false) (e : Val.sym_expr) : Expr.expr =
-  let open Val in
+let rec encode_sym_expr ?(bool_to_bv=false) (e : Expression.t) : Expr.expr =
+  let open Expression in
   let open Values in
   match e with
   | Value v -> encode_value v
   | SymPtr (base, offset) ->
       let base' = encode_value (I32 base) in
       let offset' = encode_sym_expr offset in
-      Zi32.encode_binop Syntax.I32.I32Add base' offset'
+      Zi32.encode_binop Expression.I32.I32Add base' offset'
   | I32Unop  (op, e) ->
       let e' = encode_sym_expr e in
       Zi32.encode_unop op e'
@@ -390,12 +389,12 @@ let create () : t =
 let clone (e : t) : t =
   { solver = Solver.translate e.solver ctx; pc = ref !(e.pc) }
 
-let add (e : t) (c : Val.sym_expr):  unit =
+let add (e : t) (c : Expression.t):  unit =
   e.pc := c :: !(e.pc);
   let ec = encode_sym_expr ~bool_to_bv:false c in
   Solver.add e.solver [ec]
 
-let check (e : t) (vs : Val.sym_expr list) : bool =
+let check (e : t) (vs : Expression.t list) : bool =
   let vs' = List.map (encode_sym_expr ~bool_to_bv:false) vs in
   let b =
     let sat =
@@ -409,8 +408,8 @@ let check (e : t) (vs : Val.sym_expr list) : bool =
   in
   b
 
-let fork (e : t) (co : Val.sym_expr) : bool * bool =
-  let negated_co = Val.negate_relop co in
+let fork (e : t) (co : Expression.t) : bool * bool =
+  let negated_co = Expression.negate_relop co in
   (check e [ co ]), (check e [ negated_co ])
 
 let set (s : string) (i : int) (n : char) =
@@ -466,7 +465,7 @@ let value_of_const model c =
         and sbits = FloatingPoint.get_sbits ctx (Expr.get_sort e) in
         int64_of_fp e ebits (sbits - 1)
     in
-    match Val.type_of c with
+    match Expression.type_of c with
     | I32Type -> I32 (Int64.to_int32 v)
     | I64Type -> I64 v
     | F32Type -> F32 (F32.of_bits (Int64.to_int32 v))
@@ -484,7 +483,7 @@ let value_binds (e : t) vars : (string * value) list =
   let m = model e in
   List.fold_left
     (fun a (x, t) ->
-      let v = value_of_const m (Val.to_symbolic t x) in
+      let v = value_of_const m (Expression.to_symbolic t x) in
       Batteries.Option.map_default (fun v' -> (x, v') :: a) (a) v)
     [] vars
 

@@ -1,6 +1,5 @@
-open Syntax
-open Syntax.I32
-open Syntax.Val
+open Expression
+open Expression.I32
 open Strategies
 open Interpreter.Values
 open Interpreter.Types
@@ -917,7 +916,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
           let args, vs' = take n vs e.at, drop n vs e.at in
           (match func with
           | Func.AstFunc (t, inst', f) ->
-            let locals' = List.map (fun v -> Val.Value v) (List.map default_value f.it.locals) in
+            let locals' = List.map (fun v -> Expression.Value v) (List.map default_value f.it.locals) in
             let locals'' = List.rev args @ locals' in
             let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
             let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in

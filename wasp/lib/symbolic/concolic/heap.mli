@@ -1,4 +1,4 @@
-open Syntax.Val
+open Expression
 open Interpreter.Types
 open Interpreter.Memory
 

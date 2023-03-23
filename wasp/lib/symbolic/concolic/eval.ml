@@ -1,5 +1,5 @@
-open Syntax.I32
-open Syntax.Val
+open Expression.I32
+open Expression
 open Evaluations
 open Interpreter
 open Interpreter.Ast
@@ -575,7 +575,7 @@ let rec step (c : config) : config =
         | Func.AstFunc (t, inst', f) ->
             let locals' =
               List.map
-                (fun v -> (v, Syntax.Val.Value v))
+                (fun v -> (v, Expression.Value v))
                 (List.map default_value f.it.locals)
             in
             let locals'' = List.rev args @ locals' in
@@ -751,7 +751,7 @@ let set_timeout (time_limit : int) : unit =
     Sys.(set_signal sigalrm (Signal_handle alarm_handler));
     ignore (Unix.alarm time_limit))
 
-let main (func : func_inst) (vs : sym_value list) (inst : module_inst) 
+let main (func : func_inst) (vs : sym_value list) (inst : module_inst)
     (mem0 : Heap.t) =
   set_timeout !Flags.timeout;
   let test_suite = Filename.concat !Flags.output "test_suite" in
@@ -763,7 +763,7 @@ let main (func : func_inst) (vs : sym_value list) (inst : module_inst)
        (List.mapi
           (fun i a ->
             let v = Global.load a in
-            (Int32.of_int i, (v, Syntax.Val.Value v)))
+            (Int32.of_int i, (v, Expression.Value v)))
           inst.globals));
   let c =
     config empty_module_inst (List.rev vs)

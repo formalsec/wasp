@@ -1,6 +1,11 @@
 open I32
 open I64
 
+module I32 = I32
+module I64 = I64
+module F32 = F32
+module F64 = F64
+
 type symbolic =
   | SymInt8
   | SymInt16
@@ -39,6 +44,8 @@ type sym_expr =
   (* Encoding Auxiliary *)
   | Extract of sym_expr * int * int
   | Concat of sym_expr * sym_expr
+
+type t = sym_expr
 
 (*  Pair ( (concrete) Value, (symbolic) Expression)  *)
 type sym_value = Interpreter.Values.value * sym_expr
