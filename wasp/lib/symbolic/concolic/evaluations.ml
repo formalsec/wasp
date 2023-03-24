@@ -1,21 +1,32 @@
-open Expression.I32
-open Expression.I64
-open Expression.F32
-open Expression.F64
+open Encoding
+open Types
 open Expression
-open Interpreter
 open Interpreter.Ast
 
 exception UnsupportedOp of string
 
+let to_value (n : Num.t) : Interpreter.Values.value =
+  match n with
+  | I32 i -> Interpreter.Values.I32 i
+  | I64 i -> Interpreter.Values.I64 i
+  | F32 f -> Interpreter.Values.F32 (Interpreter.F32.of_bits f)
+  | F64 f -> Interpreter.Values.F64 (Interpreter.F64.of_bits f)
+
+let of_value (v : Interpreter.Values.value) : Num.t =
+  match v with
+  | Interpreter.Values.I32 i -> I32 i
+  | Interpreter.Values.I64 i -> I64 i
+  | Interpreter.Values.F32 f -> F32 (Interpreter.F32.to_bits f)
+  | Interpreter.Values.F64 f -> F64 (Interpreter.F64.to_bits f)
+
 (*  Evaluate a unary operation  *)
-let eval_unop (e : sym_value) (op : unop) : sym_value =
+let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
   let f32_unop op e =
     begin match op with
-    | F32Op.Neg     -> F32Unop (F32Neg, e)
-    | F32Op.Abs     -> F32Unop (F32Abs, e)
-    | F32Op.Sqrt    -> F32Unop (F32Sqrt, e)
-    | F32Op.Nearest -> F32Unop (F32Nearest, e)
+    | F32Op.Neg     -> Unop (F32 F32.Neg, e)
+    | F32Op.Abs     -> Unop (F32 F32.Abs, e)
+    | F32Op.Sqrt    -> Unop (F32 F32.Sqrt, e)
+    | F32Op.Nearest -> Unop (F32 F32.Nearest, e)
     | F32Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
     | F32Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
     | F32Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
@@ -23,251 +34,264 @@ let eval_unop (e : sym_value) (op : unop) : sym_value =
   in
   let f64_unop op e =
     begin match op with
-    | F64Op.Neg     -> F64Unop (F64Neg, e)
-    | F64Op.Abs     -> F64Unop (F64Abs, e)
-    | F64Op.Sqrt    -> F64Unop (F64Sqrt, e)
-    | F64Op.Nearest -> F64Unop (F64Nearest, e)
+    | F64Op.Neg     -> Unop (F64 F64.Neg, e)
+    | F64Op.Abs     -> Unop (F64 F64.Abs, e)
+    | F64Op.Sqrt    -> Unop (F64 F64.Sqrt, e)
+    | F64Op.Nearest -> Unop (F64 F64.Nearest, e)
     | F64Op.Ceil    -> raise (UnsupportedOp "eval_unop: Ceil")
     | F64Op.Floor   -> raise (UnsupportedOp "eval_unop: Floor")
     | F64Op.Trunc   -> raise (UnsupportedOp "eval_unop: Trunc")
     end
   in
-	let (c, s) = e in
-	let c' = Eval_numeric.eval_unop op c in
-	let s' =
-		begin match s with
-    | Value _ -> Value c'
-	  | _ -> (* dispatch *)
+  let (c, s) = e in
+  let c' = of_value (Interpreter.Eval_numeric.eval_unop op (to_value c)) in
+  let s' =
+  begin match s with
+    | Num _ -> Num c'
+    | _ -> (* dispatch *)
         begin match op with
-        | Values.F32 x -> f32_unop x s
-        | Values.F64 x -> f64_unop x s
-				| Values.I32 _ | Values.I64 _ -> raise (UnsupportedOp "eval_unop: ints")
+        | Interpreter.Values.F32 x -> f32_unop x s
+        | Interpreter.Values.F64 x -> f64_unop x s
+        | Interpreter.Values.I32 _
+        | Interpreter.Values.I64 _ ->
+            raise (UnsupportedOp "eval_unop: ints")
         end
     end
   in (c', s')
 
 (*  Evaluate a binary operation *)
-let eval_binop (e1 : sym_value) (e2 : sym_value) (op : Ast.binop) : sym_value =
+let eval_binop (e1 : value) (e2 : value) (op : Interpreter.Ast.binop) : value =
   let i32_binop op e1 e2 =
     begin match op with
-    | I32Op.Add  -> I32Binop (I32Add , e1, e2)
-    | I32Op.And  -> I32Binop (I32And , e1, e2)
-    | I32Op.Or   -> I32Binop (I32Or  , e1, e2)
-    | I32Op.Sub  -> I32Binop (I32Sub , e1, e2)
-    | I32Op.DivS -> I32Binop (I32DivS, e1, e2)
-    | I32Op.DivU -> I32Binop (I32DivU, e1, e2)
-    | I32Op.Xor  -> I32Binop (I32Xor , e1, e2)
-    | I32Op.Mul  -> I32Binop (I32Mul , e1, e2)
-    | I32Op.Shl  -> I32Binop (I32Shl , e1, e2)
-    | I32Op.ShrS -> I32Binop (I32ShrS, e1, e2)
-    | I32Op.ShrU -> I32Binop (I32ShrU, e1, e2)
-    | I32Op.RemS -> I32Binop (I32RemS, e1, e2)
-    | I32Op.RemU -> I32Binop (I32RemU, e1, e2)
+    | I32Op.Add  -> Binop (I32 I32.Add , e1, e2)
+    | I32Op.And  -> Binop (I32 I32.And , e1, e2)
+    | I32Op.Or   -> Binop (I32 I32.Or  , e1, e2)
+    | I32Op.Sub  -> Binop (I32 I32.Sub , e1, e2)
+    | I32Op.DivS -> Binop (I32 I32.DivS, e1, e2)
+    | I32Op.DivU -> Binop (I32 I32.DivU, e1, e2)
+    | I32Op.Xor  -> Binop (I32 I32.Xor , e1, e2)
+    | I32Op.Mul  -> Binop (I32 I32.Mul , e1, e2)
+    | I32Op.Shl  -> Binop (I32 I32.Shl , e1, e2)
+    | I32Op.ShrS -> Binop (I32 I32.ShrS, e1, e2)
+    | I32Op.ShrU -> Binop (I32 I32.ShrU, e1, e2)
+    | I32Op.RemS -> Binop (I32 I32.RemS, e1, e2)
+    | I32Op.RemU -> Binop (I32 I32.RemU, e1, e2)
     | I32Op.Rotl -> failwith "eval I32Binop: TODO Rotl"
     | I32Op.Rotr -> failwith "eval I32Binop: TODO Rotr"
     end
   in
   let i64_binop op e1 e2 =
     begin match op with
-    | I64Op.Add  -> I64Binop (I64Add , e1, e2)
-    | I64Op.And  -> I64Binop (I64And , e1, e2)
-    | I64Op.Or   -> I64Binop (I64Or  , e1, e2)
-    | I64Op.Sub  -> I64Binop (I64Sub , e1, e2)
-    | I64Op.DivS -> I64Binop (I64DivS, e1, e2)
-    | I64Op.DivU -> I64Binop (I64DivU, e1, e2)
-    | I64Op.Xor  -> I64Binop (I64Xor , e1, e2)
-    | I64Op.Mul  -> I64Binop (I64Mul , e1, e2)
-    | I64Op.RemS -> I64Binop (I64RemS, e1, e2)
-    | I64Op.RemU -> I64Binop (I64RemU, e1, e2)
-    | I64Op.Shl  -> I64Binop (I64Shl , e1, e2)
-    | I64Op.ShrS -> I64Binop (I64ShrS, e1, e2)
-    | I64Op.ShrU -> I64Binop (I64ShrU, e1, e2)
+    | I64Op.Add  -> Binop (I64 I64.Add , e1, e2)
+    | I64Op.And  -> Binop (I64 I64.And , e1, e2)
+    | I64Op.Or   -> Binop (I64 I64.Or  , e1, e2)
+    | I64Op.Sub  -> Binop (I64 I64.Sub , e1, e2)
+    | I64Op.DivS -> Binop (I64 I64.DivS, e1, e2)
+    | I64Op.DivU -> Binop (I64 I64.DivU, e1, e2)
+    | I64Op.Xor  -> Binop (I64 I64.Xor , e1, e2)
+    | I64Op.Mul  -> Binop (I64 I64.Mul , e1, e2)
+    | I64Op.RemS -> Binop (I64 I64.RemS, e1, e2)
+    | I64Op.RemU -> Binop (I64 I64.RemU, e1, e2)
+    | I64Op.Shl  -> Binop (I64 I64.Shl , e1, e2)
+    | I64Op.ShrS -> Binop (I64 I64.ShrS, e1, e2)
+    | I64Op.ShrU -> Binop (I64 I64.ShrU, e1, e2)
     | I64Op.Rotl -> failwith "eval I64Binop: TODO Rotl"
     | I64Op.Rotr -> failwith "eval I64Binop: TODO Rotr"
     end
   in
   let f32_binop op e1 e2 =
     begin match op with
-    | F32Op.Add  -> F32Binop (F32Add, e1, e2)
-    | F32Op.Sub  -> F32Binop (F32Sub, e1, e2)
-    | F32Op.Div  -> F32Binop (F32Div, e1, e2)
-    | F32Op.Mul  -> F32Binop (F32Mul, e1, e2)
-    | F32Op.Min  -> F32Binop (F32Min, e1, e2)
-    | F32Op.Max  -> F32Binop (F32Max, e1, e2)
+    | F32Op.Add  -> Binop (F32 F32.Add, e1, e2)
+    | F32Op.Sub  -> Binop (F32 F32.Sub, e1, e2)
+    | F32Op.Div  -> Binop (F32 F32.Div, e1, e2)
+    | F32Op.Mul  -> Binop (F32 F32.Mul, e1, e2)
+    | F32Op.Min  -> Binop (F32 F32.Min, e1, e2)
+    | F32Op.Max  -> Binop (F32 F32.Max, e1, e2)
     | F32Op.CopySign -> failwith "eval F32Binop: TODO CopySign"
     end
   in
   let f64_binop op e1 e2 =
     begin match op with
-    | F64Op.Add  -> F64Binop (F64Add, e1, e2)
-    | F64Op.Sub  -> F64Binop (F64Sub, e1, e2)
-    | F64Op.Div  -> F64Binop (F64Div, e1, e2)
-    | F64Op.Mul  -> F64Binop (F64Mul, e1, e2)
-    | F64Op.Min  -> F64Binop (F64Min, e1, e2)
-    | F64Op.Max  -> F64Binop (F64Max, e1, e2)
+    | F64Op.Add  -> Binop (F64 F64.Add, e1, e2)
+    | F64Op.Sub  -> Binop (F64 F64.Sub, e1, e2)
+    | F64Op.Div  -> Binop (F64 F64.Div, e1, e2)
+    | F64Op.Mul  -> Binop (F64 F64.Mul, e1, e2)
+    | F64Op.Min  -> Binop (F64 F64.Min, e1, e2)
+    | F64Op.Max  -> Binop (F64 F64.Max, e1, e2)
     | F64Op.CopySign -> failwith "eval F64Binop: TODO CopySign"
     end
   in
-	let (c1, s1) = e1
+  let (c1, s1) = e1
   and (c2, s2) = e2 in
-	let c = Eval_numeric.eval_binop op c1 c2 in
-	let s =
+  let c =
+    of_value
+      (Interpreter.Eval_numeric.eval_binop op
+        (to_value c1) (to_value c2))
+  in
+  let s =
     begin match s1, s2 with
-    | Value _, Value _ -> Value c
-		| _ -> (* dispatch *)
+    | Num _, Num _ -> Num c
+    | _ -> (* dispatch *)
         begin match op with
-        | Values.I32 x -> i32_binop x s1 s2
-        | Values.I64 x -> i64_binop x s1 s2
-        | Values.F32 x -> f32_binop x s1 s2
-        | Values.F64 x -> f64_binop x s1 s2
+        | Interpreter.Values.I32 x -> i32_binop x s1 s2
+        | Interpreter.Values.I64 x -> i64_binop x s1 s2
+        | Interpreter.Values.F32 x -> f32_binop x s1 s2
+        | Interpreter.Values.F64 x -> f64_binop x s1 s2
         end
     end
   in (c, s)
 
 (*  Evaluate a test operation  *)
-let eval_testop (e : sym_value) (op : testop) : sym_value =
-	let (c, s) = e in
-	let c' = Values.value_of_bool (Eval_numeric.eval_testop op c) in
-	let s' =
-		begin match s with
-    | Value _ -> Value c'
-    | SymPtr (b, Value _) -> Value c'
-		| _ ->
-        begin match op with
-				| Values.I32 I32Op.Eqz -> I32Relop (I32Eq, s, Value (Values.I32 0l))
-				| Values.I64 I64Op.Eqz -> I64Relop (I64Eq, s, Value (Values.I64 0L))
-        | Values.F32 _ | Values.F64 _ -> failwith "eval_testop: floats"
-        end
-    end
+let eval_testop (e : value) (op : testop) : value =
+  let (c, s) = e in
+  let c' =
+    Num.num_of_bool
+      (Interpreter.Eval_numeric.eval_testop op (to_value c))
+  in
+  let s' =
+  (match s with
+    | Num _ -> Num c'
+    | SymPtr (b, Num _) -> Num c'
+    | _ -> (
+        match op with
+        | Interpreter.Values.I32 I32Op.Eqz ->
+            Relop (I32 I32.Eq, s, Num (I32 0l))
+        | Interpreter.Values.I64 I64Op.Eqz ->
+            Relop (I64 I64.Eq, s, Num (I64 0L))
+        | _ -> failwith "eval_testop: floats"))
   in (c', s')
 
 (*  Evaluate a relative operation  *)
-let eval_relop (e1 : sym_value) (e2 : sym_value) (op : Ast.relop) : sym_value =
+let eval_relop (e1 : value) (e2 : value) (op : Interpreter.Ast.relop) : value =
   let i32_relop op e1 e2 =
     begin match op with
-    | I32Op.Eq  -> I32Relop (I32Eq , e1, e2)
-    | I32Op.Ne  -> I32Relop (I32Ne , e1, e2)
-    | I32Op.LtU -> I32Relop (I32LtU, e1, e2)
-    | I32Op.LtS -> I32Relop (I32LtS, e1, e2)
-    | I32Op.GtU -> I32Relop (I32GtU, e1, e2)
-    | I32Op.GtS -> I32Relop (I32GtS, e1, e2)
-    | I32Op.LeU -> I32Relop (I32LeU, e1, e2)
-    | I32Op.LeS -> I32Relop (I32LeS, e1, e2)
-    | I32Op.GeU -> I32Relop (I32GeU, e1, e2)
-    | I32Op.GeS -> I32Relop (I32GeS, e1, e2)
+    | I32Op.Eq  -> Relop (I32 I32.Eq , e1, e2)
+    | I32Op.Ne  -> Relop (I32 I32.Ne , e1, e2)
+    | I32Op.LtU -> Relop (I32 I32.LtU, e1, e2)
+    | I32Op.LtS -> Relop (I32 I32.LtS, e1, e2)
+    | I32Op.GtU -> Relop (I32 I32.GtU, e1, e2)
+    | I32Op.GtS -> Relop (I32 I32.GtS, e1, e2)
+    | I32Op.LeU -> Relop (I32 I32.LeU, e1, e2)
+    | I32Op.LeS -> Relop (I32 I32.LeS, e1, e2)
+    | I32Op.GeU -> Relop (I32 I32.GeU, e1, e2)
+    | I32Op.GeS -> Relop (I32 I32.GeS, e1, e2)
     end
   in
   let i64_relop op e1 e2 =
     begin match op with
-    | I64Op.Eq  -> I64Relop (I64Eq , e1, e2)
-    | I64Op.Ne  -> I64Relop (I64Ne , e1, e2)
-    | I64Op.LtU -> I64Relop (I64LtU, e1, e2)
-    | I64Op.LtS -> I64Relop (I64LtS, e1, e2)
-    | I64Op.GtU -> I64Relop (I64GtU, e1, e2)
-    | I64Op.GtS -> I64Relop (I64GtS, e1, e2)
-    | I64Op.LeU -> I64Relop (I64LeU, e1, e2)
-    | I64Op.LeS -> I64Relop (I64LeS, e1, e2)
-    | I64Op.GeU -> I64Relop (I64GeU, e1, e2)
-    | I64Op.GeS -> I64Relop (I64GeS, e1, e2)
+    | I64Op.Eq  -> Relop (I64 I64.Eq , e1, e2)
+    | I64Op.Ne  -> Relop (I64 I64.Ne , e1, e2)
+    | I64Op.LtU -> Relop (I64 I64.LtU, e1, e2)
+    | I64Op.LtS -> Relop (I64 I64.LtS, e1, e2)
+    | I64Op.GtU -> Relop (I64 I64.GtU, e1, e2)
+    | I64Op.GtS -> Relop (I64 I64.GtS, e1, e2)
+    | I64Op.LeU -> Relop (I64 I64.LeU, e1, e2)
+    | I64Op.LeS -> Relop (I64 I64.LeS, e1, e2)
+    | I64Op.GeU -> Relop (I64 I64.GeU, e1, e2)
+    | I64Op.GeS -> Relop (I64 I64.GeS, e1, e2)
     end
   in
   let f32_relop op e1 e2 =
     begin match op with
-    | F32Op.Eq  -> F32Relop (F32Eq, e1, e2)
-    | F32Op.Ne  -> F32Relop (F32Ne, e1, e2)
-    | F32Op.Lt  -> F32Relop (F32Lt, e1, e2)
-    | F32Op.Gt  -> F32Relop (F32Gt, e1, e2)
-    | F32Op.Le  -> F32Relop (F32Le, e1, e2)
-    | F32Op.Ge  -> F32Relop (F32Ge, e1, e2)
+    | F32Op.Eq  -> Relop (F32 F32.Eq, e1, e2)
+    | F32Op.Ne  -> Relop (F32 F32.Ne, e1, e2)
+    | F32Op.Lt  -> Relop (F32 F32.Lt, e1, e2)
+    | F32Op.Gt  -> Relop (F32 F32.Gt, e1, e2)
+    | F32Op.Le  -> Relop (F32 F32.Le, e1, e2)
+    | F32Op.Ge  -> Relop (F32 F32.Ge, e1, e2)
     end
   in
   let f64_relop op e1 e2 =
     begin match op with
-    | F64Op.Eq  -> F64Relop (F64Eq, e1, e2)
-    | F64Op.Ne  -> F64Relop (F64Ne, e1, e2)
-    | F64Op.Lt  -> F64Relop (F64Lt, e1, e2)
-    | F64Op.Gt  -> F64Relop (F64Gt, e1, e2)
-    | F64Op.Le  -> F64Relop (F64Le, e1, e2)
-    | F64Op.Ge  -> F64Relop (F64Ge, e1, e2)
+    | F64Op.Eq  -> Relop (F64 F64.Eq, e1, e2)
+    | F64Op.Ne  -> Relop (F64 F64.Ne, e1, e2)
+    | F64Op.Lt  -> Relop (F64 F64.Lt, e1, e2)
+    | F64Op.Gt  -> Relop (F64 F64.Gt, e1, e2)
+    | F64Op.Le  -> Relop (F64 F64.Le, e1, e2)
+    | F64Op.Ge  -> Relop (F64 F64.Ge, e1, e2)
     end
   in
-	let (c1, s1) = e1
+  let (c1, s1) = e1
   and (c2, s2) = e2 in
-	let c = Values.value_of_bool (Eval_numeric.eval_relop op c1 c2) in
-	let s =
+  let c =
+    Num.num_of_bool
+      (Interpreter.Eval_numeric.eval_relop op (to_value c1)
+        (to_value c2))
+  in
+  let s =
     begin match s1, s2 with
-    | Value _, Value _ -> Value c
-		| _ -> (* dispatch *)
+    | Num _, Num _ -> Num c
+    | _ -> (* dispatch *)
         begin match op with
-        | Values.I32 x -> i32_relop x s1 s2
-        | Values.I64 x -> i64_relop x s1 s2
-        | Values.F32 x -> f32_relop x s1 s2
-        | Values.F64 x -> f64_relop x s1 s2
+        | Interpreter.Values.I32 x -> i32_relop x s1 s2
+        | Interpreter.Values.I64 x -> i64_relop x s1 s2
+        | Interpreter.Values.F32 x -> f32_relop x s1 s2
+        | Interpreter.Values.F64 x -> f64_relop x s1 s2
         end
     end
   in (c, s)
 
-let eval_cvtop (op : Ast.cvtop) (e : sym_value) : sym_value =
+let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
   (* TODO: sign bit *)
   let i32_cvtop op e =
     let (c, s) = e in
     match op with
     (* 64bit integer is taken modulo 2^32 i.e., top 32 bits are lost *)
     | I32Op.WrapI64 -> Extract (s, 4, 0)
-    | I32Op.TruncSF32 -> I32Cvtop (I32TruncSF32, s)
-    | I32Op.TruncUF32 -> I32Cvtop (I32TruncUF32, s)
-    | I32Op.TruncSF64 -> I32Cvtop (I32TruncSF64, s)
-    | I32Op.TruncUF64 -> I32Cvtop (I32TruncUF64, s)
-    | I32Op.ReinterpretFloat -> I32Cvtop (I32ReinterpretFloat, s)
+    | I32Op.TruncSF32 -> Cvtop (I32 I32.TruncSF32, s)
+    | I32Op.TruncUF32 -> Cvtop (I32 I32.TruncUF32, s)
+    | I32Op.TruncSF64 -> Cvtop (I32 I32.TruncSF64, s)
+    | I32Op.TruncUF64 -> Cvtop (I32 I32.TruncUF64, s)
+    | I32Op.ReinterpretFloat -> Cvtop (I32 I32.ReinterpretFloat, s)
     | I32Op.ExtendSI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type))
     | I32Op.ExtendUI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type))
   in
   let i64_cvtop op e =
     let (c, s) = e in
     match op with
-    | I64Op.ExtendSI32 -> I64Cvtop (I64ExtendSI32, s)
-    | I64Op.ExtendUI32 -> I64Cvtop (I64ExtendUI32, s)
-    | I64Op.TruncSF32  -> I64Cvtop (I64TruncSF32, s)
-    | I64Op.TruncUF32  -> I64Cvtop (I64TruncUF32, s)
-    | I64Op.TruncSF64  -> I64Cvtop (I64TruncSF64, s)
-    | I64Op.TruncUF64  -> I64Cvtop (I64TruncUF64, s)
-    | I64Op.ReinterpretFloat -> I64Cvtop (I64ReinterpretFloat, s)
+    | I64Op.ExtendSI32 -> Cvtop (I64 I64.ExtendSI32, s)
+    | I64Op.ExtendUI32 -> Cvtop (I64 I64.ExtendUI32, s)
+    | I64Op.TruncSF32  -> Cvtop (I64 I64.TruncSF32, s)
+    | I64Op.TruncUF32  -> Cvtop (I64 I64.TruncUF32, s)
+    | I64Op.TruncSF64  -> Cvtop (I64 I64.TruncSF64, s)
+    | I64Op.TruncUF64  -> Cvtop (I64 I64.TruncUF64, s)
+    | I64Op.ReinterpretFloat -> Cvtop (I64 I64.ReinterpretFloat, s)
     | I64Op.WrapI64 -> raise (Eval_numeric.TypeError (1, c, Types.I64Type))
   in
   let f32_cvtop op e =
     let (c, s) = e in
     match op with
-    | F32Op.DemoteF64   -> F32Cvtop (F32DemoteF64, s)
-    | F32Op.ConvertSI32 -> F32Cvtop (F32ConvertSI32, s)
-    | F32Op.ConvertUI32 -> F32Cvtop (F32ConvertUI32, s)
-    | F32Op.ConvertSI64 -> F32Cvtop (F32ConvertSI64, s)
-    | F32Op.ConvertUI64 -> F32Cvtop (F32ConvertUI64, s)
-    | F32Op.ReinterpretInt -> F32Cvtop (F32ReinterpretInt, s)
+    | F32Op.DemoteF64   -> Cvtop (F32 F32.DemoteF64, s)
+    | F32Op.ConvertSI32 -> Cvtop (F32 F32.ConvertSI32, s)
+    | F32Op.ConvertUI32 -> Cvtop (F32 F32.ConvertUI32, s)
+    | F32Op.ConvertSI64 -> Cvtop (F32 F32.ConvertSI64, s)
+    | F32Op.ConvertUI64 -> Cvtop (F32 F32.ConvertUI64, s)
+    | F32Op.ReinterpretInt -> Cvtop (F32 F32.ReinterpretInt, s)
     | F32Op.PromoteF32 -> raise (Eval_numeric.TypeError (1, c, Types.F32Type))
   in
   let f64_cvtop op e =
     let (c, s) = e in
     match op with
-    | F64Op.PromoteF32  -> F64Cvtop (F64PromoteF32, s)
-    | F64Op.ConvertSI32 -> F64Cvtop (F64ConvertSI32, s)
-    | F64Op.ConvertUI32 -> F64Cvtop (F64ConvertUI32, s)
-    | F64Op.ConvertSI64 -> F64Cvtop (F64ConvertSI64, s)
-    | F64Op.ConvertUI64 -> F64Cvtop (F64ConvertUI64, s)
-    | F64Op.ReinterpretInt -> F64Cvtop (F64ReinterpretInt, s)
+    | F64Op.PromoteF32  -> Cvtop (F64 F64.PromoteF32, s)
+    | F64Op.ConvertSI32 -> Cvtop (F64 F64.ConvertSI32, s)
+    | F64Op.ConvertUI32 -> Cvtop (F64 F64.ConvertUI32, s)
+    | F64Op.ConvertSI64 -> Cvtop (F64 F64.ConvertSI64, s)
+    | F64Op.ConvertUI64 -> Cvtop (F64 F64.ConvertUI64, s)
+    | F64Op.ReinterpretInt -> Cvtop (F64 F64.ReinterpretInt, s)
     | F64Op.DemoteF64 -> raise (Eval_numeric.TypeError (1, c, Types.F64Type))
   in
   let (c, s) = e in
-  let c = Eval_numeric.eval_cvtop op c in
+  let c = of_value (Interpreter.Eval_numeric.eval_cvtop op (to_value c)) in
   let s =
     begin match s with
-    | Value _ -> Value c
+    | Num _ -> Num c
     | _ ->
         (* dispatch cvtop func *)
         begin match op with
-        | Values.I32 x -> i32_cvtop x e
-        | Values.I64 x -> i64_cvtop x e
-        | Values.F32 x -> f32_cvtop x e
-        | Values.F64 x -> f64_cvtop x e
+        | Interpreter.Values.I32 x -> i32_cvtop x e
+        | Interpreter.Values.I64 x -> i64_cvtop x e
+        | Interpreter.Values.F32 x -> f32_cvtop x e
+        | Interpreter.Values.F64 x -> f64_cvtop x e
         end
     end
   in (c, s)
