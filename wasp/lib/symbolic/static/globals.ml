@@ -1,8 +1,10 @@
+open Encoding
 open Expression
+open Concolic
 open Interpreter.Types
 open Interpreter.Instance
 
-type global = {content : sym_expr; mut : mutability}
+type global = {content : Expression.t; mut : mutability}
 type global_map = (int32, global) Hashtbl.t
 type t = global_map
 
@@ -13,7 +15,7 @@ exception Type
 exception NotMutable
 
 let alloc (GlobalType (t, mut)) v =
-  if type_of v <> t then raise Type;
+  if type_of v <> (Evaluations.to_num_type t) then raise Type;
   {content = v; mut = mut}
 
 let from_list (global_inst_list : global_inst list) : t =
@@ -21,7 +23,7 @@ let from_list (global_inst_list : global_inst list) : t =
     ((Int32.of_int idx), (
       let value = Interpreter.Global.load glob in
       let typ = Interpreter.Global.type_of glob in
-      let expr = Value value in
+      let expr = Num (Evaluations.of_value value) in
       alloc typ expr
     ))
   ) global_inst_list in
@@ -29,13 +31,20 @@ let from_list (global_inst_list : global_inst list) : t =
   (Hashtbl.of_seq seq)
 
 let type_of glob =
-  GlobalType (type_of glob.content, glob.mut)
+  let t =
+    match type_of glob.content with
+    | Types.I32Type -> I32Type
+    | Types.I64Type -> I64Type
+    | Types.F32Type -> F32Type
+    | Types.F64Type -> F64Type
+  in
+  GlobalType (t, glob.mut)
 
-let load (map: global_map) (x: int32): sym_expr =
+let load (map: global_map) (x: int32): Expression.t =
   let g = Hashtbl.find map x in
   g.content
 
-let store (map : global_map) (x : int32) (ex : sym_expr): unit =
+let store (map : global_map) (x : int32) (ex : Expression.t): unit =
   match Hashtbl.find_opt map x with
   | Some(g) -> begin
     if g.mut <> Mutable then raise NotMutable;
