@@ -1,4 +1,7 @@
-open Interpreter
+open Encoding
+open Expression
+open Types
+open Interpreter.Memory
 
 type size = int32
 type address = int64
@@ -54,7 +57,7 @@ module LazyMemory : MemoryBackend = struct
         Hashtbl.add lmem.map a b;
         b
       end
-      | None -> Expression.Extract (Expression.Value (Values.I64 0L), 1, 0)
+      | None -> Extract (Num (I64 0L), 1, 0)
     end
 
   let from_heap (heap : Concolic.Heap.t) : t =
@@ -67,12 +70,12 @@ module LazyMemory : MemoryBackend = struct
 
   let clone (lmem : t) : t * t =
     let child1 = {
-      map = Hashtbl.create Flags.hashtbl_default_size;
+      map = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
       parent = Some lmem;
     }
     in
     let child2 = {
-      map = Hashtbl.create Flags.hashtbl_default_size;
+      map = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
       parent = Some lmem;
     }
     in
@@ -104,7 +107,7 @@ module MapMemory : MemoryBackend = struct
       : Expression.t =
     match Hashtbl.find_opt map a with
     | Some b -> b
-    | None -> Expression.Extract (Expression.Value (Values.I64 0L), 1, 0)
+    | None -> Extract (Num (I64 0L), 1, 0)
 
   let from_heap (map : Concolic.Heap.t) : t =
     let concolic_seq = (Concolic.Heap.to_seq map) in
@@ -144,7 +147,7 @@ module TreeMemory : MemoryBackend = struct
       : Expression.t =
     match Int64Map.find_opt a map.tree with
     | Some b -> b
-    | None -> Expression.Extract (Expression.Value (Values.I64 0L), 1, 0)
+    | None -> Extract (Num (I64 0L), 1, 0)
 
   let from_heap (map : Concolic.Heap.t) : t =
     let concolic_seq = (Concolic.Heap.to_seq map) in
@@ -175,17 +178,16 @@ module type SymbolicMemory = sig
 
   val clone : t -> t * t
 
-  val load_value : t -> address -> offset -> Types.value_type ->
-    Expression.t
+  val load_value : t -> address -> offset -> num_type -> Expression.t
 
-  val load_packed : Memory.pack_size -> t -> address -> offset
-      ->Types.value_type -> Expression.t
+  val load_packed : pack_size -> t -> address -> offset
+      -> num_type -> Expression.t
 
   val load_string : t -> address -> string
 
   val store_value : t -> address -> offset -> Expression.t -> unit
 
-  val store_packed : Memory.pack_size -> t -> address -> offset -> Expression.t -> unit
+  val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
 
   val to_string : t -> string
 
@@ -199,14 +201,14 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
   (* helper functions *)
   let effective_address (a : address) (o : offset) : address =
     let ea = Int64.(add a (of_int32 o)) in
-    if I64.lt_u ea a then raise MB.Bounds;
+    if Interpreter.I64.lt_u ea a then raise MB.Bounds;
     ea
 
-  let length_pack_size (sz : Memory.pack_size) : int =
+  let length_pack_size (sz : pack_size) : int =
     match sz with
-    | Memory.Pack8 -> 1
-    | Memory.Pack16 -> 2
-    | Memory.Pack32 -> 4
+    | Pack8 -> 1
+    | Pack16 -> 2
+    | Pack32 -> 4
 
   let storen
       (mem : MB.t)
@@ -244,7 +246,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       (mem : MB.t)
       (a : address)
       (o : offset)
-      (ty : Types.value_type) :
+      (ty : num_type) :
       Expression.t =
     let exprs = loadn mem a o (Types.size ty) in
     let expr = List.(
@@ -257,48 +259,44 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     let expr = Expression.simplify expr in
     (* remove extract *)
     let expr = Expression.simplify ~extract:true expr in
-    let open Values in
     let expr =
     match ty with
       | Types.I32Type -> begin
         match expr with
-        | Expression.Value (I64 v) -> Expression.Value (I32 (Int64.to_int32 v))
+        | Num (I64 v) -> Num (I32 (Int64.to_int32 v))
         | _ -> expr
       end
       | Types.I64Type -> expr
       | Types.F32Type -> begin
         match expr with
-        | Expression.Value (I64 v) -> Expression.Value (F32 (F32.of_bits (Int64.to_int32 v)))
-        | Expression.I32Cvtop (Expression.I32.I32ReinterpretFloat, v) -> v
-        | _ -> Expression.F32Cvtop (Expression.F32.F32ReinterpretInt, expr)
+        | Num (I64 v) -> Num (F32 (Int32.bits_of_float (Int64.float_of_bits v)))
+        | Cvtop (I32 I32.ReinterpretFloat, v) -> v
+        | _ -> Cvtop (F32 F32.ReinterpretInt, expr)
       end
       | Types.F64Type -> begin
         match expr with
-        | Expression.Value (I64 v) -> Expression.Value (F64 (F64.of_bits v))
-        | Expression.I64Cvtop (Expression.I64.I64ReinterpretFloat, v) -> v
-        | _ -> Expression.F64Cvtop (Expression.F64.F64ReinterpretInt, expr)
+        | Num (I64 v) -> Num (F64 v)
+        | Cvtop (I64 I64.ReinterpretFloat, v) -> v
+        | _ -> Cvtop (F64 F64.ReinterpretInt, expr)
       end
     in
     expr
 
   let load_packed
-      (sz : Memory.pack_size)
+      (sz : pack_size)
       (mem : MB.t)
       (a : address)
       (o : offset)
-      (ty : Types.value_type) :
+      (ty : num_type) :
       Expression.t =
     let exprs = loadn mem a o (length_pack_size sz) in
-    let open Values in
     (* pad with 0s *)
     let expr =
       let rec loop acc i =
         if i >= (Types.size ty) then acc
-        else loop (acc @ [Expression.Extract (Expression.Value (I64 0L), 1, 0)]) (i + 1) in
+        else loop (acc @ [Extract (Num (I64 0L), 1, 0)]) (i + 1) in
       let exprs = loop exprs (List.length exprs) in
-      List.(
-        fold_left (fun acc e -> Expression.Concat (e, acc)) (hd exprs) (tl exprs)
-    )
+      List.(fold_left (fun acc e -> e ++ acc) (hd exprs) (tl exprs))
     in
     (* simplify concats *)
     let expr = Expression.simplify expr in
@@ -308,7 +306,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     match ty with
       | Types.I32Type -> begin
         match expr with
-        | Expression.Value (I64 v) -> Expression.Value (I32 (Int64.to_int32 v))
+        | Num (I64 v) -> Num (I32 (Int64.to_int32 v))
         | _ -> expr
       end
       | Types.I64Type -> expr
@@ -321,8 +319,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       let sb = MB.load_byte mem a in
       let b =
         match sb with
-        | Expression.Extract (Expression.Value (Values.I64 b), 1, 0) ->
-            Int64.to_int b
+        | Extract (Num (I64 b), 1, 0) -> Int64.to_int b
         | _ -> failwith ("Symmem.load_string failed to load a char" ^
         "\nThe value loaded was: " ^ (Expression.to_string sb))
       in
@@ -341,36 +338,35 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       : unit =
     let ty = Expression.type_of value in
     let sz = Types.size ty in
-    let open Values in
     let value =
     match ty with
     | Types.I32Type -> begin
       match value with
-      | Expression.Value (I32 i) -> Expression.Value (I64 (Int64.of_int32 i))
+      | Num (I32 i) -> Num (I64 (Int64.of_int32 i))
       | _ -> value
     end
     | Types.I64Type -> value
     | Types.F32Type -> begin match value with
-      | Expression.Value (F32 f) -> Expression.Value (I64 (Int64.of_int32 (F32.to_bits f)))
-      | _ -> Expression.I32Cvtop (Expression.I32.I32ReinterpretFloat, value)
+      | Num (F32 f) -> Num (I64 (Int64.bits_of_float (Int32.float_of_bits f)))
+      | _ -> Cvtop (I32 I32.ReinterpretFloat, value)
     end
     | Types.F64Type -> begin match value with
-      | Expression.Value (F64 f) -> Expression.Value (I64 (F64.to_bits f))
-      | _ -> Expression.I64Cvtop (Expression.I64.I64ReinterpretFloat, value)
+      | Num (F64 f) -> Num (I64 f)
+      | _ -> Cvtop (I64 I64.ReinterpretFloat, value)
     end
     in
     storen mem a o sz value
 
   let store_packed
-      (sz : Memory.pack_size)
+      (sz : pack_size)
       (mem : MB.t)
       (a : address)
       (o : offset)
       (value : Expression.t) =
     let value : Expression.t =
       match value with
-      | Expression.Value (Values.I32 x) -> Expression.Value (Values.I64 (Int64.of_int32 x))
-      | Expression.Value (Values.I64 x) -> Expression.Value (Values.I64 x)
+      | Num (I32 x) -> Num (I64 (Int64.of_int32 x))
+      | Num (I64 x) -> Num (I64 x)
       | _ -> value
     in
     storen mem a o (length_pack_size sz) value

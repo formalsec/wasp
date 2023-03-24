@@ -1,4 +1,6 @@
-open Interpreter
+open Encoding
+open Types
+open Interpreter.Memory
 
 type size = int32
 type address = int64
@@ -36,17 +38,16 @@ module type SymbolicMemory =
 
     val clone : t -> t * t
 
-    val load_value : t -> address -> offset -> Types.value_type ->
-      Expression.t
+    val load_value : t -> address -> offset -> num_type -> Expression.t
 
-    val load_packed : Memory.pack_size -> t -> address -> offset
-        ->Types.value_type -> Expression.t
+    val load_packed : pack_size -> t -> address -> offset
+        -> num_type -> Expression.t
 
     val load_string : t -> address -> string
 
     val store_value : t -> address -> offset -> Expression.t -> unit
 
-    val store_packed : Memory.pack_size -> t -> address -> offset -> Expression.t -> unit
+    val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
 
     val to_string : t -> string
 
