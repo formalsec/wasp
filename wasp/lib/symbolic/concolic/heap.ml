@@ -117,8 +117,7 @@ let load_value (mem : memory) (a : address) (o : offset) (t : num_type) :
     | F32Type ->
         let e : Expression.t =
           match expr with
-          | Num (I64 v) ->
-              Num (F32 (Int32.bits_of_float (Int64.float_of_bits v)))
+          | Num (I64 v) -> Num (F32 (Int64.to_int32 v))
           | Cvtop (I32 I32.ReinterpretFloat, v) -> v
           | _ -> Cvtop (F32 F32.ReinterpretInt, expr)
         in
@@ -150,11 +149,10 @@ let store_value (mem : memory) (a : address) (o : offset) (v : value) : unit
     | F32 x ->
         let e : Expression.t =
           match sv with
-          | Num (F32 n) ->
-              Num (I64 (Int64.bits_of_float (Int32.float_of_bits n)))
+          | Num (F32 n) -> Num (I64 (Int64.of_int32 n))
           | _ -> Cvtop (I32 I32.ReinterpretFloat, sv)
         in
-        (Int64.bits_of_float (Int32.float_of_bits x), e)
+        (Int64.of_int32 x, e)
     | F64 x ->
         let e : Expression.t =
           match sv with

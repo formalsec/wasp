@@ -269,7 +269,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       | Types.I64Type -> expr
       | Types.F32Type -> begin
         match expr with
-        | Num (I64 v) -> Num (F32 (Int32.bits_of_float (Int64.float_of_bits v)))
+        | Num (I64 v) -> Num (F32 (Int64.to_int32 v))
         | Cvtop (I32 I32.ReinterpretFloat, v) -> v
         | _ -> Cvtop (F32 F32.ReinterpretInt, expr)
       end
@@ -347,7 +347,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     end
     | Types.I64Type -> value
     | Types.F32Type -> begin match value with
-      | Num (F32 f) -> Num (I64 (Int64.bits_of_float (Int32.float_of_bits f)))
+      | Num (F32 f) -> Num (I64 (Int64.of_int32 f))
       | _ -> Cvtop (I32 I32.ReinterpretFloat, value)
     end
     | Types.F64Type -> begin match value with
