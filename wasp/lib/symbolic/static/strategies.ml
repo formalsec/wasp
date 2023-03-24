@@ -1,3 +1,7 @@
+open Common
+open Encoding
+open Expression
+
 type bug =
   | Overflow
   | UAF
@@ -5,7 +9,7 @@ type bug =
 
 type interruption =
   | IntLimit
-  | AsmFail of Expression.path_conditions
+  | AsmFail of pc
   | AssFail of string
   | Bug of bug * string
 
@@ -49,7 +53,7 @@ module type Interpreter =
       Concolic.Heap.t ->
       Globals.t -> sym_config
 
-    val step : sym_config -> ((sym_config list * Expression.path_conditions list), string * string) result
+    val step : sym_config -> ((sym_config list * Expression.pc list), string * string) result
   end
 
 module type WorkList =
@@ -66,7 +70,7 @@ end
 
 module TreeStrategy (L : WorkList) (I : Interpreter) =
 struct
-  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
     let w = L.create () in
     L.push c w;
 
@@ -91,13 +95,13 @@ end
 
 module DFS = TreeStrategy(Stack)
 module BFS = TreeStrategy(Queue)
-module RS = TreeStrategy(Common.RandArray)
+module RS = TreeStrategy(RandArray)
 
 module BFS_L (I : Interpreter) =
 struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -128,7 +132,7 @@ module Half_BFS (I : Interpreter) =
 struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -158,7 +162,7 @@ end
 
 module ProgressBFS (I : Interpreter) =
 struct
-  let eval (c : I.sym_config) : (Expression.path_conditions list, string * string) result =
+  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
