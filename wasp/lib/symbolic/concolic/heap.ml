@@ -1,13 +1,12 @@
+open Encoding
+open Types
 open Expression
-
-open Interpreter
-open Interpreter.Types
-open Interpreter.Values
+open Interpreter.Memory
 
 type size = int32
 type address = int64
 type offset = int32
-type store = int * sym_expr
+type store = int * Expression.t
 type memory = (address, store) Hashtbl.t
 type t = memory
 
@@ -15,9 +14,9 @@ exception Bounds
 exception InvalidAddress of address
 
 let packed_size = function
-  | Memory.Pack8 -> 1
-  | Memory.Pack16 -> 2
-  | Memory.Pack32 -> 4
+  | Pack8 -> 1
+  | Pack16 -> 2
+  | Pack32 -> 4
 
 let alloc (sz : int) : memory = Hashtbl.create sz
 let size (mem : memory) : int = Hashtbl.length mem
@@ -40,14 +39,14 @@ let to_string (mem : memory) : string =
     lst ""
 
 let load_byte (mem : memory) (a : address) : store =
-  try Hashtbl.find mem a with Not_found -> (0, Extract (Value (I64 0L), 1, 0))
+  try Hashtbl.find mem a with Not_found -> (0, Extract (Num (I64 0L), 1, 0))
 
 let store_byte (mem : memory) (a : address) (b : store) : unit =
   Hashtbl.replace mem a b
 
-let concat bs = List.(fold_left (fun acc e -> Concat (e, acc)) (hd bs) (tl bs))
+let concat bs = List.(fold_left (fun acc e -> e ++ acc) (hd bs) (tl bs))
 
-let load_bytes (mem : memory) (a : address) (n : int) : string * sym_expr =
+let load_bytes (mem : memory) (a : address) (n : int) : string * Expression.t =
   let buf = Buffer.create n in
   let rec rec_loop i acc =
     if i = n - 1 then acc
@@ -69,13 +68,13 @@ let load_string (mem : memory) (a : address) : string =
 let store_bytes (mem : memory) (a : address) (bs : string) : unit =
   for i = String.length bs - 1 downto 0 do
     let b = Char.code bs.[i] in
-    let sb = Extract (Value (I64 (Int64.of_int b)), 1, 0) in
+    let sb = Extract (Num (I64 (Int64.of_int b)), 1, 0) in
     store_byte mem Int64.(add a (of_int i)) (b, sb)
   done
 
-let effective_address (a : I64.t) (o : offset) : address =
+let effective_address (a : Int64.t) (o : offset) : address =
   let ea = Int64.(add a (of_int32 o)) in
-  if I64.lt_u ea a then raise Bounds;
+  if Eval_numeric.eval_relop (I64 I64.LtU) (I64 ea) (I64 a) then raise Bounds;
   ea
 
 let loadn (mem : memory) (a : address) (o : offset) (n : int) =
@@ -90,7 +89,7 @@ let loadn (mem : memory) (a : address) (o : offset) (n : int) =
   loop Int64.(add (effective_address a o) (of_int (n - 1))) n (0L, [])
 
 let storen (mem : memory) (a : address) (o : offset) (n : int)
-    (x : int64 * sym_expr) : unit =
+    (x : int64 * Expression.t) : unit =
   assert (n > 0 && n <= 8);
   let rec loop a i n x =
     if n > i then (
@@ -101,77 +100,79 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
   in
   loop (effective_address a o) 0 n x
 
-let load_value (mem : memory) (a : address) (o : offset) (t : value_type) :
-    sym_value =
+let load_value (mem : memory) (a : address) (o : offset) (t : num_type) :
+    value =
   let n, exprs = loadn mem a o (Types.size t) in
   let expr = simplify ~extract:true (simplify (concat exprs)) in
   let n', expr' =
     match t with
     | I32Type ->
-        let e : sym_expr =
+        let e : Expression.t =
           match expr with
-          | Value (I64 v) -> Value (I32 (Int64.to_int32 v))
+          | Num (I64 n) -> Num (I32 (Int64.to_int32 n))
           | _ -> expr
         in
         (I32 (Int64.to_int32 n), e)
     | I64Type -> (I64 n, expr)
     | F32Type ->
-        let e : sym_expr =
+        let e : Expression.t =
           match expr with
-          | Value (I64 v) -> Value (F32 (F32.of_bits (Int64.to_int32 v)))
-          | I32Cvtop (Expression.I32.I32ReinterpretFloat, v) -> v
-          | _ -> F32Cvtop (Expression.F32.F32ReinterpretInt, expr)
+          | Num (I64 v) ->
+              Num (F32 (Int32.bits_of_float (Int64.float_of_bits v)))
+          | Cvtop (I32 I32.ReinterpretFloat, v) -> v
+          | _ -> Cvtop (F32 F32.ReinterpretInt, expr)
         in
-        (F32 (F32.of_bits (Int64.to_int32 n)), e)
+        (F32 (Int64.to_int32 n), e)
     | F64Type ->
-        let e : sym_expr =
+        let e : Expression.t =
           match expr with
-          | Value (I64 v) -> Value (F64 (F64.of_bits v))
-          | I64Cvtop (Expression.I64.I64ReinterpretFloat, v) -> v
-          | _ -> F64Cvtop (Expression.F64.F64ReinterpretInt, expr)
+          | Num (I64 n) -> Num (F64 n)
+          | Cvtop (I64 I64.ReinterpretFloat, v) -> v
+          | _ -> Cvtop (F64 F64.ReinterpretInt, expr)
         in
-        (F64 (F64.of_bits n), e)
+        (F64 n, e)
   in
   (n', expr')
 
-let store_value (mem : memory) (a : address) (o : offset) (v : sym_value) : unit
+let store_value (mem : memory) (a : address) (o : offset) (v : value) : unit
     =
   let cv, sv = v in
   let cv', sv' =
     match cv with
     | I32 x ->
-        let e : sym_expr =
+        let e : Expression.t =
           match sv with
-          | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
+          | Num (I32 x) -> Num (I64 (Int64.of_int32 x))
           | _ -> sv
         in
         (Int64.of_int32 x, e)
     | I64 x -> (x, sv)
     | F32 x ->
-        let e : sym_expr =
+        let e : Expression.t =
           match sv with
-          | Value (F32 x) -> Value (I64 (Int64.of_int32 (F32.to_bits x)))
-          | _ -> I32Cvtop (Expression.I32.I32ReinterpretFloat, sv)
+          | Num (F32 n) ->
+              Num (I64 (Int64.bits_of_float (Int32.float_of_bits n)))
+          | _ -> Cvtop (I32 I32.ReinterpretFloat, sv)
         in
-        (Int64.of_int32 (F32.to_bits x), e)
+        (Int64.bits_of_float (Int32.float_of_bits x), e)
     | F64 x ->
-        let e : sym_expr =
+        let e : Expression.t =
           match sv with
-          | Value (F64 x) -> Value (I64 (F64.to_bits x))
-          | _ -> I64Cvtop (Expression.I64.I64ReinterpretFloat, sv)
+          | Num (F64 x) -> Num (I64 x)
+          | _ -> Cvtop (I64 I64.ReinterpretFloat, sv)
         in
-        (F64.to_bits x, e)
+        (x, e)
   in
-  storen mem a o (Types.size (Values.type_of cv)) (cv', sv')
+  storen mem a o (Types.size (Types.type_of cv)) (cv', sv')
 
 let extend x n = function
-  | Memory.ZX -> x
-  | Memory.SX ->
+  | ZX -> x
+  | SX ->
       let sh = 64 - (8 * n) in
       Int64.(shift_right (shift_left x sh) sh)
 
-let load_packed (sz : Memory.pack_size) (ext : Memory.extension) (mem : memory)
-    (a : address) (o : offset) (t : value_type) : sym_value =
+let load_packed (sz : pack_size) (ext : extension) (mem : memory)
+    (a : address) (o : offset) (t : num_type) : value =
   let n = packed_size sz in
   let cv, sv = loadn mem a o n in
   let cv = extend cv n ext in
@@ -179,38 +180,38 @@ let load_packed (sz : Memory.pack_size) (ext : Memory.extension) (mem : memory)
     match t with
     | I32Type -> I32 (Int64.to_int32 cv)
     | I64Type -> I64 cv
-    | _ -> raise Memory.Type
+    | _ -> raise Type
   in
-  let sv' : sym_expr =
+  let sv' : Expression.t =
     match simplify ~extract:true (simplify (concat sv)) with
-    | Value (I64 x) -> (
+    | Num (I64 x) -> (
         match t with
-        | I32Type -> Value (I32 (Int64.to_int32 x))
-        | _ -> Value (I64 x))
+        | I32Type -> Num (I32 (Int64.to_int32 x))
+        | _ -> Num (I64 x))
     | SymPtr (b, o) -> SymPtr (b, o)
     | _ ->
         let rec loop acc i =
           if i >= Types.size t then acc
-          else loop (acc @ [ Extract (Value (I64 0L), 1, 0) ]) (i + 1)
+          else loop (acc @ [ Extract (Num (I64 0L), 1, 0) ]) (i + 1)
         in
         concat (loop sv (List.length sv))
   in
   (x', sv')
 
-let store_packed (sz : Memory.pack_size) (mem : memory) (a : address)
-    (o : offset) (v : sym_value) : unit =
+let store_packed (sz : pack_size) (mem : memory) (a : address)
+    (o : offset) (v : value) : unit =
   let n = packed_size sz in
   let cv, sv = v in
   let x =
     match cv with
     | I32 x -> Int64.of_int32 x
     | I64 x -> x
-    | _ -> raise Memory.Type
+    | _ -> raise Type
   in
-  let sx : sym_expr =
+  let sx : Expression.t =
     match sv with
-    | Value (I32 x) -> Value (I64 (Int64.of_int32 x))
-    | Value (I64 x) -> Value (I64 x)
+    | Num (I32 x) -> Num (I64 (Int64.of_int32 x))
+    | Num (I64 x) -> Num (I64 x)
     | _ -> sv
   in
   storen mem a o n (x, sx)
@@ -222,8 +223,8 @@ let update (mem : memory) (store : Store.t) : unit =
         match Store.eval store se with
         | I32 x -> Int32.to_int x
         | I64 x -> Int64.to_int x
-        | F32 x -> Int32.to_int (F32.to_bits x)
-        | F64 x -> Int64.to_int (F64.to_bits x)
+        | F32 x -> Int32.to_int x
+        | F64 x -> Int64.to_int x
       in
       store_byte mem a (i, se))
     mem

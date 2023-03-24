@@ -1,5 +1,6 @@
+open Encoding
+open Types
 open Expression
-open Interpreter.Types
 open Interpreter.Memory
 
 type memory
@@ -7,7 +8,7 @@ type t = memory
 type size = int32
 type address = int64
 type offset = int32
-type store = int * sym_expr
+type store = int * Expression.t
 
 exception Bounds
 exception InvalidAddress of address
@@ -25,10 +26,10 @@ val to_string : memory -> string
 val load_byte : memory -> address -> store
 val store_byte : memory -> address -> store -> unit
 val load_string : memory -> address -> string
-val load_bytes : memory -> address -> int -> string * sym_expr
+val load_bytes : memory -> address -> int -> string * Expression.t
 val store_bytes : memory -> address -> string -> unit
-val load_value : memory -> address -> offset -> value_type -> sym_value
-val store_value : memory -> address -> offset -> sym_value -> unit
+val load_value : memory -> address -> offset -> num_type -> value
+val store_value : memory -> address -> offset -> value -> unit
 
 val load_packed :
   pack_size ->
@@ -36,7 +37,7 @@ val load_packed :
   memory ->
   address ->
   offset ->
-  value_type ->
-  sym_value
+  num_type->
+  value
 
-val store_packed : pack_size -> memory -> address -> offset -> sym_value -> unit
+val store_packed : pack_size -> memory -> address -> offset -> value -> unit
