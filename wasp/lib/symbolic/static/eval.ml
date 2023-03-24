@@ -1,7 +1,7 @@
+open Encoding
 open Expression
-open Expression.I32
+open Types
 open Strategies
-open Interpreter.Values
 open Interpreter.Types
 open Interpreter.Instance
 open Interpreter.Ast
@@ -138,7 +138,7 @@ module type Encoder =
     type s
     type t = {
       solver : s;
-      pc : path_conditions ref
+      pc : pc ref
     }
 
     val time_solver : float ref
@@ -146,15 +146,15 @@ module type Encoder =
     val create : unit -> t
     val clone : t -> t
 
-    val add : t -> sym_expr -> unit
-    val check : t -> sym_expr list -> bool
-    val fork : t -> sym_expr -> bool * bool
+    val add : t -> expr -> unit
+    val check : t -> expr list -> bool
+    val fork : t -> expr -> bool * bool
 
     val value_binds :
-      t -> (string * Interpreter.Types.value_type) list -> (string * value) list
+      t -> (string * num_type) list -> (string * Num.t) list
 
     val string_binds :
-      t -> (string * Interpreter.Types.value_type) list -> (string * string * string) list
+      t -> (string * num_type) list -> (string * string * string) list
   end
 
 module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpreter =
@@ -207,7 +207,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
       }
     let sym_config
         (inst : module_inst)
-        (vs : sym_expr stack)
+        (vs : expr stack)
         (es : sym_admin_instr stack)
         (sym_m : Concolic.Heap.t)
         (globs : Globals.t)
@@ -252,7 +252,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
       let helper (size : int32 option): sym_config option  =
         let size_cond = Option.map
           (function size ->
-            I32Relop (I32Eq, s_size, Value (I32 size))
+            Relop (I32 I32.Eq, s_size, Num (I32 size))
             ) size
         in
         let cond_list = match size_cond with
@@ -276,20 +276,20 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
           let size = match c_size with
           | I32 size -> size
           | _ ->
-            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 size: " ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of c_size));
+            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 size: " ^ Types.string_of_num_type (Types.type_of c_size));
           in
           let c_base = Concolic.Store.eval logic_env s_base in
           let base = match c_base with
           | I32 base -> base
           | _ ->
-            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 base: " ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of c_base));
+            failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Alloc with non i32 base: " ^ Types.string_of_num_type (Types.type_of c_base));
           in
 
-          let base_cond = I32Relop (I32Eq, s_base, Value (I32 base)) in
+          let base_cond = Relop (I32 I32.Eq, s_base, Num (I32 base)) in
           E.add c.encoder base_cond;
           Hashtbl.add c.chunk_table base size;
 
-          let sym_ptr = SymPtr (base, (Value (I32 0l))) in
+          let sym_ptr = SymPtr (base, (Num (I32 0l))) in
           Some { c with sym_code = sym_ptr :: List.tl vs, List.tl es }
           end
       in
@@ -303,7 +303,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
       else
         [Option.get (helper None)]
 
-    let rec step (c : sym_config) : ((sym_config list * path_conditions list), string * string) result =
+    let rec step (c : sym_config) : ((sym_config list * pc list), string * string) result =
       let {
         sym_frame = frame;
         sym_code = vs, es;
@@ -331,14 +331,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
 
           | Select, ex :: v2 :: v1 :: vs' ->
             (match simplify ex with
-            | Value (I32 0l) ->
+            | Num (I32 0l) ->
               (* if it is 0 *)
               Result.ok ([ { c with sym_code = v2 :: vs', List.tl es } ], [])
-            | Value (I32 _) ->
+            | Num (I32 _) ->
               (* if it is not 0 *)
               Result.ok ([ { c with sym_code = v1 :: vs', List.tl es } ], [])
             | ex -> (
-              let co = Option.get (to_constraint ex) in
+              let co = Option.get (to_relop ex) in
               let negated_co = negate_relop co in
               let es' = List.tl es in
 
@@ -376,14 +376,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
           | If (ts, es1, es2), ex :: vs' ->
             (let es' = List.tl es in
             match simplify ex with
-            | Value (I32 0l) ->
+            | Num (I32 0l) ->
               (* if it is 0 *)
               Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es2)) @@ e.at] @ es' } ], [])
-            | Value (I32 _) ->
+            | Num (I32 _) ->
               (* if it is not 0 *)
               Result.ok ([ { c with sym_code = vs', [SPlain (Block (ts, es1)) @@ e.at] @ es' } ], [])
             | ex -> (
-              let co = Option.get (to_constraint ex) in
+              let co = Option.get (to_relop ex) in
               let negated_co = negate_relop co in
 
               solver_counter := !solver_counter + 2;
@@ -414,15 +414,15 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
 
           | BrIf x, ex :: vs' ->
             (match simplify ex with
-            | Value (I32 0l) ->
+            | Num (I32 0l) ->
               (* if it is 0 *)
               let es' = List.tl es in
               Result.ok ([ { c with sym_code = vs', es' } ], [])
-            | Value (I32 _) ->
+            | Num (I32 _) ->
               (* if it is not 0 *)
               Result.ok ([ { c with sym_code = vs', [SPlain (Br x) @@ e.at] } ], [])
             | ex -> (
-              let co = Option.get (to_constraint ex) in
+              let co = Option.get (to_relop ex) in
               let negated_co = negate_relop co in
               let es' = List.tl es in
 
@@ -456,7 +456,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
           | Call x, vs ->
             Result.ok ([ { c with sym_code = vs, [SInvoke (func frame.sym_inst x) @@ e.at] @ t } ], [])
 
-          | CallIndirect x, Value (I32 i) :: vs ->
+          | CallIndirect x, Num (I32 i) :: vs ->
             let func = func_elem frame.sym_inst (0l @@ e.at) i e.at in
             let es' = if type_ frame.sym_inst x <> Func.type_of func then
               [STrapping "indirect call type mismatch" @@ e.at]
@@ -501,18 +501,18 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
               let logic_env = Concolic.Store.create binds in
 
               let ptr = Concolic.Store.eval logic_env sym_ptr in
-              let ty = Interpreter.Values.type_of ptr in
-              if ty != I32Type then
-                failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Load with non i32 ptr: " ^ Interpreter.Types.string_of_value_type ty);
+              let ty = Encoding.Types.type_of ptr in
+              if ty <> I32Type then
+                failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Load with non i32 ptr: " ^ Encoding.Types.string_of_num_type ty);
 
-              let ptr_cond = I32Relop (I32Eq, sym_ptr, Value ptr) in
+              let ptr_cond = Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Num ptr) in
               E.add encoder ptr_cond;
 
               (* TODO: generate a configuration equal to the original with the condition denied in the path_cond ? *)
               ptr
             end
             in
-            let ptr64 = I64_convert.extend_i32_u (I32Value.of_value ptr) in
+            let ptr64 = I64_convert.extend_i32_u (Values.I32Value.of_value (Evaluations.to_value ptr)) in
             let base_ptr = concretize_base_ptr sym_ptr in
             begin try
               if Option.is_some base_ptr then begin
@@ -521,7 +521,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
                   try Hashtbl.find chunk_table low
                   with Not_found -> raise (BugException (UAF, e.at, "")) in
                 let high = Int64.(add (of_int32 low) (of_int32 chunk_size)) in
-                let ptr_i64 = Int64.of_int32 (I32Value.of_value ptr) in
+                let ptr_i64 = Int64.of_int32 (Values.I32Value.of_value (Evaluations.to_value ptr)) in
                 let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
                 (* ptr_val \notin [low, high] => overflow *)
                 if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
@@ -529,8 +529,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
               end;
               let v =
                 match sz with
-                | None         -> SM.load_value mem ptr64 offset ty
-                | Some (sz, _) -> SM.load_packed sz mem ptr64 offset ty
+                | None         ->
+                    SM.load_value mem ptr64 offset (Evaluations.to_num_type ty)
+                | Some (sz, _) ->
+                    SM.load_packed sz mem ptr64 offset (Evaluations.to_num_type ty)
               in
               let es' = List.tl es in
               Result.ok ([ { c with sym_code = v :: vs', es' } ], [])
@@ -563,18 +565,18 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
               let logic_env = Concolic.Store.create binds in
 
               let ptr = Concolic.Store.eval logic_env sym_ptr in
-              let ty = Interpreter.Values.type_of ptr in
-              if ty != I32Type then
-                failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Store with non i32 ptr: " ^ Interpreter.Types.string_of_value_type ty);
+              let ty = Encoding.Types.type_of ptr in
+              if ty <> I32Type then
+                failwith ((Printf.sprintf "%d" e.at.left.line) ^ ":Store with non i32 ptr: " ^ Encoding.Types.string_of_num_type ty);
 
-              let ptr_cond = I32Relop (I32Eq, sym_ptr, Value ptr) in
+              let ptr_cond = Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Num ptr) in
               E.add encoder ptr_cond;
 
               (* TODO: generate a configuration equal to the original with the condition denied in the path_cond ? *)
               ptr
             end
             in
-            let ptr64 = I64_convert.extend_i32_u (I32Value.of_value ptr) in
+            let ptr64 = I64_convert.extend_i32_u (Values.I32Value.of_value (Evaluations.to_value ptr)) in
             let base_ptr = concretize_base_ptr sym_ptr in
             begin try
               if Option.is_some base_ptr then begin
@@ -583,7 +585,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
                   try Hashtbl.find chunk_table low
                   with Not_found -> raise (BugException (UAF, e.at, "")) in
                 let high = Int64.(add (of_int32 low) (of_int32 chunk_size)) in
-                let ptr_i64 = Int64.of_int32 (I32Value.of_value ptr) in
+                let ptr_i64 = Int64.of_int32 (Values.I32Value.of_value (Evaluations.to_value ptr)) in
                 let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
                 (* ptr_val \notin [low, high[ => overflow *)
                 if ptr_val < (Int64.of_int32 low) || ptr_val >= high then
@@ -617,7 +619,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
 
           | Const v, vs ->
             let es' = List.tl es in
-            Result.ok ([ { c with sym_code = (Value v.it) :: vs, es' } ], [])
+            Result.ok ([ { c with sym_code = (Num (Evaluations.of_value v.it)) :: vs, es' } ], [])
 
           | Test testop, v :: vs' ->
             let es' = List.tl es in
@@ -666,21 +668,21 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
 
           | GetSymInt32 x, vs' ->
             let es' = List.tl es in
-            Result.ok ([ { c with sym_code = (Symbolic (SymInt32, x)) :: vs', es'} ], [])
+            Result.ok ([ { c with sym_code = (Symbolic (I32Type, x)) :: vs', es'} ], [])
 
           | GetSymInt64 x, vs' ->
             let es' = List.tl es in
-            Result.ok ([ { c with sym_code = (Symbolic (SymInt64, x)) :: vs', es'} ], [])
+            Result.ok ([ { c with sym_code = (Symbolic (I64Type, x)) :: vs', es'} ], [])
 
           | GetSymFloat32 x, vs' ->
             let es' = List.tl es in
-            Result.ok ([ { c with sym_code = (Symbolic (SymFloat32, x)) :: vs', es'} ], [])
+            Result.ok ([ { c with sym_code = (Symbolic (F32Type, x)) :: vs', es'} ], [])
 
           | GetSymFloat64 x, vs' ->
             let es' = List.tl es in
-            Result.ok ([ { c with sym_code = (Symbolic (SymFloat64, x)) :: vs', es'} ], [])
+            Result.ok ([ { c with sym_code = (Symbolic (F64Type, x)) :: vs', es'} ], [])
 
-          | SymAssert, Value (I32 0l) :: vs' ->
+          | SymAssert, Num (I32 0l) :: vs' ->
             debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
             let string_binds = E.string_binds encoder (Varmap.binds var_map) in
             let witness = Concolic.Store.strings_to_json string_binds in
@@ -692,7 +694,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
             in
             Result.error (reason, witness)
 
-          | SymAssert, Value (I32 i) :: vs' ->
+          | SymAssert, Num (I32 i) :: vs' ->
             (* passed *)
             debug (string_of_pos e.at.left ^ ":Assert PASSED!");
             Result.ok ([ { c with sym_code = vs', List.tl es } ], [])
@@ -701,7 +703,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
             let v = simplify v in
             debug ("Asserting: " ^ to_string (simplify v));
             let opt_witness =
-              let c = negate_relop (Option.get (to_constraint v)) in
+              let c = negate_relop (Option.get (to_relop v)) in
               solver_counter := !solver_counter + 1;
               let sat = E.check encoder [ c ] in
               if sat then
@@ -730,15 +732,15 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
 
           | SymAssume, ex :: vs' ->
             (match simplify ex with
-            | Value (I32 0l) ->
+            | Num (I32 0l) ->
               (* if it is 0 *)
               Result.ok ([], [])
-            | SymPtr (_, Value I32 0l)
-            | Value (I32 _) ->
+            | SymPtr (_, Num (I32 0l))
+            | Num (I32 _) ->
               (* if it is not 0 *)
               Result.ok ([ { c with sym_code = vs, List.tl es } ], [])
             | ex -> (
-              let co = Option.get (to_constraint ex) in
+              let co = Option.get (to_relop ex) in
               solver_counter := !solver_counter + 1;
               E.add encoder co;
               if E.check encoder [] then
@@ -749,13 +751,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
               )
             )
 
-          | Symbolic (ty, b), (Value (I32 i)) :: vs' ->
+          | Symbolic (ty, b), (Num (I32 i)) :: vs' ->
             let base = I64_convert.extend_i32_u i in
             let symbol = if i = 0l then "x" else SM.load_string mem base in
             let x = Varmap.next symbol in
-            let v = to_symbolic ty x in
+            let ty' = Evaluations.to_num_type ty in
+            let v = symbolic ty' x in
             let es' = List.tl es in
-            Hashtbl.replace var_map x ty;
+            Hashtbl.replace var_map x ty';
             Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
 
           | Boolop boolop, v1 :: v2 :: vs' ->
@@ -770,9 +773,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
               Result.ok ([ { c with sym_code = vs', (STrapping (numeric_error e.at exn) @@ e.at) :: es' } ], [])
             )
 
-          | Alloc, Value (I32 sz) :: Value (I32 base) :: vs' ->
+          | Alloc, Num (I32 sz) :: Num (I32 base) :: vs' ->
             Hashtbl.add chunk_table base sz;
-            let sym_ptr = SymPtr (base, (Value (I32 0l))) in
+            let sym_ptr = SymPtr (base, (Num (I32 0l))) in
             Result.ok ([{c with sym_code = sym_ptr :: vs', List.tl es}], [])
 
           | Alloc, _ :: _ :: vs' ->
@@ -780,7 +783,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
 
           | Free, ptr :: vs' -> (
             match simplify ptr with
-            | SymPtr (base, (Value (I32 0l))) ->
+            | SymPtr (base, (Num (I32 0l))) ->
               let es' =
                 if not (Hashtbl.mem chunk_table base) then (
                   let string_binds = E.string_binds encoder (Varmap.binds var_map) in
@@ -916,7 +919,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) : Interpre
           let args, vs' = take n vs e.at, drop n vs e.at in
           (match func with
           | Func.AstFunc (t, inst', f) ->
-            let locals' = List.map (fun v -> Expression.Value v) (List.map default_value f.it.locals) in
+            let locals' =
+              List.map (fun v -> Num v)
+                (List.map
+                  (fun t -> Num.default_value (Evaluations.to_num_type t))
+                  f.it.locals) in
             let locals'' = List.rev args @ locals' in
             let code' = [], [SPlain (Block (out, f.it.body)) @@ f.at] in
             let frame' = {sym_inst = !inst'; sym_locals = List.map ref locals''} in
@@ -958,7 +965,7 @@ let func_to_globs (func : func_inst): Globals.t =
   | Some inst -> Globals.from_list (!inst).globals
   | None -> Hashtbl.create 0
 
-let invoke (func : func_inst) (vs : sym_expr list) (mem0 : Concolic.Heap.t)
+let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t)
     : unit =
   let open Interpreter in
   let open Source in

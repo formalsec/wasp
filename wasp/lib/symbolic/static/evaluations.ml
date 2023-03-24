@@ -28,6 +28,14 @@ let of_value (v : Interpreter.Values.value) : Num.t =
   | Values.F32 f -> F32 (F32.to_bits f)
   | Values.F64 f -> F64 (F64.to_bits f)
 
+let to_num_type (t : Interpreter.Types.value_type) : num_type =
+  let open Interpreter in
+  match t with
+  | Types.I32Type -> I32Type
+  | Types.I64Type -> I64Type
+  | Types.F32Type -> F32Type
+  | Types.F64Type -> F64Type
+
 (*  Evaluate a unary operation  *)
 let eval_unop (e : expr) (op : unop) : expr =
   let f32_unop op e =
