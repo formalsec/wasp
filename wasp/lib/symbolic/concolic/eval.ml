@@ -1,16 +1,15 @@
-open Expression.I32
+open Common
+open Encoding
 open Expression
 open Evaluations
-open Interpreter
+open Types
 open Interpreter.Ast
 open Interpreter.Source
-open Interpreter.Types
-open Interpreter.Values
 open Interpreter.Instance
-module Link = Error.Make ()
-module Trap = Error.Make ()
-module Crash = Error.Make ()
-module Exhaustion = Error.Make ()
+module Link = Interpreter.Error.Make ()
+module Trap = Interpreter.Error.Make ()
+module Crash = Interpreter.Error.Make ()
+module Exhaustion = Interpreter.Error.Make ()
 
 exception Link = Link.Error
 exception Trap = Trap.Error
@@ -21,44 +20,43 @@ let memory_error at = function
   | Heap.InvalidAddress a ->
       Int64.to_string a ^ ":address not found in hashtable"
   | Heap.Bounds -> "out of bounds memory access"
-  | Memory.SizeOverflow -> "memory size overflow"
-  | Memory.SizeLimit -> "memory size limit reached"
-  | Memory.Type -> Crash.error at "type mismatch at memory access"
+  | Interpreter.Memory.SizeOverflow -> "memory size overflow"
+  | Interpreter.Memory.SizeLimit -> "memory size limit reached"
+  | Interpreter.Memory.Type -> Crash.error at "type mismatch at memory access"
   | exn -> raise exn
 
 let numeric_error at = function
   | Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
-  | Numeric_error.IntegerOverflow -> "integer overflow"
-  | Numeric_error.IntegerDivideByZero -> "integer divide by zero"
-  | Numeric_error.InvalidConversionToInteger -> "invalid conversion to integer"
-  | Eval_numeric.TypeError (i, v, t) ->
+  | Interpreter.Numeric_error.IntegerOverflow -> "integer overflow"
+  | Interpreter.Numeric_error.IntegerDivideByZero -> "integer divide by zero"
+  | Interpreter.Numeric_error.InvalidConversionToInteger -> "invalid conversion to integer"
+  | Interpreter.Eval_numeric.TypeError (i, v, t) ->
       Crash.error at
         ("type error, expected "
-        ^ Types.string_of_value_type t
+        ^ Interpreter.Types.string_of_value_type t
         ^ " as operand " ^ string_of_int i ^ ", got "
-        ^ Types.string_of_value_type (Values.type_of v))
+        ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v))
   | exn -> raise exn
 
 type policy = Random | Depth | Breadth
 type bug = Overflow | UAF | InvalidFree
-type interruption = Limit | Failure of path_conditions | Bug of bug
+type interruption = Limit | Failure of pc | Bug of bug
 type 'a stack = 'a list
-type frame = { inst : module_inst; locals : sym_value ref list }
-type pc = sym_expr list
+type frame = { inst : module_inst; locals : value ref list }
 
-type code = sym_value stack * sym_admin_instr list
+type code = value stack * sym_admin_instr list
 and sym_admin_instr = sym_admin_instr' phrase
 
 and sym_admin_instr' =
   | Plain of instr'
   | Invoke of func_inst
   | Trapping of string
-  | Returning of sym_value stack
-  | Breaking of int32 * sym_value stack
+  | Returning of value stack
+  | Breaking of int32 * value stack
   | Label of int * instr list * code
   | Frame of int * frame * code
   | Interrupt of interruption
-  | Restart of path_conditions
+  | Restart of pc
 
 type config = {
   frame : frame;
@@ -68,7 +66,7 @@ type config = {
   store : Store.t;
   heap : (int32, int32) Hashtbl.t;
   pc : pc;
-  bp : sym_expr list list;
+  bp : pc list;
   tree : Execution_tree.t ref ref;
   budget : int;
 }
@@ -82,7 +80,7 @@ let config inst vs es mem glob tree =
     code = (vs, es);
     mem;
     store = Store.create [];
-    heap = Hashtbl.create Flags.hashtbl_default_size;
+    heap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
     pc = [];
     bp = [];
     tree;
@@ -98,7 +96,7 @@ let iterations = ref 0
 let solver_time = ref 0.
 let loop_start = ref 0.
 let solver = Encoding.Batch.create ()
-let debug str = if !Flags.trace then print_endline str
+let debug str = if !Interpreter.Flags.trace then print_endline str
 
 let count (init : int) : unit -> int =
   let next = ref init in
@@ -129,7 +127,7 @@ let string_of_interruption : interruption -> string = function
 let plain e = Plain e.it @@ e.at
 
 let lookup category list x =
-  try Lib.List32.nth list x.it
+  try Interpreter.Lib.List32.nth list x.it
   with Failure _ ->
     Crash.error x.at ("undefined " ^ category ^ " " ^ Int32.to_string x.it)
 
@@ -141,11 +139,11 @@ let global (inst : module_inst) x = lookup "global" inst.globals x
 let local (frame : frame) x = lookup "local" frame.locals x
 
 let elem inst x i at =
-  match Table.load (table inst x) i with
-  | Table.Uninitialized ->
+  match Interpreter.Table.load (table inst x) i with
+  | Interpreter.Table.Uninitialized ->
       Trap.error at ("uninitialized element " ^ Int32.to_string i)
   | f -> f
-  | exception Table.Bounds ->
+  | exception Interpreter.Table.Bounds ->
       Trap.error at ("undefined element " ^ Int32.to_string i)
 
 let func_elem inst x i at =
@@ -154,10 +152,10 @@ let func_elem inst x i at =
   | _ -> Crash.error at ("type mismatch for element " ^ Int32.to_string i)
 
 let take n (vs : 'a stack) at =
-  try Lib.List.take n vs with Failure _ -> Crash.error at "stack underflow"
+  try Interpreter.Lib.List.take n vs with Failure _ -> Crash.error at "stack underflow"
 
 let drop n (vs : 'a stack) at =
-  try Lib.List.drop n vs with Failure _ -> Crash.error at "stack underflow"
+  try Interpreter.Lib.List.drop n vs with Failure _ -> Crash.error at "stack underflow"
 
 let branch_on_cond bval c pc tree =
   let tree', to_branch =
@@ -165,7 +163,7 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then Some (add_constraint ~neg:bval c pc) else None
+  if to_branch then Some (insert_pc ~neg:bval c pc) else None
 
 let rec step (c : config) : config =
   let { frame; glob; code = vs, es; mem; store; heap; pc; bp; tree; _ } = c in
@@ -199,7 +197,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ex pc tree)
               in
-              let pc' = add_constraint ~neg:true ex pc in
+              let pc' = insert_pc ~neg:true ex pc in
               (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', bp')
             else
               let bp' =
@@ -208,7 +206,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond true ex pc tree)
               in
-              let pc' = add_constraint ex pc in
+              let pc' = insert_pc ex pc in
               (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', bp')
         | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
@@ -222,7 +220,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ex pc tree)
               in
-              let pc' = add_constraint ~neg:true ex pc in
+              let pc' = insert_pc ~neg:true ex pc in
               (vs', [], pc', bp')
             else
               let bp' =
@@ -231,18 +229,18 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond true ex pc tree)
               in
-              let pc' = add_constraint ex pc in
+              let pc' = insert_pc ex pc in
               (vs', [ Plain (Br x) @@ e.at ], pc', bp')
         | BrTable (xs, x), (I32 i, _) :: vs'
-          when I32.ge_u i (Lib.List32.length xs) ->
+          when Interpreter.I32.ge_u i (Interpreter.Lib.List32.length xs) ->
             (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrTable (xs, x), (I32 i, _) :: vs' ->
-            (vs', [ Plain (Br (Lib.List32.nth xs i)) @@ e.at ], pc, bp)
+            (vs', [ Plain (Br (Interpreter.Lib.List32.nth xs i)) @@ e.at ], pc, bp)
         | Return, vs -> ([], [ Returning vs @@ e.at ], pc, bp)
         | Call x, vs -> (vs, [ Invoke (func frame.inst x) @@ e.at ], pc, bp)
         | CallIndirect x, (I32 i, _) :: vs ->
             let func = func_elem frame.inst (0l @@ e.at) i e.at in
-            if type_ frame.inst x <> Func.type_of func then
+            if type_ frame.inst x <> Interpreter.Func.type_of func then
               (vs, [ Trapping "indirect call type mismatch" @@ e.at ], pc, bp)
             else (vs, [ Invoke func @@ e.at ], pc, bp)
         | Drop, v :: vs' -> (vs', [], pc, bp)
@@ -257,7 +255,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ve pc tree)
               in
-              (v2 :: vs', [], add_constraint ~neg:true ve pc, bp')
+              (v2 :: vs', [], insert_pc ~neg:true ve pc, bp')
             else
               let bp' =
                 Batteries.Option.map_default
@@ -265,7 +263,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond true ve pc tree)
               in
-              (v1 :: vs', [], add_constraint ve pc, bp')
+              (v1 :: vs', [], insert_pc ve pc, bp')
         | LocalGet x, vs -> (!(local frame x) :: vs, [], pc, bp)
         | LocalSet x, (v, ex) :: vs' ->
             local frame x := (v, simplify ex);
@@ -278,12 +276,15 @@ let rec step (c : config) : config =
             Globals.add glob x.it v;
             (vs', [], pc, bp)
         | Load { offset; ty; sz; _ }, (I32 i, sym_ptr) :: vs' -> (
-            let base = I64_convert.extend_i32_u i in
+            let base = Interpreter.I64_convert.extend_i32_u i in
             (* overflow check *)
             let ptr = get_ptr (simplify sym_ptr) in
             try
               (if Option.is_some ptr then
-               let low = I32Value.of_value (Option.get ptr) in
+               let low =
+                 Interpreter.Values.I32Value.of_value
+                  (Evaluations.to_value (Option.get ptr))
+               in
                let chunk_size =
                  try Hashtbl.find heap low
                  with Not_found -> raise (BugException (c, e.at, UAF))
@@ -295,8 +296,10 @@ let rec step (c : config) : config =
                  raise (BugException (c, e.at, Overflow)));
               let v, e =
                 match sz with
-                | None -> Heap.load_value mem base offset ty
-                | Some (sz, ext) -> Heap.load_packed sz ext mem base offset ty
+                | None ->
+                    Heap.load_value mem base offset (Evaluations.to_num_type ty)
+                | Some (sz, ext) ->
+                    Heap.load_packed sz ext mem base offset (Evaluations.to_num_type ty)
               in
               ((v, e) :: vs', [], pc, bp)
             with
@@ -305,11 +308,14 @@ let rec step (c : config) : config =
             | exn -> (vs', [ Trapping (memory_error e.at exn) @@ e.at ], pc, bp)
             )
         | Store { offset; sz; _ }, (v, ex) :: (I32 i, sym_ptr) :: vs' -> (
-            let base = I64_convert.extend_i32_u i in
+            let base = Interpreter.I64_convert.extend_i32_u i in
             let ptr = get_ptr (simplify sym_ptr) in
             try
               (if Option.is_some ptr then
-               let low = I32Value.of_value (Option.get ptr) in
+               let low =
+                 Interpreter.Values.I32Value.of_value
+                  (Evaluations.to_value (Option.get ptr))
+               in
                let chunk_size =
                  try Hashtbl.find heap low
                  with Not_found -> raise (BugException (c, e.at, UAF))
@@ -329,12 +335,13 @@ let rec step (c : config) : config =
             )
         | MemorySize, vs ->
             let mem' = memory frame.inst (0l @@ e.at) in
-            let v = I32 (Memory.size mem') in
-            ((v, Value v) :: vs, [], pc, bp)
+            let v = I32 (Interpreter.Memory.size mem') in
+            ((v, Num v) :: vs, [], pc, bp)
         | MemoryGrow, (I32 delta, _) :: vs' ->
             let mem' = memory frame.inst (0l @@ e.at) in
-            let old_size = Memory.size mem' in
+            let old_size = Interpreter.Memory.size mem' in
             let result =
+              let open Interpreter in
               try
                 Memory.grow mem' delta;
                 old_size
@@ -342,8 +349,10 @@ let rec step (c : config) : config =
               | Memory.SizeOverflow | Memory.SizeLimit | Memory.OutOfMemory ->
                 -1l
             in
-            ((I32 result, Value (I32 result)) :: vs', [], pc, bp)
-        | Const v, vs -> ((v.it, Value v.it) :: vs, [], pc, bp)
+            ((I32 result, Num (I32 result)) :: vs', [], pc, bp)
+        | Const v, vs ->
+            let v' = Evaluations.of_value v.it in
+            ((v', Num v') :: vs, [], pc, bp)
         | Test testop, v :: vs' -> (
             try (eval_testop v testop :: vs', [], pc, bp)
             with exn ->
@@ -371,7 +380,7 @@ let rec step (c : config) : config =
         | SymAssert, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
         | SymAssert, (I32 i, ex) :: vs' ->
-            let formulas = add_constraint ~neg:true ex pc in
+            let formulas = insert_pc ~neg:true ex pc in
             if not (Encoding.Batch.check solver formulas) then (vs', [], pc, bp)
             else
               let binds =
@@ -381,31 +390,32 @@ let rec step (c : config) : config =
               Store.update store binds;
               (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            let unsat = I32Relop (I32Eq, Value (I32 0l), Value (I32 1l)) in
+            let unsat = Relop (I32 I32.Eq, Num (I32 0l), Num (I32 1l)) in
             if i = 0l then (vs', [ Restart [ unsat ] @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
-              (vs', [ Restart (add_constraint ex pc) @@ e.at ], pc, bp)
+              (vs', [ Restart (insert_pc ex pc) @@ e.at ], pc, bp)
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
               tree := tree';
-              (vs', [], add_constraint ex pc, bp))
+              (vs', [], insert_pc ex pc, bp))
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
-            let base = I64_convert.extend_i32_u i in
+            let base = Interpreter.I64_convert.extend_i32_u i in
             let symbol = if i = 0l then "x" else Heap.load_string mem base in
             let x = Store.next store symbol in
-            let v = Store.get store x ty b in
-            ((v, to_symbolic ty x) :: vs', [], pc, bp)
+            let ty' = Evaluations.to_num_type ty in
+            let v = Store.get store x ty' b in
+            ((v, symbolic ty' x) :: vs', [], pc, bp)
         | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
-            let sv2' = mk_relop sv2 (Values.type_of v2) in
+            let sv2' = mk_relop sv2 (Types.type_of v2) in
             let v2' =
-              Values.(value_of_bool (not (v2 = default_value (type_of v2))))
+              Num.(num_of_bool (not (v2 = default_value (type_of v2))))
             in
-            let sv1' = mk_relop sv1 (Values.type_of v1) in
+            let sv1' = mk_relop sv1 (Types.type_of v1) in
             let v1' =
-              Values.(value_of_bool (not (v1 = default_value (type_of v1))))
+              Num.(num_of_bool (not (v1 = default_value (type_of v1))))
             in
             try
               let v3, sv3 = eval_binop (v1', sv1') (v2', sv2') boolop in
@@ -414,7 +424,7 @@ let rec step (c : config) : config =
               (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
             Hashtbl.add heap b a;
-            ((I32 b, SymPtr (b, (Value (I32 0l)))) :: vs', [], pc, bp)
+            ((I32 b, SymPtr (b, (Num (I32 0l)))) :: vs', [], pc, bp)
         | Free, (I32 i, _) :: vs' ->
             let es' =
               if not (Hashtbl.mem heap i) then
@@ -430,54 +440,54 @@ let rec step (c : config) : config =
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, to_symbolic I32Type x) :: vs', [], pc, bp)
+            ((v, symbolic I32Type x) :: vs', [], pc, bp)
         | GetSymInt64 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, to_symbolic I64Type x) :: vs', [], pc, bp)
+            ((v, symbolic I64Type x) :: vs', [], pc, bp)
         | GetSymFloat32 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, to_symbolic F32Type x) :: vs', [], pc, bp)
+            ((v, symbolic F32Type x) :: vs', [], pc, bp)
         | GetSymFloat64 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, to_symbolic F64Type x) :: vs', [], pc, bp)
+            ((v, symbolic F64Type x) :: vs', [], pc, bp)
         | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs' ->
             let r = I32 (if c = 0l then r2 else r1) in
-            let s_c' = to_constraint (simplify s_c) in
+            let s_c' = to_relop (simplify s_c) in
             let v, pc' =
               match s_c' with
               | None -> ((r, if c = 0l then s_r2 else s_r1), pc)
               | Some s ->
                   let x = Store.next store "__ternary" in
                   Store.add store x r;
-                  let s_x = to_symbolic I32Type x in
-                  let t_eq = I32Relop (I32Eq, s_x, s_r1) in
-                  let t_imp = I32Binop (I32Or, negate_relop s, t_eq) in
-                  let f_eq = I32Relop (I32Eq, s_x, s_r2) in
-                  let f_imp = I32Binop (I32Or, s, f_eq) in
-                  let cond = I32Binop (I32And, t_imp, f_imp) in
-                  ((r, s_x), I32Relop (I32Ne, cond, Value (I32 0l)) :: pc)
+                  let s_x = symbolic I32Type x in
+                  let t_eq = Relop (I32 I32.Eq, s_x, s_r1) in
+                  let t_imp = Binop (I32 I32.Or, negate_relop s, t_eq) in
+                  let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
+                  let f_imp = Binop (I32 I32.Or, s, f_eq) in
+                  let cond = Binop (I32 I32.And, t_imp, f_imp) in
+                  ((r, s_x), Relop (I32 I32.Ne, cond, Num (I32 0l)) :: pc)
             in
             (v :: vs', [], pc', bp)
         | PrintStack, vs' ->
             debug
-              (Source.string_of_pos e.at.left
-              ^ ":VS:\n" ^ string_of_sym_value vs');
+              (Interpreter.Source.string_of_pos e.at.left
+              ^ ":VS:\n" ^ Expression.string_of_values vs');
             (vs', [], pc, bp)
         | PrintPC, vs' ->
             debug
-              (Source.string_of_pos e.at.left
+              (Interpreter.Source.string_of_pos e.at.left
               ^ ":PC: "
               ^ Encoding.Formula.(pp_to_string (to_formula pc)));
             (vs', [], pc, bp)
@@ -491,17 +501,17 @@ let rec step (c : config) : config =
         | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
             let res =
               match (ex1, ex2) with
-              | Symbolic (SymInt32, x), Symbolic (SymInt32, y) ->
-                  if x = y then (I32 1l, I32Relop (I32Eq, ex1, ex2))
-                  else (I32 0l, I32Relop (I32Ne, ex1, ex2))
-              | _, _ -> eval_relop (v1, ex1) (v2, ex2) (Values.I32 Ast.I32Op.Eq)
+              | Symbolic (I32Type, x), Symbolic (I32Type, y) ->
+                  if x = y then (I32 1l, Relop (I32 I32.Eq, ex1, ex2))
+                  else (I32 0l, Relop (I32 I32.Ne, ex1, ex2))
+              | _, _ -> eval_relop (v1, ex1) (v2, ex2) (Interpreter.Values.I32 Interpreter.Ast.I32Op.Eq)
             in
             (res :: vs', [], pc, bp)
         | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
-            let base = I64_convert.extend_i32_u i in
+            let base = Interpreter.I64_convert.extend_i32_u i in
             let _, v = Heap.load_bytes mem base (Int32.to_int n) in
-            let result = I32 (match v with Value _ -> 0l | _ -> 1l) in
-            ((result, Value result) :: vs', [], pc, bp)
+            let result = I32 (match v with Num _ -> 0l | _ -> 1l) in
+            ((result, Num result) :: vs', [], pc, bp)
         | SetPriority, _ :: _ :: _ :: vs' -> (vs', [], pc, bp)
         | PopPriority, _ :: vs' -> (vs', [], pc, bp)
         | _ -> Crash.error e.at "missing or ill-typed operand on stack")
@@ -561,32 +571,36 @@ let rec step (c : config) : config =
         let symbolic_arg t =
           let x = Store.next store "arg" in
           let v = Store.get store x t false in
-          (v, to_symbolic t x)
+          (v, symbolic t x)
         in
-        let (FuncType (ins, out)) = Func.type_of func in
+        let (Interpreter.Types.FuncType (ins, out)) = Interpreter.Func.type_of func in
         let n = List.length ins in
         let vs =
           if n > 0 && List.length vs = 0 then
-            List.map (fun t -> symbolic_arg t) ins
+            List.map (fun t -> symbolic_arg (Evaluations.to_num_type t)) ins
           else vs
         in
         let args, vs' = (take n vs e.at, drop n vs e.at) in
         match func with
-        | Func.AstFunc (t, inst', f) ->
+        | Interpreter.Func.AstFunc (t, inst', f) ->
             let locals' =
               List.map
-                (fun v -> (v, Expression.Value v))
-                (List.map default_value f.it.locals)
+                (fun v -> (v, Num v))
+                (List.map
+                  (fun t -> Num.default_value (Evaluations.to_num_type t))
+                  f.it.locals)
             in
             let locals'' = List.rev args @ locals' in
             let code' = ([], [ Plain (Block (out, f.it.body)) @@ f.at ]) in
             let frame' = { inst = !inst'; locals = List.map ref locals'' } in
             (vs', [ Frame (List.length out, frame', code') @@ e.at ], pc, bp)
-        | Func.HostFunc (t, f) -> failwith "HostFunc error")
+        | Interpreter.Func.HostFunc (t, f) -> failwith "HostFunc error")
   in
   let e' =
     step_cnt := !step_cnt + 1;
-    if (not (!Flags.inst_limit = -1)) && !step_cnt >= !Flags.inst_limit then
+    if
+      (not (!Interpreter.Flags.inst_limit = -1))
+      && !step_cnt >= !Interpreter.Flags.inst_limit then
       [ Interrupt Limit @@ e.at ]
     else []
   in
@@ -594,7 +608,7 @@ let rec step (c : config) : config =
 
 let get_reason (err_t, at) : string =
   let loc =
-    Source.string_of_pos at.left
+    Interpreter.Source.string_of_pos at.left
     ^ if at.right = at.left then "" else "-" ^ string_of_pos at.right
   in
   "{" ^ "\"type\" : \"" ^ err_t ^ "\", " ^ "\"line\" : \"" ^ loc ^ "\"" ^ "}"
@@ -606,7 +620,7 @@ let write_test_case ?(witness = false) out_dir test_data cnt : unit =
       if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
       else Printf.sprintf "%s/test_%05d.json" out_dir i
     in
-    Io.save_file filename test_data
+    Interpreter.Io.save_file filename test_data
 
 let write_report error loop_time : unit =
   let spec, reason =
@@ -621,7 +635,7 @@ let write_report error loop_time : unit =
     ^ "\"solver_counter\" : " ^ string_of_int !solver_cnt ^ ", "
     ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
   in
-  Io.save_file (Filename.concat !Flags.output "report.json") report_str
+  Interpreter.Io.save_file (Filename.concat !Interpreter.Flags.output "report.json") report_str
 
 let rec update_admin_instr f e =
   let it =
@@ -738,7 +752,7 @@ end
 
 module DFS = Guided_search (Stack)
 module BFS = Guided_search (Queue)
-module RND = Guided_search (Common.RandArray)
+module RND = Guided_search (RandArray)
 
 let set_timeout (time_limit : int) : unit =
   let alarm_handler i : unit =
@@ -751,8 +765,9 @@ let set_timeout (time_limit : int) : unit =
     Sys.(set_signal sigalrm (Signal_handle alarm_handler));
     ignore (Unix.alarm time_limit))
 
-let main (func : func_inst) (vs : sym_value list) (inst : module_inst)
+let main (func : func_inst) (vs : value list) (inst : module_inst)
     (mem0 : Heap.t) =
+  let open Interpreter in
   set_timeout !Flags.timeout;
   let test_suite = Filename.concat !Flags.output "test_suite" in
   Io.safe_mkdir test_suite;
@@ -763,7 +778,7 @@ let main (func : func_inst) (vs : sym_value list) (inst : module_inst)
        (List.mapi
           (fun i a ->
             let v = Global.load a in
-            (Int32.of_int i, (v, Expression.Value v)))
+            (Int32.of_int i, (of_value v, Num (of_value v))))
           inst.globals));
   let c =
     config empty_module_inst (List.rev vs)
@@ -779,26 +794,26 @@ let main (func : func_inst) (vs : sym_value list) (inst : module_inst)
   in
   f c test_suite
 
-let i32 (v : value) at =
+let i32 (v : Interpreter.Values.value) at =
   match v with
-  | I32 i -> i
+  | Interpreter.Values.I32 i -> i
   | _ -> Crash.error at "type error: i32 value expected"
 
 let create_func (inst : module_inst) (f : func) : func_inst =
-  Func.alloc (type_ inst f.it.ftype) (ref inst) f
+  Interpreter.Func.alloc (type_ inst f.it.ftype) (ref inst) f
 
 let create_table (inst : module_inst) (tab : table) : table_inst =
   let { ttype } = tab.it in
-  Table.alloc ttype
+  Interpreter.Table.alloc ttype
 
 let create_memory (inst : module_inst) (mem : memory) : memory_inst =
   let { mtype } = mem.it in
-  Memory.alloc mtype
+  Interpreter.Memory.alloc mtype
 
 let create_global (inst : module_inst) (glob : global) : global_inst =
   let { gtype; value } = glob.it in
-  let v = Eval.eval_const inst value in
-  Global.alloc gtype v
+  let v = Interpreter.Eval.eval_const inst value in
+  Interpreter.Global.alloc gtype v
 
 let create_export (inst : module_inst) (ex : export) : export_inst =
   let { name; edesc } = ex.it in
@@ -813,10 +828,11 @@ let create_export (inst : module_inst) (ex : export) : export_inst =
 
 let init_func (inst : module_inst) (func : func_inst) =
   match func with
-  | Func.AstFunc (_, inst_ref, _) -> inst_ref := inst
+  | Interpreter.Func.AstFunc (_, inst_ref, _) -> inst_ref := inst
   | _ -> assert false
 
 let init_table (inst : module_inst) (seg : table_segment) =
+  let open Interpreter in
   let { index; offset = const; init } = seg.it in
   let tab = table inst index in
   let offset = i32 (Eval.eval_const inst const) const.at in
@@ -828,6 +844,7 @@ let init_table (inst : module_inst) (seg : table_segment) =
     Table.blit tab offset (List.map (fun x -> FuncElem (func inst x)) init)
 
 let init_memory (inst : module_inst) (sym_mem : Heap.t) (seg : memory_segment) =
+  let open Interpreter in
   let { index; offset = const; init } = seg.it in
   let mem = memory inst index in
   let offset' = i32 (Eval.eval_const inst const) const.at in
@@ -840,7 +857,8 @@ let init_memory (inst : module_inst) (sym_mem : Heap.t) (seg : memory_segment) =
 
 let add_import (m : module_) (ext : extern) (im : import) (inst : module_inst) :
     module_inst =
-  if not (match_extern_type (extern_type_of ext) (import_type m im)) then
+  let open Interpreter in
+  if not (Types.match_extern_type (extern_type_of ext) (import_type m im)) then
     Link.error im.at "incompatible import type";
   match ext with
   | ExternFunc func -> { inst with funcs = func :: inst.funcs }
@@ -849,6 +867,7 @@ let add_import (m : module_) (ext : extern) (im : import) (inst : module_inst) :
   | ExternGlobal glob -> { inst with globals = glob :: inst.globals }
 
 let init (m : module_) (exts : extern list) =
+  let open Interpreter in
   let {
     imports;
     tables;

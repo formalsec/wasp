@@ -19,6 +19,13 @@ let of_value (v : Interpreter.Values.value) : Num.t =
   | Interpreter.Values.F32 f -> F32 (Interpreter.F32.to_bits f)
   | Interpreter.Values.F64 f -> F64 (Interpreter.F64.to_bits f)
 
+let to_num_type (t : Interpreter.Types.value_type) : num_type =
+  match t with
+  | Interpreter.Types.I32Type -> I32Type
+  | Interpreter.Types.I64Type -> I64Type
+  | Interpreter.Types.F32Type -> F32Type
+  | Interpreter.Types.F64Type -> F64Type
+
 (*  Evaluate a unary operation  *)
 let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
   let f32_unop op e =
