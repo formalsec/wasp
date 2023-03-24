@@ -6,25 +6,28 @@ open Interpreter.Ast
 exception UnsupportedOp of string
 
 let to_value (n : Num.t) : Interpreter.Values.value =
+  let open Interpreter in
   match n with
-  | I32 i -> Interpreter.Values.I32 i
-  | I64 i -> Interpreter.Values.I64 i
-  | F32 f -> Interpreter.Values.F32 (Interpreter.F32.of_bits f)
-  | F64 f -> Interpreter.Values.F64 (Interpreter.F64.of_bits f)
+  | I32 i -> Values.I32 i
+  | I64 i -> Values.I64 i
+  | F32 f -> Values.F32 (F32.of_bits f)
+  | F64 f -> Values.F64 (F64.of_bits f)
 
 let of_value (v : Interpreter.Values.value) : Num.t =
+  let open Interpreter in
   match v with
-  | Interpreter.Values.I32 i -> I32 i
-  | Interpreter.Values.I64 i -> I64 i
-  | Interpreter.Values.F32 f -> F32 (Interpreter.F32.to_bits f)
-  | Interpreter.Values.F64 f -> F64 (Interpreter.F64.to_bits f)
+  | Values.I32 i -> I32 i
+  | Values.I64 i -> I64 i
+  | Values.F32 f -> F32 (F32.to_bits f)
+  | Values.F64 f -> F64 (F64.to_bits f)
 
 let to_num_type (t : Interpreter.Types.value_type) : num_type =
+  let open Interpreter in
   match t with
-  | Interpreter.Types.I32Type -> I32Type
-  | Interpreter.Types.I64Type -> I64Type
-  | Interpreter.Types.F32Type -> F32Type
-  | Interpreter.Types.F64Type -> F64Type
+  | Types.I32Type -> I32Type
+  | Types.I64Type -> I64Type
+  | Types.F32Type -> F32Type
+  | Types.F64Type -> F64Type
 
 (*  Evaluate a unary operation  *)
 let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
@@ -56,11 +59,12 @@ let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
   begin match s with
     | Num _ -> Num c'
     | _ -> (* dispatch *)
+        let open Interpreter in
         begin match op with
-        | Interpreter.Values.F32 x -> f32_unop x s
-        | Interpreter.Values.F64 x -> f64_unop x s
-        | Interpreter.Values.I32 _
-        | Interpreter.Values.I64 _ ->
+        | Values.F32 x -> f32_unop x s
+        | Values.F64 x -> f64_unop x s
+        | Values.I32 _
+        | Values.I64 _ ->
             raise (UnsupportedOp "eval_unop: ints")
         end
     end
@@ -139,11 +143,12 @@ let eval_binop (e1 : value) (e2 : value) (op : Interpreter.Ast.binop) : value =
     begin match s1, s2 with
     | Num _, Num _ -> Num c
     | _ -> (* dispatch *)
+        let open Interpreter in
         begin match op with
-        | Interpreter.Values.I32 x -> i32_binop x s1 s2
-        | Interpreter.Values.I64 x -> i64_binop x s1 s2
-        | Interpreter.Values.F32 x -> f32_binop x s1 s2
-        | Interpreter.Values.F64 x -> f64_binop x s1 s2
+        | Values.I32 x -> i32_binop x s1 s2
+        | Values.I64 x -> i64_binop x s1 s2
+        | Values.F32 x -> f32_binop x s1 s2
+        | Values.F64 x -> f64_binop x s1 s2
         end
     end
   in (c, s)
@@ -229,11 +234,12 @@ let eval_relop (e1 : value) (e2 : value) (op : Interpreter.Ast.relop) : value =
     begin match s1, s2 with
     | Num _, Num _ -> Num c
     | _ -> (* dispatch *)
+        let open Interpreter in
         begin match op with
-        | Interpreter.Values.I32 x -> i32_relop x s1 s2
-        | Interpreter.Values.I64 x -> i64_relop x s1 s2
-        | Interpreter.Values.F32 x -> f32_relop x s1 s2
-        | Interpreter.Values.F64 x -> f64_relop x s1 s2
+        | Values.I32 x -> i32_relop x s1 s2
+        | Values.I64 x -> i64_relop x s1 s2
+        | Values.F32 x -> f32_relop x s1 s2
+        | Values.F64 x -> f64_relop x s1 s2
         end
     end
   in (c, s)
@@ -294,11 +300,12 @@ let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
     | Num _ -> Num c
     | _ ->
         (* dispatch cvtop func *)
+        let open Interpreter in
         begin match op with
-        | Interpreter.Values.I32 x -> i32_cvtop x e
-        | Interpreter.Values.I64 x -> i64_cvtop x e
-        | Interpreter.Values.F32 x -> f32_cvtop x e
-        | Interpreter.Values.F64 x -> f64_cvtop x e
+        | Values.I32 x -> i32_cvtop x e
+        | Values.I64 x -> i64_cvtop x e
+        | Values.F32 x -> f32_cvtop x e
+        | Values.F64 x -> f64_cvtop x e
         end
     end
   in (c, s)
