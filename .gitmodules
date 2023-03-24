@@ -1,0 +1,3 @@
+[submodule "wasp/encoding"]
+	path = wasp/encoding
+	url = git@github.com:wasp-platform/encoding.git
