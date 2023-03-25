@@ -29,13 +29,15 @@ let numeric_error at = function
   | Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
   | Interpreter.Numeric_error.IntegerOverflow -> "integer overflow"
   | Interpreter.Numeric_error.IntegerDivideByZero -> "integer divide by zero"
-  | Interpreter.Numeric_error.InvalidConversionToInteger -> "invalid conversion to integer"
+  | Interpreter.Numeric_error.InvalidConversionToInteger ->
+      "invalid conversion to integer"
   | Interpreter.Eval_numeric.TypeError (i, v, t) ->
       Crash.error at
         ("type error, expected "
         ^ Interpreter.Types.string_of_value_type t
         ^ " as operand " ^ string_of_int i ^ ", got "
-        ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v))
+        ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v)
+        )
   | exn -> raise exn
 
 type policy = Random | Depth | Breadth
@@ -152,10 +154,12 @@ let func_elem inst x i at =
   | _ -> Crash.error at ("type mismatch for element " ^ Int32.to_string i)
 
 let take n (vs : 'a stack) at =
-  try Interpreter.Lib.List.take n vs with Failure _ -> Crash.error at "stack underflow"
+  try Interpreter.Lib.List.take n vs
+  with Failure _ -> Crash.error at "stack underflow"
 
 let drop n (vs : 'a stack) at =
-  try Interpreter.Lib.List.drop n vs with Failure _ -> Crash.error at "stack underflow"
+  try Interpreter.Lib.List.drop n vs
+  with Failure _ -> Crash.error at "stack underflow"
 
 let branch_on_cond bval c pc tree =
   let tree', to_branch =
@@ -235,7 +239,10 @@ let rec step (c : config) : config =
           when Interpreter.I32.ge_u i (Interpreter.Lib.List32.length xs) ->
             (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrTable (xs, x), (I32 i, _) :: vs' ->
-            (vs', [ Plain (Br (Interpreter.Lib.List32.nth xs i)) @@ e.at ], pc, bp)
+            ( vs',
+              [ Plain (Br (Interpreter.Lib.List32.nth xs i)) @@ e.at ],
+              pc,
+              bp )
         | Return, vs -> ([], [ Returning vs @@ e.at ], pc, bp)
         | Call x, vs -> (vs, [ Invoke (func frame.inst x) @@ e.at ], pc, bp)
         | CallIndirect x, (I32 i, _) :: vs ->
@@ -283,7 +290,7 @@ let rec step (c : config) : config =
               (if Option.is_some ptr then
                let low =
                  Interpreter.Values.I32Value.of_value
-                  (Evaluations.to_value (Option.get ptr))
+                   (Evaluations.to_value (Option.get ptr))
                in
                let chunk_size =
                  try Hashtbl.find heap low
@@ -299,7 +306,8 @@ let rec step (c : config) : config =
                 | None ->
                     Heap.load_value mem base offset (Evaluations.to_num_type ty)
                 | Some (sz, ext) ->
-                    Heap.load_packed sz ext mem base offset (Evaluations.to_num_type ty)
+                    Heap.load_packed sz ext mem base offset
+                      (Evaluations.to_num_type ty)
               in
               ((v, e) :: vs', [], pc, bp)
             with
@@ -314,7 +322,7 @@ let rec step (c : config) : config =
               (if Option.is_some ptr then
                let low =
                  Interpreter.Values.I32Value.of_value
-                  (Evaluations.to_value (Option.get ptr))
+                   (Evaluations.to_value (Option.get ptr))
                in
                let chunk_size =
                  try Hashtbl.find heap low
@@ -394,8 +402,7 @@ let rec step (c : config) : config =
             if i = 0l then (vs', [ Restart [ unsat ] @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
-            if i = 0l then
-              (vs', [ Restart (insert_pc ex pc) @@ e.at ], pc, bp)
+            if i = 0l then (vs', [ Restart (insert_pc ex pc) @@ e.at ], pc, bp)
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
@@ -424,7 +431,7 @@ let rec step (c : config) : config =
               (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
             Hashtbl.add heap b a;
-            ((I32 b, SymPtr (b, (Num (I32 0l)))) :: vs', [], pc, bp)
+            ((I32 b, SymPtr (b, Num (I32 0l))) :: vs', [], pc, bp)
         | Free, (I32 i, _) :: vs' ->
             let es' =
               if not (Hashtbl.mem heap i) then
@@ -483,7 +490,8 @@ let rec step (c : config) : config =
         | PrintStack, vs' ->
             debug
               (Interpreter.Source.string_of_pos e.at.left
-              ^ ":VS:\n" ^ Expression.string_of_values vs');
+              ^ ":VS:\n"
+              ^ Expression.string_of_values vs');
             (vs', [], pc, bp)
         | PrintPC, vs' ->
             debug
@@ -504,7 +512,9 @@ let rec step (c : config) : config =
               | Symbolic (I32Type, x), Symbolic (I32Type, y) ->
                   if x = y then (I32 1l, Relop (I32 I32.Eq, ex1, ex2))
                   else (I32 0l, Relop (I32 I32.Ne, ex1, ex2))
-              | _, _ -> eval_relop (v1, ex1) (v2, ex2) (Interpreter.Values.I32 Interpreter.Ast.I32Op.Eq)
+              | _, _ ->
+                  eval_relop (v1, ex1) (v2, ex2)
+                    (Interpreter.Values.I32 Interpreter.Ast.I32Op.Eq)
             in
             (res :: vs', [], pc, bp)
         | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
@@ -573,7 +583,9 @@ let rec step (c : config) : config =
           let v = Store.get store x t false in
           (v, symbolic t x)
         in
-        let (Interpreter.Types.FuncType (ins, out)) = Interpreter.Func.type_of func in
+        let (Interpreter.Types.FuncType (ins, out)) =
+          Interpreter.Func.type_of func
+        in
         let n = List.length ins in
         let vs =
           if n > 0 && List.length vs = 0 then
@@ -587,8 +599,8 @@ let rec step (c : config) : config =
               List.map
                 (fun v -> (v, Num v))
                 (List.map
-                  (fun t -> Num.default_value (Evaluations.to_num_type t))
-                  f.it.locals)
+                   (fun t -> Num.default_value (Evaluations.to_num_type t))
+                   f.it.locals)
             in
             let locals'' = List.rev args @ locals' in
             let code' = ([], [ Plain (Block (out, f.it.body)) @@ f.at ]) in
@@ -600,8 +612,8 @@ let rec step (c : config) : config =
     step_cnt := !step_cnt + 1;
     if
       (not (!Interpreter.Flags.inst_limit = -1))
-      && !step_cnt >= !Interpreter.Flags.inst_limit then
-      [ Interrupt Limit @@ e.at ]
+      && !step_cnt >= !Interpreter.Flags.inst_limit
+    then [ Interrupt Limit @@ e.at ]
     else []
   in
   { c with code = (vs', e' @ es' @ List.tl es); pc = pc'; bp = bp' }
@@ -635,7 +647,9 @@ let write_report error loop_time : unit =
     ^ "\"solver_counter\" : " ^ string_of_int !solver_cnt ^ ", "
     ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
   in
-  Interpreter.Io.save_file (Filename.concat !Interpreter.Flags.output "report.json") report_str
+  Interpreter.Io.save_file
+    (Filename.concat !Interpreter.Flags.output "report.json")
+    report_str
 
 let rec update_admin_instr f e =
   let it =
@@ -657,7 +671,8 @@ let rec update_admin_instr f e =
 
 let update c (vs, es) pc =
   let binds =
-    Encoding.Batch.(model_binds (get_model solver) (Store.get_key_types c.store))
+    Encoding.Batch.(
+      model_binds (get_model solver) (Store.get_key_types c.store))
   in
   let tree', _ = Execution_tree.move_true !(c.tree) in
   c.tree := tree';
@@ -672,7 +687,8 @@ let update c (vs, es) pc =
 
 let reset c glob code mem =
   let binds =
-    Encoding.Batch.(model_binds (get_model solver) (Store.get_key_types c.store))
+    Encoding.Batch.(
+      model_binds (get_model solver) (Store.get_key_types c.store))
   in
   Store.reset c.store;
   Store.init c.store binds;

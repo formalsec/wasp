@@ -1,4 +1,5 @@
 open Interpreter
+
 let name = "WebAssembly Static Executor"
 let version = "v0.1"
 
@@ -45,7 +46,8 @@ let argspec =
         " maximum instr interpreted during a model" );
       ( "--policy",
         Arg.Set_string Flags.policy,
-        " search policy random|depth|breadth|breadth-l|half-breadth (default: random)" );
+        " search policy random|depth|breadth|breadth-l|half-breadth (default: \
+         random)" );
       ( "--encoding",
         Arg.Set_string Flags.encoding,
         " encoding policy incremental|batch (default: incremental)" );

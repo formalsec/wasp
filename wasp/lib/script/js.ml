@@ -3,11 +3,10 @@ open Ast
 open Script
 open Source
 
-
 (* Harness *)
 
 let harness =
-{|
+  {|
 'use strict';
 
 let spectest = {
@@ -140,23 +139,27 @@ function assert_return(action, expected) {
 }
 |}
 
-
 (* Context *)
 
-module NameMap = Map.Make(struct type t = Ast.name let compare = compare end)
-module Map = Map.Make(String)
+module NameMap = Map.Make (struct
+  type t = Ast.name
+
+  let compare = compare
+end)
+
+module Map = Map.Make (String)
 
 type exports = extern_type NameMap.t
-type modules = {mutable env : exports Map.t; mutable current : int}
+type modules = { mutable env : exports Map.t; mutable current : int }
 
 let exports m : exports =
   List.fold_left
     (fun map exp -> NameMap.add exp.it.name (export_type m exp) map)
     NameMap.empty m.it.exports
 
-let modules () : modules = {env = Map.empty; current = 0}
-
+let modules () : modules = { env = Map.empty; current = 0 }
 let current_var (mods : modules) = "$" ^ string_of_int mods.current
+
 let of_var_opt (mods : modules) = function
   | None -> current_var mods
   | Some x -> x.it
@@ -169,14 +172,20 @@ let bind (mods : modules) x_opt m =
 
 let lookup (mods : modules) x_opt name at =
   let exports =
-    try Map.find (of_var_opt mods x_opt) mods.env with Not_found ->
-      raise (Eval.Crash (at, 
-        if x_opt = None then "no module defined within script"
-        else "unknown module " ^ of_var_opt mods x_opt ^ " within script"))
-  in try NameMap.find name exports with Not_found ->
-    raise (Eval.Crash (at, "unknown export \"" ^
-      string_of_name name ^ "\" within module"))
-
+    try Map.find (of_var_opt mods x_opt) mods.env
+    with Not_found ->
+      raise
+        (Eval.Crash
+           ( at,
+             if x_opt = None then "no module defined within script"
+             else "unknown module " ^ of_var_opt mods x_opt ^ " within script"
+           ))
+  in
+  try NameMap.find name exports
+  with Not_found ->
+    raise
+      (Eval.Crash
+         (at, "unknown export \"" ^ string_of_name name ^ "\" within module"))
 
 (* Wrappers *)
 
@@ -191,10 +200,10 @@ let and_of = function
   | I64Type | F64Type -> Values.I64 I64Op.And
 
 let reinterpret_of = function
-  | I32Type -> I32Type, Nop
-  | I64Type -> I64Type, Nop
-  | F32Type -> I32Type, Convert (Values.I32 I32Op.ReinterpretFloat)
-  | F64Type -> I64Type, Convert (Values.I64 I64Op.ReinterpretFloat)
+  | I32Type -> (I32Type, Nop)
+  | I64Type -> (I64Type, Nop)
+  | F32Type -> (I32Type, Convert (Values.I32 I32Op.ReinterpretFloat))
+  | F64Type -> (I64Type, Convert (Values.I64 I64Op.ReinterpretFloat))
 
 let canonical_nan_of = function
   | I32Type | F32Type -> Values.I32 (F32.to_bits F32.pos_nan)
@@ -205,64 +214,70 @@ let abs_mask_of = function
   | I64Type | F64Type -> Values.I64 Int64.max_int
 
 let invoke ft lits at =
-  [ft @@ at], FuncImport (1l @@ at) @@ at,
-  List.map (fun lit -> Const lit @@ at) lits @ [Call (0l @@ at) @@ at]
+  ( [ ft @@ at ],
+    FuncImport (1l @@ at) @@ at,
+    List.map (fun lit -> Const lit @@ at) lits @ [ Call (0l @@ at) @@ at ] )
 
-let get t at =
-  [], GlobalImport t @@ at, [GlobalGet (0l @@ at) @@ at]
-
-let run ts at =
-  [], []
+let get t at = ([], GlobalImport t @@ at, [ GlobalGet (0l @@ at) @@ at ])
+let run ts at = ([], [])
 
 let assert_return ress ts at =
   let test res =
     match res.it with
     | LitResult lit ->
-      let t', reinterpret = reinterpret_of (Values.type_of lit.it) in
-      [ reinterpret @@ at;
-        Const lit @@ at;
-        reinterpret @@ at;
-        Compare (eq_of t') @@ at;
-        Test (Values.I32 I32Op.Eqz) @@ at;
-        BrIf (0l @@ at) @@ at ]
+        let t', reinterpret = reinterpret_of (Values.type_of lit.it) in
+        [
+          reinterpret @@ at;
+          Const lit @@ at;
+          reinterpret @@ at;
+          Compare (eq_of t') @@ at;
+          Test (Values.I32 I32Op.Eqz) @@ at;
+          BrIf (0l @@ at) @@ at;
+        ]
     | NanResult nanop ->
-      let nan =
-        match nanop.it with
-        | Values.I32 _ | Values.I64 _ -> assert false
-        | Values.F32 n | Values.F64 n -> n
-      in
-      let nan_bitmask_of =
-        match nan with
-        | CanonicalNan -> abs_mask_of (* must only differ from the canonical NaN in its sign bit *)
-        | ArithmeticNan -> canonical_nan_of (* can be any NaN that's one everywhere the canonical NaN is one *)
-      in
-      let t = Values.type_of nanop.it in
-      let t', reinterpret = reinterpret_of t in
-      [ reinterpret @@ at;
-        Const (nan_bitmask_of t' @@ at) @@ at;
-        Binary (and_of t') @@ at;
-        Const (canonical_nan_of t' @@ at) @@ at;
-        Compare (eq_of t') @@ at;
-        Test (Values.I32 I32Op.Eqz) @@ at;
-        BrIf (0l @@ at) @@ at ]
-  in [], List.flatten (List.rev_map test ress)
+        let nan =
+          match nanop.it with
+          | Values.I32 _ | Values.I64 _ -> assert false
+          | Values.F32 n | Values.F64 n -> n
+        in
+        let nan_bitmask_of =
+          match nan with
+          | CanonicalNan ->
+              abs_mask_of
+              (* must only differ from the canonical NaN in its sign bit *)
+          | ArithmeticNan -> canonical_nan_of
+          (* can be any NaN that's one everywhere the canonical NaN is one *)
+        in
+        let t = Values.type_of nanop.it in
+        let t', reinterpret = reinterpret_of t in
+        [
+          reinterpret @@ at;
+          Const (nan_bitmask_of t' @@ at) @@ at;
+          Binary (and_of t') @@ at;
+          Const (canonical_nan_of t' @@ at) @@ at;
+          Compare (eq_of t') @@ at;
+          Test (Values.I32 I32Op.Eqz) @@ at;
+          BrIf (0l @@ at) @@ at;
+        ]
+  in
+  ([], List.flatten (List.rev_map test ress))
 
 let wrap module_name item_name wrap_action wrap_assertion at =
   let itypes, idesc, action = wrap_action at in
   let locals, assertion = wrap_assertion at in
   let types = (FuncType ([], []) @@ at) :: itypes in
-  let imports = [{module_name; item_name; idesc} @@ at] in
+  let imports = [ { module_name; item_name; idesc } @@ at ] in
   let item = (match idesc.it with FuncImport _ -> 1l | _ -> 0l) @@ at in
   let edesc = FuncExport item @@ at in
-  let exports = [{name = Utf8.decode "run"; edesc} @@ at] in
+  let exports = [ { name = Utf8.decode "run"; edesc } @@ at ] in
   let body =
-    [ Block ([], action @ assertion @ [Return @@ at]) @@ at;
-      Unreachable @@ at ]
+    [
+      Block ([], action @ assertion @ [ Return @@ at ]) @@ at; Unreachable @@ at;
+    ]
   in
-  let funcs = [{ftype = 0l @@ at; locals; body} @@ at] in
-  let m = {empty_module with types; funcs; imports; exports} @@ at in
+  let funcs = [ { ftype = 0l @@ at; locals; body } @@ at ] in
+  let m = { empty_module with types; funcs; imports; exports } @@ at in
   Encode.encode m
-
 
 let is_js_value_type = function
   | I32Type -> true
@@ -274,22 +289,19 @@ let is_js_global_type = function
 let is_js_func_type = function
   | FuncType (ins, out) -> List.for_all is_js_value_type (ins @ out)
 
-
 (* Script conversion *)
 
 let add_hex_char buf c = Printf.bprintf buf "\\x%02x" (Char.code c)
+
 let add_char buf c =
-  if c < '\x20' || c >= '\x7f' then
-    add_hex_char buf c
-  else begin
+  if c < '\x20' || c >= '\x7f' then add_hex_char buf c
+  else (
     if c = '\"' || c = '\\' then Buffer.add_char buf '\\';
-    Buffer.add_char buf c
-  end
+    Buffer.add_char buf c)
+
 let add_unicode_char buf uc =
-  if uc < 0x20 || uc >= 0x7f then
-    Printf.bprintf buf "\\u{%02x}" uc
-  else
-    add_char buf (Char.chr uc)
+  if uc < 0x20 || uc >= 0x7f then Printf.bprintf buf "\\u{%02x}" uc
+  else add_char buf (Char.chr uc)
 
 let of_string_with iter add_char s =
   let buf = Buffer.create 256 in
@@ -324,44 +336,43 @@ let of_nan = function
 let of_result res =
   match res.it with
   | LitResult lit -> of_literal lit
-  | NanResult nanop ->
-    match nanop.it with
-    | Values.I32 _ | Values.I64 _ -> assert false
-    | Values.F32 n | Values.F64 n -> of_nan n
+  | NanResult nanop -> (
+      match nanop.it with
+      | Values.I32 _ | Values.I64 _ -> assert false
+      | Values.F32 n | Values.F64 n -> of_nan n)
 
 let rec of_definition def =
   match def.it with
   | Textual m -> of_bytes (Encode.encode m)
   | Encoded (_, bs) -> of_bytes bs
-  | Quoted (_, s) ->
-    try of_definition (Parse.string_to_module s) with Parse.Syntax _ ->
-      of_bytes "<malformed quote>"
+  | Quoted (_, s) -> (
+      try of_definition (Parse.string_to_module s)
+      with Parse.Syntax _ -> of_bytes "<malformed quote>")
 
 let of_wrapper mods x_opt name wrap_action wrap_assertion at =
   let x = of_var_opt mods x_opt in
   let bs = wrap (Utf8.decode x) name wrap_action wrap_assertion at in
-  "call(instance(" ^ of_bytes bs ^ ", " ^
-    "exports(" ^ of_string x ^ ", " ^ x ^ ")), " ^ " \"run\", [])"
+  "call(instance(" ^ of_bytes bs ^ ", " ^ "exports(" ^ of_string x ^ ", " ^ x
+  ^ ")), " ^ " \"run\", [])"
 
 let of_action mods act =
   match act.it with
-  | Invoke (x_opt, name, lits) ->
-    "call(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ", " ^
-      "[" ^ String.concat ", " (List.map of_literal lits) ^ "])",
-    (match lookup mods x_opt name act.at with
-    | ExternFuncType ft when not (is_js_func_type ft) ->
-      let FuncType (_, out) = ft in
-      Some (of_wrapper mods x_opt name (invoke ft lits), out)
-    | _ -> None
-    )
-  | Get (x_opt, name) ->
-    "get(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ")",
-    (match lookup mods x_opt name act.at with
-    | ExternGlobalType gt when not (is_js_global_type gt) ->
-      let GlobalType (t, _) = gt in
-      Some (of_wrapper mods x_opt name (get gt), [t])
-    | _ -> None
-    )
+  | Invoke (x_opt, name, lits) -> (
+      ( "call(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ", " ^ "["
+        ^ String.concat ", " (List.map of_literal lits)
+        ^ "])",
+        match lookup mods x_opt name act.at with
+        | ExternFuncType ft when not (is_js_func_type ft) ->
+            let (FuncType (_, out)) = ft in
+            Some (of_wrapper mods x_opt name (invoke ft lits), out)
+        | _ -> None ))
+  | Get (x_opt, name) -> (
+      ( "get(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ")",
+        match lookup mods x_opt name act.at with
+        | ExternGlobalType gt when not (is_js_global_type gt) ->
+            let (GlobalType (t, _)) = gt in
+            Some (of_wrapper mods x_opt name (get gt), [ t ])
+        | _ -> None ))
 
 let of_assertion' mods act name args wrapper_opt =
   let act_js, act_wrapper_opt = of_action mods act in
@@ -369,52 +380,53 @@ let of_assertion' mods act name args wrapper_opt =
   match act_wrapper_opt with
   | None -> js ^ ";"
   | Some (act_wrapper, out) ->
-    let run_name, wrapper =
-      match wrapper_opt with
-      | None -> name, run
-      | Some wrapper -> "run", wrapper
-    in run_name ^ "(() => " ^ act_wrapper (wrapper out) act.at ^ ");  // " ^ js
+      let run_name, wrapper =
+        match wrapper_opt with
+        | None -> (name, run)
+        | Some wrapper -> ("run", wrapper)
+      in
+      run_name ^ "(() => " ^ act_wrapper (wrapper out) act.at ^ ");  // " ^ js
 
 let of_assertion mods ass =
   match ass.it with
-  | AssertMalformed (def, _) ->
-    "assert_malformed(" ^ of_definition def ^ ");"
-  | AssertInvalid (def, _) ->
-    "assert_invalid(" ^ of_definition def ^ ");"
-  | AssertUnlinkable (def, _) ->
-    "assert_unlinkable(" ^ of_definition def ^ ");"
+  | AssertMalformed (def, _) -> "assert_malformed(" ^ of_definition def ^ ");"
+  | AssertInvalid (def, _) -> "assert_invalid(" ^ of_definition def ^ ");"
+  | AssertUnlinkable (def, _) -> "assert_unlinkable(" ^ of_definition def ^ ");"
   | AssertUninstantiable (def, _) ->
-    "assert_uninstantiable(" ^ of_definition def ^ ");"
+      "assert_uninstantiable(" ^ of_definition def ^ ");"
   | AssertReturn (act, ress) ->
-    of_assertion' mods act "assert_return" (List.map of_result ress)
-      (Some (assert_return ress))
-  | AssertTrap (act, _) ->
-    of_assertion' mods act "assert_trap" [] None
+      of_assertion' mods act "assert_return" (List.map of_result ress)
+        (Some (assert_return ress))
+  | AssertTrap (act, _) -> of_assertion' mods act "assert_trap" [] None
   | AssertExhaustion (act, _) ->
-    of_assertion' mods act "assert_exhaustion" [] None
+      of_assertion' mods act "assert_exhaustion" [] None
 
 let of_command mods cmd =
-  "\n// " ^ Filename.basename cmd.at.left.file ^
-    ":" ^ string_of_int cmd.at.left.line ^ "\n" ^
+  "\n// "
+  ^ Filename.basename cmd.at.left.file
+  ^ ":"
+  ^ string_of_int cmd.at.left.line
+  ^ "\n"
+  ^
   match cmd.it with
   | Module (x_opt, def) ->
-    let rec unquote def =
-      match def.it with
-      | Textual m -> m
-      | Encoded (_, bs) -> Decode.decode "binary" bs
-      | Quoted (_, s) -> unquote (Parse.string_to_module s)
-    in bind mods x_opt (unquote def);
-    "let " ^ current_var mods ^ " = instance(" ^ of_definition def ^ ");\n" ^
-    (if x_opt = None then "" else
-    "let " ^ of_var_opt mods x_opt ^ " = " ^ current_var mods ^ ";\n")
+      let rec unquote def =
+        match def.it with
+        | Textual m -> m
+        | Encoded (_, bs) -> Decode.decode "binary" bs
+        | Quoted (_, s) -> unquote (Parse.string_to_module s)
+      in
+      bind mods x_opt (unquote def);
+      "let " ^ current_var mods ^ " = instance(" ^ of_definition def ^ ");\n"
+      ^
+      if x_opt = None then ""
+      else "let " ^ of_var_opt mods x_opt ^ " = " ^ current_var mods ^ ";\n"
   | Register (name, x_opt) ->
-    "register(" ^ of_name name ^ ", " ^ of_var_opt mods x_opt ^ ")\n"
-  | Action act ->
-    of_assertion' mods act "run" [] None ^ "\n"
-  | Assertion ass ->
-    of_assertion mods ass ^ "\n"
+      "register(" ^ of_name name ^ ", " ^ of_var_opt mods x_opt ^ ")\n"
+  | Action act -> of_assertion' mods act "run" [] None ^ "\n"
+  | Assertion ass -> of_assertion mods ass ^ "\n"
   | Meta _ -> assert false
 
 let of_script scr =
-  (if !Flags.harness then harness else "") ^
-  String.concat "" (List.map (of_command (modules ())) scr)
+  (if !Flags.harness then harness else "")
+  ^ String.concat "" (List.map (of_command (modules ())) scr)

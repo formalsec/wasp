@@ -13,11 +13,7 @@ type t = memory
 exception Bounds
 exception InvalidAddress of address
 
-let packed_size = function
-  | Pack8 -> 1
-  | Pack16 -> 2
-  | Pack32 -> 4
-
+let packed_size = function Pack8 -> 1 | Pack16 -> 2 | Pack32 -> 4
 let alloc (sz : int) : memory = Hashtbl.create sz
 let size (mem : memory) : int = Hashtbl.length mem
 let clear (mem : memory) : unit = Hashtbl.clear mem
@@ -100,8 +96,8 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
   in
   loop (effective_address a o) 0 n x
 
-let load_value (mem : memory) (a : address) (o : offset) (t : num_type) :
-    value =
+let load_value (mem : memory) (a : address) (o : offset) (t : num_type) : value
+    =
   let n, exprs = loadn mem a o (Types.size t) in
   let expr = simplify ~extract:true (simplify (concat exprs)) in
   let n', expr' =
@@ -133,16 +129,13 @@ let load_value (mem : memory) (a : address) (o : offset) (t : num_type) :
   in
   (n', expr')
 
-let store_value (mem : memory) (a : address) (o : offset) (v : value) : unit
-    =
+let store_value (mem : memory) (a : address) (o : offset) (v : value) : unit =
   let cv, sv = v in
   let cv', sv' =
     match cv with
     | I32 x ->
         let e : Expression.t =
-          match sv with
-          | Num (I32 x) -> Num (I64 (Int64.of_int32 x))
-          | _ -> sv
+          match sv with Num (I32 x) -> Num (I64 (Int64.of_int32 x)) | _ -> sv
         in
         (Int64.of_int32 x, e)
     | I64 x -> (x, sv)
@@ -169,8 +162,8 @@ let extend x n = function
       let sh = 64 - (8 * n) in
       Int64.(shift_right (shift_left x sh) sh)
 
-let load_packed (sz : pack_size) (ext : extension) (mem : memory)
-    (a : address) (o : offset) (t : num_type) : value =
+let load_packed (sz : pack_size) (ext : extension) (mem : memory) (a : address)
+    (o : offset) (t : num_type) : value =
   let n = packed_size sz in
   let cv, sv = loadn mem a o n in
   let cv = extend cv n ext in
@@ -196,15 +189,12 @@ let load_packed (sz : pack_size) (ext : extension) (mem : memory)
   in
   (x', sv')
 
-let store_packed (sz : pack_size) (mem : memory) (a : address)
-    (o : offset) (v : value) : unit =
+let store_packed (sz : pack_size) (mem : memory) (a : address) (o : offset)
+    (v : value) : unit =
   let n = packed_size sz in
   let cv, sv = v in
   let x =
-    match cv with
-    | I32 x -> Int64.of_int32 x
-    | I64 x -> x
-    | _ -> raise Type
+    match cv with I32 x -> Int64.of_int32 x | I64 x -> x | _ -> raise Type
   in
   let sx : Expression.t =
     match sv with

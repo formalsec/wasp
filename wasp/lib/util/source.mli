@@ -1,13 +1,10 @@
-type pos = {file : string; line : int; column : int}
-type region = {left : pos; right : pos}
-type 'a phrase = {at : region; it : 'a}
+type pos = { file : string; line : int; column : int }
+type region = { left : pos; right : pos }
+type 'a phrase = { at : region; it : 'a }
 
 val no_pos : pos
 val no_region : region
-
 val string_of_pos : pos -> string
 val string_of_region : region -> string
 val get_line : region -> int
-
-
-val (@@) : 'a -> region -> 'a phrase
+val ( @@ ) : 'a -> region -> 'a phrase

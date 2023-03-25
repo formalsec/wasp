@@ -1,33 +1,29 @@
 open Types
 open Values
 
-
 (* Runtime type errors *)
 
 exception TypeError of int * value * value_type
 
-let of_arg f n v =
-  try f v with Value t -> raise (TypeError (n, v, t))
-
+let of_arg f n v = try f v with Value t -> raise (TypeError (n, v, t))
 
 (* Int operators *)
 
-module IntOp (IXX : Int.S) (Value : ValueType with type t = IXX.t) =
-struct
+module IntOp (IXX : Int.S) (Value : ValueType with type t = IXX.t) = struct
   open Ast.IntOp
 
   let to_value = Value.to_value
   let of_value = of_arg Value.of_value
 
   let unop op =
-    let f = match op with
-      | Clz -> IXX.clz
-      | Ctz -> IXX.ctz
-      | Popcnt -> IXX.popcnt
-    in fun v -> to_value (f (of_value 1 v))
+    let f =
+      match op with Clz -> IXX.clz | Ctz -> IXX.ctz | Popcnt -> IXX.popcnt
+    in
+    fun v -> to_value (f (of_value 1 v))
 
   let binop op =
-    let f = match op with
+    let f =
+      match op with
       | Add -> IXX.add
       | Sub -> IXX.sub
       | Mul -> IXX.mul
@@ -43,15 +39,16 @@ struct
       | ShrS -> IXX.shr_s
       | Rotl -> IXX.rotl
       | Rotr -> IXX.rotr
-    in fun v1 v2 -> to_value (f (of_value 1 v1) (of_value 2 v2))
+    in
+    fun v1 v2 -> to_value (f (of_value 1 v1) (of_value 2 v2))
 
   let testop op =
-    let f = match op with
-      | Eqz -> IXX.eqz
-    in fun v -> f (of_value 1 v)
+    let f = match op with Eqz -> IXX.eqz in
+    fun v -> f (of_value 1 v)
 
   let relop op =
-    let f = match op with
+    let f =
+      match op with
       | Eq -> IXX.eq
       | Ne -> IXX.ne
       | LtS -> IXX.lt_s
@@ -62,35 +59,37 @@ struct
       | GtU -> IXX.gt_u
       | GeS -> IXX.ge_s
       | GeU -> IXX.ge_u
-    in fun v1 v2 -> f (of_value 1 v1) (of_value 2 v2)
+    in
+    fun v1 v2 -> f (of_value 1 v1) (of_value 2 v2)
 end
 
 module I32Op = IntOp (I32) (Values.I32Value)
 module I64Op = IntOp (I64) (Values.I64Value)
 
-
 (* Float operators *)
 
-module FloatOp (FXX : Float.S) (Value : ValueType with type t = FXX.t) =
-struct
+module FloatOp (FXX : Float.S) (Value : ValueType with type t = FXX.t) = struct
   open Ast.FloatOp
 
   let to_value = Value.to_value
   let of_value = of_arg Value.of_value
 
   let unop op =
-    let f = match op with
+    let f =
+      match op with
       | Neg -> FXX.neg
       | Abs -> FXX.abs
-      | Sqrt  -> FXX.sqrt
+      | Sqrt -> FXX.sqrt
       | Ceil -> FXX.ceil
       | Floor -> FXX.floor
       | Trunc -> FXX.trunc
       | Nearest -> FXX.nearest
-    in fun v -> to_value (f (of_value 1 v))
+    in
+    fun v -> to_value (f (of_value 1 v))
 
   let binop op =
-    let f = match op with
+    let f =
+      match op with
       | Add -> FXX.add
       | Sub -> FXX.sub
       | Mul -> FXX.mul
@@ -98,29 +97,30 @@ struct
       | Min -> FXX.min
       | Max -> FXX.max
       | CopySign -> FXX.copysign
-    in fun v1 v2 -> to_value (f (of_value 1 v1) (of_value 2 v2))
+    in
+    fun v1 v2 -> to_value (f (of_value 1 v1) (of_value 2 v2))
 
   let testop op = assert false
 
   let relop op =
-    let f = match op with
+    let f =
+      match op with
       | Eq -> FXX.eq
       | Ne -> FXX.ne
       | Lt -> FXX.lt
       | Le -> FXX.le
       | Gt -> FXX.gt
       | Ge -> FXX.ge
-    in fun v1 v2 -> f (of_value 1 v1) (of_value 2 v2)
+    in
+    fun v1 v2 -> f (of_value 1 v1) (of_value 2 v2)
 end
 
 module F32Op = FloatOp (F32) (Values.F32Value)
 module F64Op = FloatOp (F64) (Values.F64Value)
 
-
 (* Conversion operators *)
 
-module I32CvtOp =
-struct
+module I32CvtOp = struct
   open Ast.IntOp
 
   let cvtop op v =
@@ -135,8 +135,7 @@ struct
     | ExtendUI32 -> raise (TypeError (1, v, I32Type))
 end
 
-module I64CvtOp =
-struct
+module I64CvtOp = struct
   open Ast.IntOp
 
   let cvtop op v =
@@ -151,8 +150,7 @@ struct
     | WrapI64 -> raise (TypeError (1, v, I64Type))
 end
 
-module F32CvtOp =
-struct
+module F32CvtOp = struct
   open Ast.FloatOp
 
   let cvtop op v =
@@ -166,8 +164,7 @@ struct
     | PromoteF32 -> raise (TypeError (1, v, F32Type))
 end
 
-module F64CvtOp =
-struct
+module F64CvtOp = struct
   open Ast.FloatOp
 
   let cvtop op v =
@@ -180,7 +177,6 @@ struct
     | ReinterpretInt -> F64 (F64_convert.reinterpret_i64 (I64Op.of_value 1 v))
     | DemoteF64 -> raise (TypeError (1, v, F64Type))
 end
-
 
 (* Dispatch *)
 

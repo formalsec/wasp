@@ -2,6 +2,7 @@ open Types
 open Values
 
 type 'inst t = 'inst func
+
 and 'inst func =
   | AstFunc of func_type * 'inst * Ast.func
   | HostFunc of func_type * (value list -> value list)
