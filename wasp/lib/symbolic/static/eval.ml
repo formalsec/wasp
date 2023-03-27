@@ -259,7 +259,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 failwith
                   (Printf.sprintf "%d" e.at.left.line
                   ^ ":Alloc with non i32 size: "
-                  ^ Types.string_of_num_type (Types.type_of c_size))
+                  ^ Types.string_of_num_type (Types.type_of_num c_size))
           in
           let c_base = Concolic.Store.eval logic_env s_base in
           let base =
@@ -269,7 +269,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 failwith
                   (Printf.sprintf "%d" e.at.left.line
                   ^ ":Alloc with non i32 base: "
-                  ^ Types.string_of_num_type (Types.type_of c_base))
+                  ^ Types.string_of_num_type (Types.type_of_num c_base))
           in
 
           let base_cond = Relop (I32 I32.Eq, s_base, Num (I32 base)) in
@@ -552,7 +552,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       let logic_env = Concolic.Store.create binds in
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
-                      let ty = Encoding.Types.type_of ptr in
+                      let ty = Encoding.Types.type_of_num ptr in
                       if ty <> I32Type then
                         failwith
                           (Printf.sprintf "%d" e.at.left.line
@@ -647,7 +647,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       let logic_env = Concolic.Store.create binds in
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
-                      let ty = Encoding.Types.type_of ptr in
+                      let ty = Encoding.Types.type_of_num ptr in
                       if ty <> I32Type then
                         failwith
                           (Printf.sprintf "%d" e.at.left.line

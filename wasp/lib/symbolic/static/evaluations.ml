@@ -18,6 +18,7 @@ let to_value (n : Num.t) : Interpreter.Values.value =
   | I64 i -> Values.I64 i
   | F32 f -> Values.F32 (F32.of_bits f)
   | F64 f -> Values.F64 (F64.of_bits f)
+  | _ -> assert false
 
 let of_value (v : Interpreter.Values.value) : Num.t =
   let open Interpreter in
@@ -146,7 +147,7 @@ let eval_testop (e : expr) (op : testop) : expr =
       Num
         (Num.num_of_bool (Interpreter.Eval_numeric.eval_testop op (to_value c)))
   | SymPtr (b, Num (I32 o)) ->
-      let c = I32 (Int32.add b o) in
+      let c : Num.t = I32 (Int32.add b o) in
       Num
         (Num.num_of_bool (Interpreter.Eval_numeric.eval_testop op (to_value c)))
   | _ -> (

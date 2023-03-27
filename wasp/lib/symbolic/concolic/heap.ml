@@ -100,10 +100,10 @@ let load_value (mem : memory) (a : address) (o : offset) (t : num_type) : value
     =
   let n, exprs = loadn mem a o (Types.size t) in
   let expr = simplify ~extract:true (simplify (concat exprs)) in
-  let n', expr' =
+  let (n' : Num.t), (expr' : Expression.t) =
     match t with
     | I32Type ->
-        let e : Expression.t =
+        let e =
           match expr with
           | Num (I64 n) -> Num (I32 (Int64.to_int32 n))
           | _ -> expr
@@ -111,7 +111,7 @@ let load_value (mem : memory) (a : address) (o : offset) (t : num_type) : value
         (I32 (Int64.to_int32 n), e)
     | I64Type -> (I64 n, expr)
     | F32Type ->
-        let e : Expression.t =
+        let e =
           match expr with
           | Num (I64 v) -> Num (F32 (Int64.to_int32 v))
           | Cvtop (I32 I32.ReinterpretFloat, v) -> v
@@ -119,42 +119,44 @@ let load_value (mem : memory) (a : address) (o : offset) (t : num_type) : value
         in
         (F32 (Int64.to_int32 n), e)
     | F64Type ->
-        let e : Expression.t =
+        let e =
           match expr with
           | Num (I64 n) -> Num (F64 n)
           | Cvtop (I64 I64.ReinterpretFloat, v) -> v
           | _ -> Cvtop (F64 F64.ReinterpretInt, expr)
         in
         (F64 n, e)
+    | _ -> assert false
   in
   (n', expr')
 
 let store_value (mem : memory) (a : address) (o : offset) (v : value) : unit =
   let cv, sv = v in
-  let cv', sv' =
+  let cv', (sv' : Expression.t) =
     match cv with
     | I32 x ->
-        let e : Expression.t =
+        let e =
           match sv with Num (I32 x) -> Num (I64 (Int64.of_int32 x)) | _ -> sv
         in
         (Int64.of_int32 x, e)
     | I64 x -> (x, sv)
     | F32 x ->
-        let e : Expression.t =
+        let e =
           match sv with
           | Num (F32 n) -> Num (I64 (Int64.of_int32 n))
           | _ -> Cvtop (I32 I32.ReinterpretFloat, sv)
         in
         (Int64.of_int32 x, e)
     | F64 x ->
-        let e : Expression.t =
+        let e =
           match sv with
           | Num (F64 x) -> Num (I64 x)
           | _ -> Cvtop (I64 I64.ReinterpretFloat, sv)
         in
         (x, e)
+    | _ -> assert false
   in
-  storen mem a o (Types.size (Types.type_of cv)) (cv', sv')
+  storen mem a o (Types.size (Types.type_of_num cv)) (cv', sv')
 
 let extend x n = function
   | ZX -> x
@@ -167,7 +169,7 @@ let load_packed (sz : pack_size) (ext : extension) (mem : memory) (a : address)
   let n = packed_size sz in
   let cv, sv = loadn mem a o n in
   let cv = extend cv n ext in
-  let x' =
+  let x' : Num.t =
     match t with
     | I32Type -> I32 (Int64.to_int32 cv)
     | I64Type -> I64 cv
@@ -213,6 +215,7 @@ let update (mem : memory) (store : Store.t) : unit =
         | I64 x -> Int64.to_int x
         | F32 x -> Int32.to_int x
         | F64 x -> Int64.to_int x
+        | _ -> assert false
       in
       store_byte mem a (i, se))
     mem

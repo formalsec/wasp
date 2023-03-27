@@ -52,7 +52,8 @@ let get (s : t) (x : name) (ty : num_type) (b : bool) : Num.t =
         | I32Type -> I32 (Int32.of_int (Random.int (if b then 2 else 127)))
         | I64Type -> I64 (Int64.of_int (Random.int 127))
         | F32Type -> F32 (Int32.bits_of_float (Random.float 127.0))
-        | F64Type -> F64 (Int64.bits_of_float (Random.float 127.0)))
+        | F64Type -> F64 (Int64.bits_of_float (Random.float 127.0))
+        | _ -> assert false)
   in
   add s x v;
   v
@@ -71,7 +72,7 @@ let to_json (s : t) : string =
     let n, v = b in
     "{" ^ "\"name\" : \"" ^ n ^ "\", " ^ "\"value\" : \"" ^ Num.string_of_num v
     ^ "\", " ^ "\"type\" : \""
-    ^ Types.string_of_num_type (Types.type_of v)
+    ^ Types.string_of_num_type (Types.type_of_num v)
     ^ "\"" ^ "}"
   in
   "["
@@ -97,17 +98,18 @@ let to_string (s : t) : string =
     "" s.ord
 
 let get_key_types (s : t) : (string * num_type) list =
-  Hashtbl.fold (fun k v acc -> (k, Types.type_of v) :: acc) s.map []
+  Hashtbl.fold (fun k v acc -> (k, Types.type_of_num v) :: acc) s.map []
 
 let to_expr (s : t) : expr list =
   Hashtbl.fold
-    (fun k n acc ->
+    (fun k (n : Num.t) acc ->
       let e =
         match n with
         | I32 _ -> Relop (I32 I32.Eq, Symbolic (I32Type, k), Num n)
         | I64 _ -> Relop (I64 I64.Eq, Symbolic (I64Type, k), Num n)
         | F32 _ -> Relop (F32 F32.Eq, Symbolic (F32Type, k), Num n)
         | F64 _ -> Relop (F64 F64.Eq, Symbolic (F64Type, k), Num n)
+        | _ -> assert false
       in
       e :: acc)
     s.map []
@@ -115,7 +117,7 @@ let to_expr (s : t) : expr list =
 let rec eval (env : t) (e : expr) : Num.t =
   match simplify e with
   | SymPtr (b, o) ->
-      let b = I32 b in
+      let b : Num.t = I32 b in
       Eval_numeric.eval_binop (I32 I32.Add) b (eval env o)
   | Num n -> n
   | Binop (op, e1, e2) ->
@@ -136,6 +138,7 @@ let rec eval (env : t) (e : expr) : Num.t =
         match eval env e' with
         | I32 x | F32 x -> Int64.of_int32 x
         | I64 x | F64 x -> x
+        | _ -> assert false
       in
       I64 (nland64 (Int64.shift_right v (l * 8)) (h - l))
   | Concat (e1, e2) -> eval env (simplify (e1 ++ e2))

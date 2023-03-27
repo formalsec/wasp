@@ -229,6 +229,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
           | Num (I64 v) -> Num (F64 v)
           | Cvtop (I64 I64.ReinterpretFloat, v) -> v
           | _ -> Cvtop (F64 F64.ReinterpretInt, expr))
+      | _ -> assert false
     in
     expr
 
@@ -293,6 +294,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
           match value with
           | Num (F64 f) -> Num (I64 f)
           | _ -> Cvtop (I64 I64.ReinterpretFloat, value))
+      | _ -> assert false
     in
     storen mem a o sz value
 

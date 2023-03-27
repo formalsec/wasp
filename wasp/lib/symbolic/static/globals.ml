@@ -38,6 +38,7 @@ let type_of glob =
     | Types.I64Type -> I64Type
     | Types.F32Type -> F32Type
     | Types.F64Type -> F64Type
+    | _ -> assert false
   in
   GlobalType (t, glob.mut)
 

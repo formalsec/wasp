@@ -343,7 +343,7 @@ let rec step (c : config) : config =
             )
         | MemorySize, vs ->
             let mem' = memory frame.inst (0l @@ e.at) in
-            let v = I32 (Interpreter.Memory.size mem') in
+            let v : Num.t = I32 (Interpreter.Memory.size mem') in
             ((v, Num v) :: vs, [], pc, bp)
         | MemoryGrow, (I32 delta, _) :: vs' ->
             let mem' = memory frame.inst (0l @@ e.at) in
@@ -416,13 +416,13 @@ let rec step (c : config) : config =
             let v = Store.get store x ty' b in
             ((v, symbolic ty' x) :: vs', [], pc, bp)
         | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
-            let sv2' = mk_relop sv2 (Types.type_of v2) in
+            let sv2' = mk_relop sv2 (Types.type_of_num v2) in
             let v2' =
-              Num.(num_of_bool (not (v2 = default_value (type_of v2))))
+              Num.(num_of_bool (not (v2 = default_value (type_of_num v2))))
             in
-            let sv1' = mk_relop sv1 (Types.type_of v1) in
+            let sv1' = mk_relop sv1 (Types.type_of_num v1) in
             let v1' =
-              Num.(num_of_bool (not (v1 = default_value (type_of v1))))
+              Num.(num_of_bool (not (v1 = default_value (type_of_num v1))))
             in
             try
               let v3, sv3 = eval_binop (v1', sv1') (v2', sv2') boolop in
@@ -470,7 +470,7 @@ let rec step (c : config) : config =
             in
             ((v, symbolic F64Type x) :: vs', [], pc, bp)
         | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs' ->
-            let r = I32 (if c = 0l then r2 else r1) in
+            let r : Num.t = I32 (if c = 0l then r2 else r1) in
             let s_c' = to_relop (simplify s_c) in
             let v, pc' =
               match s_c' with
@@ -507,7 +507,7 @@ let rec step (c : config) : config =
             (* Btree.print_b_tree mem; *)
             (vs', [], pc, bp)
         | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
-            let res =
+            let res : (Num.t * Expression.t) =
               match (ex1, ex2) with
               | Symbolic (I32Type, x), Symbolic (I32Type, y) ->
                   if x = y then (I32 1l, Relop (I32 I32.Eq, ex1, ex2))
@@ -520,7 +520,7 @@ let rec step (c : config) : config =
         | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
             let base = Interpreter.I64_convert.extend_i32_u i in
             let _, v = Heap.load_bytes mem base (Int32.to_int n) in
-            let result = I32 (match v with Num _ -> 0l | _ -> 1l) in
+            let result : Num.t = I32 (match v with Num _ -> 0l | _ -> 1l) in
             ((result, Num result) :: vs', [], pc, bp)
         | SetPriority, _ :: _ :: _ :: vs' -> (vs', [], pc, bp)
         | PopPriority, _ :: vs' -> (vs', [], pc, bp)

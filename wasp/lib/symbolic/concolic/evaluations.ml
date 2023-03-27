@@ -14,6 +14,7 @@ let to_value (n : Num.t) : Interpreter.Values.value =
   | I64 i -> Values.I64 i
   | F32 f -> Values.F32 (F32.of_bits f)
   | F64 f -> Values.F64 (F64.of_bits f)
+  | _ -> assert false
 
 let of_value (v : Interpreter.Values.value) : Num.t =
   let open Interpreter in
