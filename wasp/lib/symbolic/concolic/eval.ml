@@ -194,7 +194,8 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then Some (Encoding.Formula.add_constraint ~neg:bval c pc) else None
+  if to_branch then Some (Encoding.Formula.add_constraint ~neg:bval c pc)
+  else None
 
 let rec step (c : config) : config =
   let { frame; glob; code = vs, es; mem; store; heap; pc; bp; tree; _ } = c in
@@ -289,7 +290,10 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ve pc tree)
               in
-              (v2 :: vs', [], Encoding.Formula.add_constraint ~neg:true ve pc, bp')
+              ( v2 :: vs',
+                [],
+                Encoding.Formula.add_constraint ~neg:true ve pc,
+                bp' )
             else
               let bp' =
                 Batteries.Option.map_default
@@ -425,12 +429,19 @@ let rec step (c : config) : config =
               (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             let unsat = Encoding.Formula.create () in
-            let unsat = Encoding.Formula.add_constraint (Relop (I32 I32.Eq, Num (I32 0l), Num (I32 1l))) unsat in
+            let unsat =
+              Encoding.Formula.add_constraint
+                (Relop (I32 I32.Eq, Num (I32 0l), Num (I32 1l)))
+                unsat
+            in
             if i = 0l then (vs', [ Restart unsat @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
-              (vs', [ Restart (Encoding.Formula.add_constraint ex pc) @@ e.at ], pc, bp)
+              ( vs',
+                [ Restart (Encoding.Formula.add_constraint ex pc) @@ e.at ],
+                pc,
+                bp )
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
@@ -512,7 +523,10 @@ let rec step (c : config) : config =
                   let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
                   let f_imp = Binop (I32 I32.Or, s, f_eq) in
                   let cond = Binop (I32 I32.And, t_imp, f_imp) in
-                  ((r, s_x), Encoding.Formula.add_constraint (Relop (I32 I32.Ne, cond, Num (I32 0l))) pc)
+                  ( (r, s_x),
+                    Encoding.Formula.add_constraint
+                      (Relop (I32 I32.Ne, cond, Num (I32 0l)))
+                      pc )
             in
             (v :: vs', [], pc', bp)
         | PrintStack, vs' ->
@@ -766,7 +780,8 @@ module Guided_search (L : Wlist.WorkList) = struct
     in
     let rec find_sat_pc pcs =
       if L.is_empty pcs then false
-      else if not (Encoding.Batch.ccheck solver (L.pop pcs)) then find_sat_pc pcs
+      else if not (Encoding.Batch.ccheck solver (L.pop pcs)) then
+        find_sat_pc pcs
       else true
     in
     (* Main concolic loop *)
@@ -809,7 +824,8 @@ module Guided_search (L : Wlist.WorkList) = struct
     in
     let rec find_sat_pc pcs =
       if L.is_empty pcs then false
-      else if not (Encoding.Batch.ccheck solver (L.pop pcs)) then find_sat_pc pcs
+      else if not (Encoding.Batch.ccheck solver (L.pop pcs)) then
+        find_sat_pc pcs
       else true
     in
     (* Main concolic loop *)
@@ -835,6 +851,31 @@ module Guided_search (L : Wlist.WorkList) = struct
     in
     let error = loop c in
     error
+
+  let p_invoke (c : config) (test_suite : string) :
+      (Encoding.Formula.t, string * region) result =
+    let rec eval (c : config) : config =
+      match c.code with
+      | vs, [] -> c
+      | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
+      | vs, { it = Restart pc; at } :: es ->
+          c (* TODO: probably need to change this *)
+      | vs, { it = Interrupt i; at } :: es -> c
+      | vs, es ->
+          let c' = step c in
+          eval c'
+    in
+    let c' = eval c in
+    let res =
+      match c'.code with
+      | vs, { it = Interrupt i; at } :: _ ->
+          write_test_case ~witness:true (Store.to_json c'.store);
+          Result.error (string_of_interruption i, at)
+      | _ ->
+          write_test_case (Store.to_json c'.store);
+          Result.ok c.pc
+    in
+    res
 end
 
 module DFS = Guided_search (Stack)

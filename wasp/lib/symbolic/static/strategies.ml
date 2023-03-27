@@ -31,10 +31,7 @@ and sym_admin_instr' =
 
 module type Interpreter = sig
   type sym_config
-
-  type step_res =
-    | End of Encoding.Formula.t
-    | Continuation of sym_config list
+  type step_res = End of Encoding.Formula.t | Continuation of sym_config list
 
   val clone : sym_config -> sym_config * sym_config
 
@@ -50,6 +47,12 @@ module type Interpreter = sig
 
   val concolic_invoke :
     sym_config -> (string * Interpreter.Source.region) option
+
+  val p_invoke :
+    sym_config ->
+    (Encoding.Formula.t, string * Interpreter.Source.region) result
+
+  val p_finished : sym_config -> Encoding.Formula.t -> sym_config option
 end
 
 module TreeStrategy (L : Wlist.WorkList) (I : Interpreter) = struct
@@ -82,7 +85,8 @@ module RS = TreeStrategy (RandArray)
 module BFS_L (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) :
+      (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -110,7 +114,8 @@ end
 module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) :
+      (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -143,7 +148,8 @@ module Half_BFS (I : Interpreter) = struct
 end
 
 module ProgressBFS (I : Interpreter) = struct
-  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) :
+      (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
@@ -179,10 +185,45 @@ module ProgressBFS (I : Interpreter) = struct
     | None -> Result.ok !outs
 end
 
+module HybridP (I : Interpreter) = struct
+  let max_configs = 32
+
+  let eval (c : I.sym_config) :
+      (Encoding.Formula.t list, string * Interpreter.Source.region) result =
+    let w = Queue.create () in
+    Queue.push c w;
+
+    let err = ref None in
+    let outs = ref [] in
+    while Option.is_none !err && not (Queue.is_empty w) do
+      let l = Queue.length w in
+      let c = Queue.pop w in
+
+      if l >= max_configs then (
+        match I.p_invoke c with
+        | Error step_err -> err := Some step_err
+        | Ok pc' ->
+            outs := pc' :: !outs;
+            Queue.add_seq w (Option.to_seq (I.p_finished c pc')))
+      else
+        match I.step c with
+        | Result.Ok step_res -> (
+            match step_res with
+            | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
+            | I.End e -> outs := e :: !outs)
+        | Result.Error step_err -> err := Some step_err
+    done;
+
+    match !err with
+    | Some step_err -> Result.error step_err
+    | None -> Result.ok !outs
+end
+
 module Hybrid (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) :
+      (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -217,6 +258,7 @@ module Helper (I : Interpreter) = struct
   module Half_BFS_I = Half_BFS (I)
   module RS_I = RS (I)
   module Hybrid_I = Hybrid (I)
+  module HybridP_I = HybridP (I)
 
   let helper (inst : Interpreter.Instance.module_inst) (vs : Expression.t list)
       (es : sym_admin_instr list) (sym_m : Concolic.Heap.t) (globs : Globals.t)
@@ -231,6 +273,7 @@ module Helper (I : Interpreter) = struct
       | "half-breadth" -> Half_BFS_I.eval
       | "random" -> RS_I.eval
       | "hybrid" -> Hybrid_I.eval
+      | "hybridp" -> HybridP_I.eval
       | _ -> failwith "unreachable"
     in
 

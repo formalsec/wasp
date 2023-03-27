@@ -137,8 +137,9 @@ module type Encoder = sig
   val create : unit -> t
   val clone : t -> t
   val add : t -> expr -> unit
-  val check : t -> expr option -> bool
-  val fork : t -> expr -> bool * bool
+  val add_formula : t -> Encoding.Formula.t -> unit
+  val check : t -> Expression.t option -> bool
+  val fork : t -> Expression.t -> bool * bool
   val value_binds : t -> (string * expr_type) list -> (string * Num.t) list
 
   val string_binds :
@@ -283,6 +284,18 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let conc_c = to_concolic c in
     let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
     Concolic.Eval.BFS.s_invoke conc_c test_suite
+
+  let p_invoke (c : sym_config) :
+      (Encoding.Formula.t, string * Interpreter.Source.region) result =
+    let conc_c = to_concolic c
+    and test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
+    Concolic.Eval.BFS.p_invoke conc_c test_suite
+
+  let p_finished (c : sym_config) (pc' : Encoding.Formula.t) : sym_config option
+      =
+    let npc' = Encoding.Formula.negate pc' in
+    E.add_formula c.encoder npc';
+    if E.check c.encoder None then Some c else None
 
   let memory_error at = function
     | SM.Bounds -> "out of bounds memory access"
