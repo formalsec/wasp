@@ -831,22 +831,30 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | GetSymInt32 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (`I32Type, x) :: vs', es') } ],
+                  ( [
+                      { c with sym_code = (Symbolic (`I32Type, x) :: vs', es') };
+                    ],
                     [] )
             | GetSymInt64 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (`I64Type, x) :: vs', es') } ],
+                  ( [
+                      { c with sym_code = (Symbolic (`I64Type, x) :: vs', es') };
+                    ],
                     [] )
             | GetSymFloat32 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (`F32Type, x) :: vs', es') } ],
+                  ( [
+                      { c with sym_code = (Symbolic (`F32Type, x) :: vs', es') };
+                    ],
                     [] )
             | GetSymFloat64 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (`F64Type, x) :: vs', es') } ],
+                  ( [
+                      { c with sym_code = (Symbolic (`F64Type, x) :: vs', es') };
+                    ],
                     [] )
             | SymAssert, Num (I32 0l) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");

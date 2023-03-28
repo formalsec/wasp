@@ -507,7 +507,7 @@ let rec step (c : config) : config =
             (* Btree.print_b_tree mem; *)
             (vs', [], pc, bp)
         | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
-            let res : (Num.t * Expression.t) =
+            let res : Num.t * Expression.t =
               match (ex1, ex2) with
               | Symbolic (`I32Type, x), Symbolic (`I32Type, y) ->
                   if x = y then (I32 1l, Relop (I32 I32.Eq, ex1, ex2))
