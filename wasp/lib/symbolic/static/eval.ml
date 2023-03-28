@@ -140,10 +140,10 @@ module type Encoder = sig
   val add : t -> expr -> unit
   val check : t -> expr list -> bool
   val fork : t -> expr -> bool * bool
-  val value_binds : t -> (string * num_type) list -> (string * Num.t) list
+  val value_binds : t -> (string * expr_type) list -> (string * Num.t) list
 
   val string_binds :
-    t -> (string * num_type) list -> (string * string * string) list
+    t -> (string * expr_type) list -> (string * string * string) list
 end
 
 module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
@@ -553,7 +553,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
                       let ty = Encoding.Types.type_of_num ptr in
-                      if ty <> I32Type then
+                      if ty <> `I32Type then
                         failwith
                           (Printf.sprintf "%d" e.at.left.line
                           ^ ":Load with non i32 ptr: "
@@ -648,7 +648,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
                       let ty = Encoding.Types.type_of_num ptr in
-                      if ty <> I32Type then
+                      if ty <> `I32Type then
                         failwith
                           (Printf.sprintf "%d" e.at.left.line
                           ^ ":Store with non i32 ptr: "
@@ -831,22 +831,22 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | GetSymInt32 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (I32Type, x) :: vs', es') } ],
+                  ( [ { c with sym_code = (Symbolic (`I32Type, x) :: vs', es') } ],
                     [] )
             | GetSymInt64 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (I64Type, x) :: vs', es') } ],
+                  ( [ { c with sym_code = (Symbolic (`I64Type, x) :: vs', es') } ],
                     [] )
             | GetSymFloat32 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (F32Type, x) :: vs', es') } ],
+                  ( [ { c with sym_code = (Symbolic (`F32Type, x) :: vs', es') } ],
                     [] )
             | GetSymFloat64 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [ { c with sym_code = (Symbolic (F64Type, x) :: vs', es') } ],
+                  ( [ { c with sym_code = (Symbolic (`F64Type, x) :: vs', es') } ],
                     [] )
             | SymAssert, Num (I32 0l) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
@@ -927,8 +927,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
             | Boolop boolop, v1 :: v2 :: vs' -> (
                 (* results in i32 *)
-                let v2' = mk_relop v2 I32Type in
-                let v1' = mk_relop v1 I32Type in
+                let v2' = mk_relop v2 `I32Type in
+                let v1' = mk_relop v1 `I32Type in
                 let v3 = Evaluations.eval_binop v1' v2' boolop in
                 let es' = List.tl es in
                 try

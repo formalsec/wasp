@@ -201,7 +201,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
 
   let load_value (mem : MB.t) (a : address) (o : offset) (ty : num_type) :
       Expression.t =
-    let exprs = loadn mem a o (Types.size ty) in
+    let exprs = loadn mem a o (Types.size_of_num_type ty) in
     let expr =
       List.(
         fold_left
@@ -214,17 +214,17 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     let expr = Expression.simplify ~extract:true expr in
     let expr =
       match ty with
-      | Types.I32Type -> (
+      | `I32Type -> (
           match expr with
           | Num (I64 v) -> Num (I32 (Int64.to_int32 v))
           | _ -> expr)
-      | Types.I64Type -> expr
-      | Types.F32Type -> (
+      | `I64Type -> expr
+      | `F32Type -> (
           match expr with
           | Num (I64 v) -> Num (F32 (Int64.to_int32 v))
           | Cvtop (I32 I32.ReinterpretFloat, v) -> v
           | _ -> Cvtop (F32 F32.ReinterpretInt, expr))
-      | Types.F64Type -> (
+      | `F64Type -> (
           match expr with
           | Num (I64 v) -> Num (F64 v)
           | Cvtop (I64 I64.ReinterpretFloat, v) -> v
@@ -239,7 +239,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     (* pad with 0s *)
     let expr =
       let rec loop acc i =
-        if i >= Types.size ty then acc
+        if i >= Types.size_of_num_type ty then acc
         else loop (acc @ [ Extract (Num (I64 0L), 1, 0) ]) (i + 1)
       in
       let exprs = loop exprs (List.length exprs) in
@@ -251,11 +251,11 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     let expr = Expression.simplify ~extract:true expr in
     let expr =
       match ty with
-      | Types.I32Type -> (
+      | `I32Type -> (
           match expr with
           | Num (I64 v) -> Num (I32 (Int64.to_int32 v))
           | _ -> expr)
-      | Types.I64Type -> expr
+      | `I64Type -> expr
       | _ -> failwith "load_packed only exists for i32 and i64"
     in
     expr
@@ -281,16 +281,16 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     let sz = Types.size ty in
     let value =
       match ty with
-      | Types.I32Type -> (
+      | `I32Type -> (
           match value with
           | Num (I32 i) -> Num (I64 (Int64.of_int32 i))
           | _ -> value)
-      | Types.I64Type -> value
-      | Types.F32Type -> (
+      | `I64Type -> value
+      | `F32Type -> (
           match value with
           | Num (F32 f) -> Num (I64 (Int64.of_int32 f))
           | _ -> Cvtop (I32 I32.ReinterpretFloat, value))
-      | Types.F64Type -> (
+      | `F64Type -> (
           match value with
           | Num (F64 f) -> Num (I64 f)
           | _ -> Cvtop (I64 I64.ReinterpretFloat, value))

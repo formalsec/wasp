@@ -98,19 +98,19 @@ let storen (mem : memory) (a : address) (o : offset) (n : int)
 
 let load_value (mem : memory) (a : address) (o : offset) (t : num_type) : value
     =
-  let n, exprs = loadn mem a o (Types.size t) in
+  let n, exprs = loadn mem a o (Types.size_of_num_type t) in
   let expr = simplify ~extract:true (simplify (concat exprs)) in
   let (n' : Num.t), (expr' : Expression.t) =
     match t with
-    | I32Type ->
+    | `I32Type ->
         let e =
           match expr with
           | Num (I64 n) -> Num (I32 (Int64.to_int32 n))
           | _ -> expr
         in
         (I32 (Int64.to_int32 n), e)
-    | I64Type -> (I64 n, expr)
-    | F32Type ->
+    | `I64Type -> (I64 n, expr)
+    | `F32Type ->
         let e =
           match expr with
           | Num (I64 v) -> Num (F32 (Int64.to_int32 v))
@@ -118,7 +118,7 @@ let load_value (mem : memory) (a : address) (o : offset) (t : num_type) : value
           | _ -> Cvtop (F32 F32.ReinterpretInt, expr)
         in
         (F32 (Int64.to_int32 n), e)
-    | F64Type ->
+    | `F64Type ->
         let e =
           match expr with
           | Num (I64 n) -> Num (F64 n)
@@ -171,20 +171,20 @@ let load_packed (sz : pack_size) (ext : extension) (mem : memory) (a : address)
   let cv = extend cv n ext in
   let x' : Num.t =
     match t with
-    | I32Type -> I32 (Int64.to_int32 cv)
-    | I64Type -> I64 cv
+    | `I32Type -> I32 (Int64.to_int32 cv)
+    | `I64Type -> I64 cv
     | _ -> raise Type
   in
   let sv' : Expression.t =
     match simplify ~extract:true (simplify (concat sv)) with
     | Num (I64 x) -> (
         match t with
-        | I32Type -> Num (I32 (Int64.to_int32 x))
+        | `I32Type -> Num (I32 (Int64.to_int32 x))
         | _ -> Num (I64 x))
     | SymPtr (b, o) -> SymPtr (b, o)
     | _ ->
         let rec loop acc i =
-          if i >= Types.size t then acc
+          if i >= Types.size_of_num_type t then acc
           else loop (acc @ [ Extract (Num (I64 0L), 1, 0) ]) (i + 1)
         in
         concat (loop sv (List.length sv))

@@ -34,10 +34,10 @@ let from_list (global_inst_list : global_inst list) : t =
 let type_of glob =
   let t =
     match type_of glob.content with
-    | Types.I32Type -> I32Type
-    | Types.I64Type -> I64Type
-    | Types.F32Type -> F32Type
-    | Types.F64Type -> F64Type
+    | `I32Type -> I32Type
+    | `I64Type -> I64Type
+    | `F32Type -> F32Type
+    | `F64Type -> F64Type
     | _ -> assert false
   in
   GlobalType (t, glob.mut)

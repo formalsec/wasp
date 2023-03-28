@@ -24,13 +24,13 @@ let of_value (v : Interpreter.Values.value) : Num.t =
   | Values.F32 f -> F32 (F32.to_bits f)
   | Values.F64 f -> F64 (F64.to_bits f)
 
-let to_num_type (t : Interpreter.Types.value_type) : num_type =
+let to_num_type (t : Interpreter.Types.value_type) =
   let open Interpreter in
   match t with
-  | Types.I32Type -> I32Type
-  | Types.I64Type -> I64Type
-  | Types.F32Type -> F32Type
-  | Types.F64Type -> F64Type
+  | Types.I32Type -> `I32Type
+  | Types.I64Type -> `I64Type
+  | Types.F32Type -> `F32Type
+  | Types.F64Type -> `F64Type
 
 (*  Evaluate a unary operation  *)
 let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
@@ -242,8 +242,8 @@ let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
     | I32Op.TruncSF64 -> Cvtop (I32 TruncSF64, s)
     | I32Op.TruncUF64 -> Cvtop (I32 TruncUF64, s)
     | I32Op.ReinterpretFloat -> Cvtop (I32 ReinterpretFloat, s)
-    | I32Op.ExtendSI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type))
-    | I32Op.ExtendUI32 -> raise (Eval_numeric.TypeError (1, c, Types.I32Type))
+    | I32Op.ExtendSI32 -> raise (Eval_numeric.TypeError (1, c, `I32Type))
+    | I32Op.ExtendUI32 -> raise (Eval_numeric.TypeError (1, c, `I32Type))
   in
   let i64_cvtop op e =
     let c, s = e in
@@ -255,7 +255,7 @@ let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
     | I64Op.TruncSF64 -> Cvtop (I64 TruncSF64, s)
     | I64Op.TruncUF64 -> Cvtop (I64 TruncUF64, s)
     | I64Op.ReinterpretFloat -> Cvtop (I64 ReinterpretFloat, s)
-    | I64Op.WrapI64 -> raise (Eval_numeric.TypeError (1, c, Types.I64Type))
+    | I64Op.WrapI64 -> raise (Eval_numeric.TypeError (1, c, `I64Type))
   in
   let f32_cvtop op e =
     let c, s = e in
@@ -266,7 +266,7 @@ let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
     | F32Op.ConvertSI64 -> Cvtop (F32 ConvertSI64, s)
     | F32Op.ConvertUI64 -> Cvtop (F32 ConvertUI64, s)
     | F32Op.ReinterpretInt -> Cvtop (F32 ReinterpretInt, s)
-    | F32Op.PromoteF32 -> raise (Eval_numeric.TypeError (1, c, Types.F32Type))
+    | F32Op.PromoteF32 -> raise (Eval_numeric.TypeError (1, c, `F32Type))
   in
   let f64_cvtop op e =
     let c, s = e in
@@ -277,7 +277,7 @@ let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
     | F64Op.ConvertSI64 -> Cvtop (F64 ConvertSI64, s)
     | F64Op.ConvertUI64 -> Cvtop (F64 ConvertUI64, s)
     | F64Op.ReinterpretInt -> Cvtop (F64 ReinterpretInt, s)
-    | F64Op.DemoteF64 -> raise (Eval_numeric.TypeError (1, c, Types.F64Type))
+    | F64Op.DemoteF64 -> raise (Eval_numeric.TypeError (1, c, `F64Type))
   in
   let c, s = e in
   let c = of_value (Interpreter.Eval_numeric.eval_cvtop op (to_value c)) in

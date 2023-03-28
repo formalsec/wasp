@@ -43,16 +43,16 @@ let find (s : t) (x : name) : Num.t = Hashtbl.find s.map x
 let find_opt (s : t) (x : name) : Num.t option = Hashtbl.find_opt s.map x
 let exists (s : t) (x : name) : bool = BatDynArray.mem x s.ord
 
-let get (s : t) (x : name) (ty : num_type) (b : bool) : Num.t =
+let get (s : t) (x : name) (ty : expr_type) (b : bool) : Num.t =
   let v =
     match find_opt s x with
     | Some v -> v
     | None -> (
         match ty with
-        | I32Type -> I32 (Int32.of_int (Random.int (if b then 2 else 127)))
-        | I64Type -> I64 (Int64.of_int (Random.int 127))
-        | F32Type -> F32 (Int32.bits_of_float (Random.float 127.0))
-        | F64Type -> F64 (Int64.bits_of_float (Random.float 127.0))
+        | `I32Type -> I32 (Int32.of_int (Random.int (if b then 2 else 127)))
+        | `I64Type -> I64 (Int64.of_int (Random.int 127))
+        | `F32Type -> F32 (Int32.bits_of_float (Random.float 127.0))
+        | `F64Type -> F64 (Int64.bits_of_float (Random.float 127.0))
         | _ -> assert false)
   in
   add s x v;
@@ -97,7 +97,7 @@ let to_string (s : t) : string =
       a ^ "(" ^ k ^ "->" ^ Num.string_of_num v ^ ")\n")
     "" s.ord
 
-let get_key_types (s : t) : (string * num_type) list =
+let get_key_types (s : t) : (string * expr_type) list =
   Hashtbl.fold (fun k v acc -> (k, Types.type_of_num v) :: acc) s.map []
 
 let to_expr (s : t) : expr list =
@@ -105,10 +105,10 @@ let to_expr (s : t) : expr list =
     (fun k (n : Num.t) acc ->
       let e =
         match n with
-        | I32 _ -> Relop (I32 I32.Eq, Symbolic (I32Type, k), Num n)
-        | I64 _ -> Relop (I64 I64.Eq, Symbolic (I64Type, k), Num n)
-        | F32 _ -> Relop (F32 F32.Eq, Symbolic (F32Type, k), Num n)
-        | F64 _ -> Relop (F64 F64.Eq, Symbolic (F64Type, k), Num n)
+        | I32 _ -> Relop (I32 I32.Eq, Symbolic (`I32Type, k), Num n)
+        | I64 _ -> Relop (I64 I64.Eq, Symbolic (`I64Type, k), Num n)
+        | F32 _ -> Relop (F32 F32.Eq, Symbolic (`F32Type, k), Num n)
+        | F64 _ -> Relop (F64 F64.Eq, Symbolic (`F64Type, k), Num n)
         | _ -> assert false
       in
       e :: acc)
@@ -142,3 +142,4 @@ let rec eval (env : t) (e : expr) : Num.t =
       in
       I64 (nland64 (Int64.shift_right v (l * 8)) (h - l))
   | Concat (e1, e2) -> eval env (simplify (e1 ++ e2))
+  | Str _ -> assert false

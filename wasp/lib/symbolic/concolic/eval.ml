@@ -447,28 +447,28 @@ let rec step (c : config) : config =
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, symbolic I32Type x) :: vs', [], pc, bp)
+            ((v, symbolic `I32Type x) :: vs', [], pc, bp)
         | GetSymInt64 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, symbolic I64Type x) :: vs', [], pc, bp)
+            ((v, symbolic `I64Type x) :: vs', [], pc, bp)
         | GetSymFloat32 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, symbolic F32Type x) :: vs', [], pc, bp)
+            ((v, symbolic `F32Type x) :: vs', [], pc, bp)
         | GetSymFloat64 x, vs' ->
             let v =
               try Store.find store x
               with Not_found ->
                 Crash.error e.at "Symbolic variable was not in store."
             in
-            ((v, symbolic F64Type x) :: vs', [], pc, bp)
+            ((v, symbolic `F64Type x) :: vs', [], pc, bp)
         | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs' ->
             let r : Num.t = I32 (if c = 0l then r2 else r1) in
             let s_c' = to_relop (simplify s_c) in
@@ -478,7 +478,7 @@ let rec step (c : config) : config =
               | Some s ->
                   let x = Store.next store "__ternary" in
                   Store.add store x r;
-                  let s_x = symbolic I32Type x in
+                  let s_x = symbolic `I32Type x in
                   let t_eq = Relop (I32 I32.Eq, s_x, s_r1) in
                   let t_imp = Binop (I32 I32.Or, negate_relop s, t_eq) in
                   let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
@@ -509,7 +509,7 @@ let rec step (c : config) : config =
         | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
             let res : (Num.t * Expression.t) =
               match (ex1, ex2) with
-              | Symbolic (I32Type, x), Symbolic (I32Type, y) ->
+              | Symbolic (`I32Type, x), Symbolic (`I32Type, y) ->
                   if x = y then (I32 1l, Relop (I32 I32.Eq, ex1, ex2))
                   else (I32 0l, Relop (I32 I32.Ne, ex1, ex2))
               | _, _ ->
