@@ -42,7 +42,7 @@ let numeric_error at = function
 
 type policy = Random | Depth | Breadth
 type bug = Overflow | UAF | InvalidFree
-type interruption = Limit | Failure of pc | Bug of bug
+type interruption = Limit | Failure of Formula.t | Bug of bug
 type 'a stack = 'a list
 type frame = { inst : module_inst; locals : value ref list }
 
@@ -58,7 +58,7 @@ and sym_admin_instr' =
   | Label of int * instr list * code
   | Frame of int * frame * code
   | Interrupt of interruption
-  | Restart of pc
+  | Restart of Formula.t
 
 type config = {
   frame : frame;
@@ -67,8 +67,8 @@ type config = {
   mem : Heap.t;
   store : Store.t;
   heap : (int32, int32) Hashtbl.t;
-  pc : pc;
-  bp : pc list;
+  pc : Formula.t;
+  bp : Formula.t list;
   tree : Execution_tree.t ref ref;
   budget : int;
 }
@@ -111,7 +111,7 @@ let config inst vs es mem glob tree =
     mem;
     store = Store.create [];
     heap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
-    pc = [];
+    pc = Encoding.Formula.create ();
     bp = [];
     tree;
     budget = 100000;
@@ -194,7 +194,7 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then Some (insert_pc ~neg:bval c pc) else None
+  if to_branch then Some (Encoding.Formula.add_constraint ~neg:bval c pc) else None
 
 let rec step (c : config) : config =
   let { frame; glob; code = vs, es; mem; store; heap; pc; bp; tree; _ } = c in
@@ -228,7 +228,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ex pc tree)
               in
-              let pc' = insert_pc ~neg:true ex pc in
+              let pc' = Encoding.Formula.add_constraint ~neg:true ex pc in
               (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', bp')
             else
               let bp' =
@@ -237,7 +237,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond true ex pc tree)
               in
-              let pc' = insert_pc ex pc in
+              let pc' = Encoding.Formula.add_constraint ex pc in
               (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', bp')
         | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
@@ -251,7 +251,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ex pc tree)
               in
-              let pc' = insert_pc ~neg:true ex pc in
+              let pc' = Encoding.Formula.add_constraint ~neg:true ex pc in
               (vs', [], pc', bp')
             else
               let bp' =
@@ -260,7 +260,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond true ex pc tree)
               in
-              let pc' = insert_pc ex pc in
+              let pc' = Encoding.Formula.add_constraint ex pc in
               (vs', [ Plain (Br x) @@ e.at ], pc', bp')
         | BrTable (xs, x), (I32 i, _) :: vs'
           when Interpreter.I32.ge_u i (Interpreter.Lib.List32.length xs) ->
@@ -289,7 +289,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond false ve pc tree)
               in
-              (v2 :: vs', [], insert_pc ~neg:true ve pc, bp')
+              (v2 :: vs', [], Encoding.Formula.add_constraint ~neg:true ve pc, bp')
             else
               let bp' =
                 Batteries.Option.map_default
@@ -297,7 +297,7 @@ let rec step (c : config) : config =
                   bp
                   (branch_on_cond true ve pc tree)
               in
-              (v1 :: vs', [], insert_pc ve pc, bp')
+              (v1 :: vs', [], Encoding.Formula.add_constraint ve pc, bp')
         | LocalGet x, vs -> (!(local frame x) :: vs, [], pc, bp)
         | LocalSet x, (v, ex) :: vs' ->
             local frame x := (v, simplify ex);
@@ -415,8 +415,8 @@ let rec step (c : config) : config =
         | SymAssert, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
         | SymAssert, (I32 i, ex) :: vs' ->
-            let formulas = insert_pc ~neg:true ex pc in
-            if not (Encoding.Batch.check solver formulas) then (vs', [], pc, bp)
+            let formulas = Encoding.Formula.add_constraint ~neg:true ex pc in
+            if not (Encoding.Batch.ccheck solver formulas) then (vs', [], pc, bp)
             else
               let binds =
                 Encoding.Batch.value_binds solver (Store.get_key_types store)
@@ -424,16 +424,18 @@ let rec step (c : config) : config =
               Store.update store binds;
               (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            let unsat = Relop (I32 I32.Eq, Num (I32 0l), Num (I32 1l)) in
-            if i = 0l then (vs', [ Restart [ unsat ] @@ e.at ], pc, bp)
+            let unsat = Encoding.Formula.create () in
+            let unsat = Encoding.Formula.add_constraint (Relop (I32 I32.Eq, Num (I32 0l), Num (I32 1l))) unsat in
+            if i = 0l then (vs', [ Restart unsat @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
-            if i = 0l then (vs', [ Restart (insert_pc ex pc) @@ e.at ], pc, bp)
+            if i = 0l then
+              (vs', [ Restart (Encoding.Formula.add_constraint ex pc) @@ e.at ], pc, bp)
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
               tree := tree';
-              (vs', [], insert_pc ex pc, bp))
+              (vs', [], Encoding.Formula.add_constraint ex pc, bp))
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
             let base = Interpreter.I64_convert.extend_i32_u i in
             let symbol = if i = 0l then "x" else Heap.load_string mem base in
@@ -510,7 +512,7 @@ let rec step (c : config) : config =
                   let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
                   let f_imp = Binop (I32 I32.Or, s, f_eq) in
                   let cond = Binop (I32 I32.And, t_imp, f_imp) in
-                  ((r, s_x), Relop (I32 I32.Ne, cond, Num (I32 0l)) :: pc)
+                  ((r, s_x), Encoding.Formula.add_constraint (Relop (I32 I32.Ne, cond, Num (I32 0l))) pc)
             in
             (v :: vs', [], pc', bp)
         | PrintStack, vs' ->
@@ -523,7 +525,7 @@ let rec step (c : config) : config =
             debug
               (Interpreter.Source.string_of_pos e.at.left
               ^ ":PC: "
-              ^ Encoding.Formula.(pp_to_string (to_formula pc)));
+              ^ Encoding.Formula.(pp_to_string pc));
             (vs', [], pc, bp)
         | PrintMemory, vs' ->
             debug ("Mem:\n" ^ Heap.to_string mem);
@@ -727,7 +729,7 @@ let reset c glob code mem =
     c with
     frame = frame empty_module_inst [];
     code;
-    pc = [];
+    pc = Encoding.Formula.create ();
     bp = [];
     budget = 100000;
   }
@@ -764,7 +766,7 @@ module Guided_search (L : Wlist.WorkList) = struct
     in
     let rec find_sat_pc pcs =
       if L.is_empty pcs then false
-      else if not (Encoding.Batch.check solver (L.pop pcs)) then find_sat_pc pcs
+      else if not (Encoding.Batch.ccheck solver (L.pop pcs)) then find_sat_pc pcs
       else true
     in
     (* Main concolic loop *)
@@ -779,7 +781,7 @@ module Guided_search (L : Wlist.WorkList) = struct
           Some (string_of_interruption i, at)
       | vs, { it = Restart pc; _ } :: es ->
           iterations := !iterations - 1;
-          if Encoding.Batch.check solver pc then loop (update c (vs, es) pc)
+          if Encoding.Batch.ccheck solver pc then loop (update c (vs, es) pc)
           else if L.is_empty wl || not (find_sat_pc wl) then None
           else loop (reset c glob0 code0 mem0)
       | _ ->
@@ -807,7 +809,7 @@ module Guided_search (L : Wlist.WorkList) = struct
     in
     let rec find_sat_pc pcs =
       if L.is_empty pcs then false
-      else if not (Encoding.Batch.check solver (L.pop pcs)) then find_sat_pc pcs
+      else if not (Encoding.Batch.ccheck solver (L.pop pcs)) then find_sat_pc pcs
       else true
     in
     (* Main concolic loop *)
@@ -823,7 +825,7 @@ module Guided_search (L : Wlist.WorkList) = struct
       | vs, { it = Restart pc; _ } :: es ->
           print_endline "--- attempting restart ---";
           iterations := !iterations - 1;
-          if Encoding.Batch.check solver pc then loop (update c (vs, es) pc)
+          if Encoding.Batch.ccheck solver pc then loop (update c (vs, es) pc)
           else if L.is_empty wl || not (find_sat_pc wl) then None
           else loop (s_reset (clone c0))
       | _ ->

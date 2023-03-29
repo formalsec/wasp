@@ -132,12 +132,12 @@ let instr_str e =
 
 module type Encoder = sig
   type s
-  type t = { solver : s; pc : pc ref }
+  type t = { solver : s; pc : Formula.t ref }
 
   val create : unit -> t
   val clone : t -> t
   val add : t -> expr -> unit
-  val check : t -> expr list -> bool
+  val check : t -> expr option -> bool
   val fork : t -> expr -> bool * bool
   val value_binds : t -> (string * expr_type) list -> (string * Num.t) list
 
@@ -158,7 +158,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     encoder : E.t;
   }
 
-  type step_res = End of pc | Continuation of sym_config list
+  type step_res = End of Formula.t | Continuation of sym_config list
 
   let rec clone_admin_instr e =
     let open Interpreter.Source in
@@ -279,8 +279,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     Concolic.Eval.head := Concolic.Execution_tree.Leaf;
     debug "-- Switching to concolic mode...";
     let open E in
-    let assertion = Encoding.Formula.to_formula !(c.encoder.pc) in
-    debug ("-- path_condition = " ^ Encoding.Formula.pp_to_string assertion);
+    debug ("-- path_condition = " ^ Formula.pp_to_string !(c.encoder.pc));
     let conc_c = to_concolic c in
     let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
     Concolic.Eval.BFS.s_invoke conc_c test_suite
@@ -309,8 +308,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
           (function size -> Relop (I32 I32.Eq, s_size, Num (I32 size)))
           size
       in
-      let cond_list = match size_cond with Some c -> [ c ] | None -> [] in
-      match E.check encoder cond_list with
+      match E.check encoder size_cond with
       | false -> None
       | true ->
           let _, c = clone c in
@@ -375,7 +373,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let open Source in
     match es with
     | [] ->
-        assert (E.check encoder []);
+        assert (E.check encoder None);
         let string_binds = E.string_binds encoder (Varmap.binds varmap) in
         let witness = Concolic.Store.strings_to_json string_binds in
         Concolic.Eval.write_test_case witness;
@@ -963,7 +961,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 debug ("Asserting: " ^ Expression.to_string (simplify v));
                 let constr = negate_relop (Option.get (to_relop v)) in
                 solver_counter := !solver_counter + 1;
-                let sat = E.check encoder [ constr ] in
+                let sat = E.check encoder (Some constr) in
                 if sat then (
                   E.add encoder constr;
                   let string_binds =
@@ -990,7 +988,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     let co = Option.get (to_relop ex) in
                     solver_counter := !solver_counter + 1;
                     E.add encoder co;
-                    if E.check encoder [] then
+                    if E.check encoder None then
                       let c_true = { c with sym_code = (vs', List.tl es) } in
                       Result.ok (Continuation [ c_true ])
                     else Result.ok (Continuation []))
@@ -1070,11 +1068,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintPC, vs ->
                 let open E in
-                let assertion = Encoding.Formula.to_formula !(encoder.pc) in
                 print_endline
                   (Printf.sprintf "%d" e.at.left.line
                   ^ " pc: "
-                  ^ Encoding.Formula.pp_to_string assertion);
+                  ^ Encoding.Formula.pp_to_string !(encoder.pc));
                 let es' = List.tl es in
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintValue, v :: vs' ->

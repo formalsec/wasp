@@ -31,7 +31,10 @@ and sym_admin_instr' =
 
 module type Interpreter = sig
   type sym_config
-  type step_res = End of Expression.pc | Continuation of sym_config list
+
+  type step_res =
+    | End of Encoding.Formula.t
+    | Continuation of sym_config list
 
   val clone : sym_config -> sym_config * sym_config
 
@@ -51,7 +54,7 @@ end
 
 module TreeStrategy (L : Wlist.WorkList) (I : Interpreter) = struct
   let eval (c : I.sym_config) :
-      (Expression.pc list, string * Interpreter.Source.region) result =
+      (Formula.t list, string * Interpreter.Source.region) result =
     let w = L.create () in
     L.push c w;
 
@@ -79,8 +82,7 @@ module RS = TreeStrategy (RandArray)
 module BFS_L (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) :
-      (Expression.pc list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -108,8 +110,7 @@ end
 module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) :
-      (Expression.pc list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -142,8 +143,7 @@ module Half_BFS (I : Interpreter) = struct
 end
 
 module ProgressBFS (I : Interpreter) = struct
-  let eval (c : I.sym_config) :
-      (Expression.pc list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
@@ -182,8 +182,7 @@ end
 module Hybrid (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) :
-      (Expression.pc list, string * Interpreter.Source.region) result =
+  let eval (c : I.sym_config) : (Encoding.Formula.t list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
