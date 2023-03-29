@@ -17,4 +17,4 @@
  (name wasp)
  (synopsis "WASP is a symbolic execution engine for Wasm")
  (description "")
- (depends batteries (z3 (= "4.8.1"))))
+ (depends base batteries (z3 (= "4.8.1"))))

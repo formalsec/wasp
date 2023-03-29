@@ -9,6 +9,7 @@ homepage: "https://github.com/wasp-platform/wasp"
 bug-reports: "https://github.com/wasp-platform/wasp/issues"
 depends: [
   "dune" {>= "3.0"}
+  "base"
   "batteries"
   "z3" {= "4.8.1"}
   "odoc" {with-doc}

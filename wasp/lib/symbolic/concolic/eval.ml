@@ -224,18 +224,18 @@ let rec step (c : config) : config =
         | If (ts, es1, es2), (I32 i, ex) :: vs' ->
             if i = 0l then
               let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
+                Base.Option.value_map
+                  ~f:(fun br -> br :: bp)
+                  ~default:bp
                   (branch_on_cond false ex pc tree)
               in
               let pc' = Encoding.Formula.add_constraint ~neg:true ex pc in
               (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', bp')
             else
               let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
+                Base.Option.value_map
+                  ~f:(fun br -> br :: bp)
+                  ~default:bp
                   (branch_on_cond true ex pc tree)
               in
               let pc' = Encoding.Formula.add_constraint ex pc in
@@ -247,18 +247,18 @@ let rec step (c : config) : config =
         | BrIf x, (I32 i, ex) :: vs' ->
             if i = 0l then
               let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
+                Base.Option.value_map
+                  ~f:(fun br -> br :: bp)
+                  ~default:bp
                   (branch_on_cond false ex pc tree)
               in
               let pc' = Encoding.Formula.add_constraint ~neg:true ex pc in
               (vs', [], pc', bp')
             else
               let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
+                Base.Option.value_map
+                  ~f:(fun br -> br :: bp)
+                  ~default:bp
                   (branch_on_cond true ex pc tree)
               in
               let pc' = Encoding.Formula.add_constraint ex pc in
@@ -285,9 +285,9 @@ let rec step (c : config) : config =
         | Select, (I32 i, ve) :: v2 :: v1 :: vs' ->
             if i = 0l then
               let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
+                Base.Option.value_map
+                  ~f:(fun br -> br :: bp)
+                  ~default:bp
                   (branch_on_cond false ve pc tree)
               in
               ( v2 :: vs',
@@ -296,9 +296,9 @@ let rec step (c : config) : config =
                 bp' )
             else
               let bp' =
-                Batteries.Option.map_default
-                  (fun br -> br :: bp)
-                  bp
+                Base.Option.value_map
+                  ~f:(fun br -> br :: bp)
+                  ~default:bp
                   (branch_on_cond true ve pc tree)
               in
               (v1 :: vs', [], Encoding.Formula.add_constraint ve pc, bp')
