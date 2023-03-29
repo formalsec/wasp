@@ -178,7 +178,7 @@ module ProgressBFS (I : Interpreter) = struct
 end
 
 module Hybrid (I : Interpreter) = struct
-  let max_configs = 32
+  let max_configs = 128
 
   let eval (c : I.sym_config) :
       Encoding.Formula.t list * (string * Interpreter.Source.region) option =
