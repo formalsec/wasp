@@ -751,7 +751,7 @@ let s_reset (c : config) : config =
   in
   { c with code }
 
-module Guided_search (L : Wlist.WorkList) = struct
+module Guided_search (L : WorkList) = struct
   let invoke (c : config) (test_suite : string) =
     let glob0 = Globals.copy c.glob
     and code0 = c.code

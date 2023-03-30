@@ -10,3 +10,6 @@ module type WorkList = sig
   val is_empty : 'a t -> bool
   val length : 'a t -> int
 end
+
+module Counter = Counter
+module RandArray = RandArray

@@ -55,7 +55,7 @@ module type Interpreter = sig
   val p_finished : sym_config -> Encoding.Formula.t -> sym_config option
 end
 
-module TreeStrategy (L : Wlist.WorkList) (I : Interpreter) = struct
+module TreeStrategy (L : WorkList) (I : Interpreter) = struct
   let eval (c : I.sym_config) :
       Encoding.Formula.t list * (string * Interpreter.Source.region) option =
     let w = L.create () in
