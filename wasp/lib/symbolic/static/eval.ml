@@ -159,6 +159,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     encoder : E.t;
   }
 
+  type step_res = End of pc | Continuation of sym_config list
+
   let rec clone_admin_instr e =
     let open Interpreter.Source in
     let it =
@@ -205,8 +207,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       sym_frame = sym_frame inst [];
       sym_code = (vs, es);
       sym_mem = SM.from_heap sym_m;
-      sym_budget = 100000;
       (* models default recursion limit in a system *)
+      sym_budget = 100000;
       var_map = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
       sym_globals = globs;
       chunk_table = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
@@ -289,7 +291,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     else [ Option.get (helper None) ]
 
   let rec step (c : sym_config) :
-      (sym_config list * pc list, string * string) result =
+      (step_res, string * Interpreter.Source.region) result =
     let {
       sym_frame = frame;
       sym_code = vs, es;
@@ -305,26 +307,34 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let open Source in
     match es with
     | [] ->
+        assert (E.check encoder []);
+        let string_binds = E.string_binds encoder (Varmap.binds var_map) in
+        let witness = Concolic.Store.strings_to_json string_binds in
+        Concolic.Eval.write_test_case witness;
         let open E in
-        Result.ok ([], [ !(encoder.pc) ])
+        Result.ok (End !(encoder.pc))
     | e :: t -> (
         match (e.it, vs) with
         | SPlain e', vs -> (
             match (e', vs) with
             | Nop, vs ->
-                Result.ok ([ { c with sym_code = (vs, List.tl es) } ], [])
+                Result.ok
+                  (Continuation [ { c with sym_code = (vs, List.tl es) } ])
             | Drop, v :: vs' ->
-                Result.ok ([ { c with sym_code = (vs', List.tl es) } ], [])
+                Result.ok
+                  (Continuation [ { c with sym_code = (vs', List.tl es) } ])
             | Select, ex :: v2 :: v1 :: vs' -> (
                 match simplify ex with
                 | Num (I32 0l) ->
                     (* if it is 0 *)
                     Result.ok
-                      ([ { c with sym_code = (v2 :: vs', List.tl es) } ], [])
+                      (Continuation
+                         [ { c with sym_code = (v2 :: vs', List.tl es) } ])
                 | Num (I32 _) ->
                     (* if it is not 0 *)
                     Result.ok
-                      ([ { c with sym_code = (v1 :: vs', List.tl es) } ], [])
+                      (Continuation
+                         [ { c with sym_code = (v1 :: vs', List.tl es) } ])
                 | ex ->
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
@@ -352,42 +362,46 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       | false, false -> failwith "Unreachable Select"
                     in
 
-                    Result.ok (l, []))
+                    Result.ok (Continuation l))
             | Block (ts, es'), vs ->
                 let es0 =
                   SLabel (List.length ts, [], ([], List.map plain es')) @@ e.at
                 in
-                Result.ok ([ { c with sym_code = (vs, es0 :: List.tl es) } ], [])
+                Result.ok
+                  (Continuation
+                     [ { c with sym_code = (vs, es0 :: List.tl es) } ])
             | Loop (ts, es'), vs ->
                 let es0 =
                   SLabel (0, [ e' @@ e.at ], ([], List.map plain es')) @@ e.at
                 in
-                Result.ok ([ { c with sym_code = (vs, es0 :: List.tl es) } ], [])
+                Result.ok
+                  (Continuation
+                     [ { c with sym_code = (vs, es0 :: List.tl es) } ])
             | If (ts, es1, es2), ex :: vs' -> (
                 let es' = List.tl es in
                 match simplify ex with
                 | Num (I32 0l) ->
                     (* if it is 0 *)
                     Result.ok
-                      ( [
-                          {
-                            c with
-                            sym_code =
-                              (vs', [ SPlain (Block (ts, es2)) @@ e.at ] @ es');
-                          };
-                        ],
-                        [] )
+                      (Continuation
+                         [
+                           {
+                             c with
+                             sym_code =
+                               (vs', [ SPlain (Block (ts, es2)) @@ e.at ] @ es');
+                           };
+                         ])
                 | Num (I32 _) ->
                     (* if it is not 0 *)
                     Result.ok
-                      ( [
-                          {
-                            c with
-                            sym_code =
-                              (vs', [ SPlain (Block (ts, es1)) @@ e.at ] @ es');
-                          };
-                        ],
-                        [] )
+                      (Continuation
+                         [
+                           {
+                             c with
+                             sym_code =
+                               (vs', [ SPlain (Block (ts, es1)) @@ e.at ] @ es');
+                           };
+                         ])
                 | ex ->
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
@@ -434,29 +448,33 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       | false, false -> failwith "Unreachable If"
                     in
 
-                    Result.ok (l, []))
+                    Result.ok (Continuation l))
             | Br x, vs ->
                 Result.ok
-                  ( [
-                      {
-                        c with
-                        sym_code = (vs, [ SBreaking (x.it, vs) @@ e.at ]);
-                      };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code = (vs, [ SBreaking (x.it, vs) @@ e.at ]);
+                       };
+                     ])
             | BrIf x, ex :: vs' -> (
                 match simplify ex with
                 | Num (I32 0l) ->
                     (* if it is 0 *)
                     let es' = List.tl es in
-                    Result.ok ([ { c with sym_code = (vs', es') } ], [])
+                    Result.ok
+                      (Continuation [ { c with sym_code = (vs', es') } ])
                 | Num (I32 _) ->
                     (* if it is not 0 *)
                     Result.ok
-                      ( [
-                          { c with sym_code = (vs', [ SPlain (Br x) @@ e.at ]) };
-                        ],
-                        [] )
+                      (Continuation
+                         [
+                           {
+                             c with
+                             sym_code = (vs', [ SPlain (Br x) @@ e.at ]);
+                           };
+                         ])
                 | ex ->
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
@@ -492,20 +510,20 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       | false, false -> failwith "Unreachable BrIf"
                     in
 
-                    Result.ok (l, []))
+                    Result.ok (Continuation l))
             | Return, vs ->
                 let es' = [ SReturning vs @@ e.at ] @ List.tl es in
-                Result.ok ([ { c with sym_code = ([], es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = ([], es') } ])
             | Call x, vs ->
                 Result.ok
-                  ( [
-                      {
-                        c with
-                        sym_code =
-                          (vs, [ SInvoke (func frame.sym_inst x) @@ e.at ] @ t);
-                      };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code =
+                           (vs, [ SInvoke (func frame.sym_inst x) @@ e.at ] @ t);
+                       };
+                     ])
             | CallIndirect x, Num (I32 i) :: vs ->
                 let func = func_elem frame.sym_inst (0l @@ e.at) i e.at in
                 let es' =
@@ -513,28 +531,31 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     [ STrapping "indirect call type mismatch" @@ e.at ]
                   else [ SInvoke func @@ e.at ]
                 in
-                Result.ok ([ { c with sym_code = (vs, es' @ List.tl es) } ], [])
+                Result.ok
+                  (Continuation [ { c with sym_code = (vs, es' @ List.tl es) } ])
             | LocalGet x, vs ->
                 let vs' = !(local frame x) :: vs in
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (vs', es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
             | LocalSet x, v :: vs' ->
                 local frame x := v;
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (vs', es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
             | LocalTee x, v :: vs' ->
                 local frame x := v;
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
+                Result.ok
+                  (Continuation [ { c with sym_code = (v :: vs', es') } ])
             | GlobalGet x, vs ->
                 let v' = Globals.load c.sym_globals x.it in
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (v' :: vs, es') } ], [])
+                Result.ok
+                  (Continuation [ { c with sym_code = (v' :: vs, es') } ])
             | GlobalSet x, v :: vs' -> (
                 let es' = List.tl es in
                 try
                   Globals.store c.sym_globals x.it v;
-                  Result.ok ([ { c with sym_code = (vs', es') } ], [])
+                  Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
                 with
                 | Global.NotMutable ->
                     Crash.error e.at "write to immutable global"
@@ -553,7 +574,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
                       let ty = Encoding.Types.type_of_num ptr in
-                      if ty <> `I32Type then
+                      if ty != `I32Type then
                         failwith
                           (Printf.sprintf "%d" e.at.left.line
                           ^ ":Load with non i32 ptr: "
@@ -600,13 +621,15 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                           (Evaluations.to_num_type ty)
                   in
                   let es' = List.tl es in
-                  Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
+                  Result.ok
+                    (Continuation [ { c with sym_code = (v :: vs', es') } ])
                 with
                 | BugException (b, at, _) ->
                     let string_binds =
                       E.string_binds encoder (Varmap.binds var_map)
                     in
                     let witness = Concolic.Store.strings_to_json string_binds in
+                    Concolic.Eval.write_test_case ~witness:true witness;
                     let bug_type =
                       match b with
                       | Overflow -> "Out of Bounds access"
@@ -614,27 +637,19 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       | _ ->
                           failwith "unreachable, other bugs shouldn't be here"
                     in
-                    let reason =
-                      "{" ^ "\"type\" : \"" ^ bug_type ^ "\", "
-                      ^ "\"line\" : \""
-                      ^ (string_of_pos e.at.left
-                        ^
-                        if e.at.right = e.at.left then ""
-                        else "-" ^ string_of_pos e.at.right)
-                      ^ "\"" ^ "}"
-                    in
-                    Result.error (reason, witness)
+                    Result.error (bug_type, at)
                 | exn ->
                     Result.ok
-                      ( [
-                          {
-                            c with
-                            sym_code =
-                              ( vs',
-                                [ STrapping (memory_error e.at exn) @@ e.at ] );
-                          };
-                        ],
-                        [] ))
+                      (Continuation
+                         [
+                           {
+                             c with
+                             sym_code =
+                               ( vs',
+                                 [ STrapping (memory_error e.at exn) @@ e.at ]
+                               );
+                           };
+                         ]))
             | Store { offset; sz; _ }, ex :: sym_ptr :: vs' -> (
                 let sym_ptr = simplify sym_ptr in
                 let ptr =
@@ -648,7 +663,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
                       let ty = Encoding.Types.type_of_num ptr in
-                      if ty <> `I32Type then
+                      if ty != `I32Type then
                         failwith
                           (Printf.sprintf "%d" e.at.left.line
                           ^ ":Store with non i32 ptr: "
@@ -689,13 +704,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | None -> SM.store_value mem ptr64 offset ex
                   | Some sz -> SM.store_packed sz mem ptr64 offset ex);
                   let es' = List.tl es in
-                  Result.ok ([ { c with sym_code = (vs', es') } ], [])
+                  Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
                 with
                 | BugException (b, at, _) ->
                     let string_binds =
                       E.string_binds encoder (Varmap.binds var_map)
                     in
                     let witness = Concolic.Store.strings_to_json string_binds in
+                    Concolic.Eval.write_test_case ~witness:true witness;
                     let bug_type =
                       match b with
                       | Overflow -> "Out of Bounds access"
@@ -703,227 +719,217 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       | _ ->
                           failwith "unreachable, other bugs shouldn't be here"
                     in
-                    let reason =
-                      "{" ^ "\"type\" : \"" ^ bug_type ^ "\", "
-                      ^ "\"line\" : \""
-                      ^ (string_of_pos e.at.left
-                        ^
-                        if e.at.right = e.at.left then ""
-                        else "-" ^ string_of_pos e.at.right)
-                      ^ "\"" ^ "}"
-                    in
-                    Result.error (reason, witness)
+                    Result.error (bug_type, at)
                 | exn ->
                     Result.ok
-                      ( [
-                          {
-                            c with
-                            sym_code =
-                              ( vs',
-                                [ STrapping (memory_error e.at exn) @@ e.at ] );
-                          };
-                        ],
-                        [] ))
+                      (Continuation
+                         [
+                           {
+                             c with
+                             sym_code =
+                               ( vs',
+                                 [ STrapping (memory_error e.at exn) @@ e.at ]
+                               );
+                           };
+                         ]))
             | Const v, vs ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [
-                      {
-                        c with
-                        sym_code = (Num (Evaluations.of_value v.it) :: vs, es');
-                      };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code = (Num (Evaluations.of_value v.it) :: vs, es');
+                       };
+                     ])
             | Test testop, v :: vs' -> (
                 let es' = List.tl es in
                 try
                   let v' = Evaluations.eval_testop v testop in
                   Result.ok
-                    ([ { c with sym_code = (simplify v' :: vs', es') } ], [])
+                    (Continuation
+                       [ { c with sym_code = (simplify v' :: vs', es') } ])
                 with exn ->
                   Result.ok
-                    ( [
-                        {
-                          c with
-                          sym_code =
-                            ( vs',
-                              (STrapping (numeric_error e.at exn) @@ e.at)
-                              :: es' );
-                        };
-                      ],
-                      [] ))
+                    (Continuation
+                       [
+                         {
+                           c with
+                           sym_code =
+                             ( vs',
+                               (STrapping (numeric_error e.at exn) @@ e.at)
+                               :: es' );
+                         };
+                       ]))
             | Compare relop, v2 :: v1 :: vs' -> (
                 let es' = List.tl es in
                 try
                   let v = Evaluations.eval_relop v1 v2 relop in
                   Result.ok
-                    ([ { c with sym_code = (simplify v :: vs', es') } ], [])
+                    (Continuation
+                       [ { c with sym_code = (simplify v :: vs', es') } ])
                 with exn ->
                   Result.ok
-                    ( [
-                        {
-                          c with
-                          sym_code =
-                            ( vs',
-                              (STrapping (numeric_error e.at exn) @@ e.at)
-                              :: es' );
-                        };
-                      ],
-                      [] ))
+                    (Continuation
+                       [
+                         {
+                           c with
+                           sym_code =
+                             ( vs',
+                               (STrapping (numeric_error e.at exn) @@ e.at)
+                               :: es' );
+                         };
+                       ]))
             | Unary unop, v :: vs' -> (
                 let es' = List.tl es in
                 try
                   let v = Evaluations.eval_unop v unop in
                   Result.ok
-                    ([ { c with sym_code = (simplify v :: vs', es') } ], [])
+                    (Continuation
+                       [ { c with sym_code = (simplify v :: vs', es') } ])
                 with exn ->
                   Result.ok
-                    ( [
-                        {
-                          c with
-                          sym_code =
-                            ( vs',
-                              (STrapping (numeric_error e.at exn) @@ e.at)
-                              :: es' );
-                        };
-                      ],
-                      [] ))
+                    (Continuation
+                       [
+                         {
+                           c with
+                           sym_code =
+                             ( vs',
+                               (STrapping (numeric_error e.at exn) @@ e.at)
+                               :: es' );
+                         };
+                       ]))
             | Binary binop, v2 :: v1 :: vs' -> (
                 let es' = List.tl es in
                 try
                   let v = Evaluations.eval_binop v1 v2 binop in
                   Result.ok
-                    ([ { c with sym_code = (simplify v :: vs', es') } ], [])
+                    (Continuation
+                       [ { c with sym_code = (simplify v :: vs', es') } ])
                 with exn ->
                   Result.ok
-                    ( [
-                        {
-                          c with
-                          sym_code =
-                            ( vs',
-                              (STrapping (numeric_error e.at exn) @@ e.at)
-                              :: es' );
-                        };
-                      ],
-                      [] ))
+                    (Continuation
+                       [
+                         {
+                           c with
+                           sym_code =
+                             ( vs',
+                               (STrapping (numeric_error e.at exn) @@ e.at)
+                               :: es' );
+                         };
+                       ]))
             | Convert cvtop, v :: vs' -> (
                 let es' = List.tl es in
                 try
                   let v' = Evaluations.eval_cvtop cvtop v in
                   Result.ok
-                    ([ { c with sym_code = (simplify v' :: vs', es') } ], [])
+                    (Continuation
+                       [ { c with sym_code = (simplify v' :: vs', es') } ])
                 with exn ->
                   Result.ok
-                    ( [
-                        {
-                          c with
-                          sym_code =
-                            ( vs',
-                              (STrapping (numeric_error e.at exn) @@ e.at)
-                              :: es' );
-                        };
-                      ],
-                      [] ))
+                    (Continuation
+                       [
+                         {
+                           c with
+                           sym_code =
+                             ( vs',
+                               (STrapping (numeric_error e.at exn) @@ e.at)
+                               :: es' );
+                         };
+                       ]))
             | Dup, v :: vs' ->
                 let vs'' = v :: v :: vs' in
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (vs'', es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = (vs'', es') } ])
             | GetSymInt32 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [
-                      { c with sym_code = (Symbolic (`I32Type, x) :: vs', es') };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code = (Symbolic (`I32Type, x) :: vs', es');
+                       };
+                     ])
             | GetSymInt64 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [
-                      { c with sym_code = (Symbolic (`I64Type, x) :: vs', es') };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code = (Symbolic (`I64Type, x) :: vs', es');
+                       };
+                     ])
             | GetSymFloat32 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [
-                      { c with sym_code = (Symbolic (`F32Type, x) :: vs', es') };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code = (Symbolic (`F32Type, x) :: vs', es');
+                       };
+                     ])
             | GetSymFloat64 x, vs' ->
                 let es' = List.tl es in
                 Result.ok
-                  ( [
-                      { c with sym_code = (Symbolic (`F64Type, x) :: vs', es') };
-                    ],
-                    [] )
+                  (Continuation
+                     [
+                       {
+                         c with
+                         sym_code = (Symbolic (`F64Type, x) :: vs', es');
+                       };
+                     ])
             | SymAssert, Num (I32 0l) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
                 let string_binds =
                   E.string_binds encoder (Varmap.binds var_map)
                 in
                 let witness = Concolic.Store.strings_to_json string_binds in
-                let reason =
-                  "{" ^ "\"type\" : \"" ^ "Assertion Failure" ^ "\", "
-                  ^ "\"line\" : \""
-                  ^ (string_of_pos e.at.left
-                    ^
-                    if e.at.right = e.at.left then ""
-                    else "-" ^ string_of_pos e.at.right)
-                  ^ "\"" ^ "}"
-                in
-                Result.error (reason, witness)
+                Concolic.Eval.write_test_case ~witness:true witness;
+                Result.error ("Assertion Failure", e.at)
             | SymAssert, Num (I32 i) :: vs' ->
                 (* passed *)
                 debug (string_of_pos e.at.left ^ ":Assert PASSED!");
-                Result.ok ([ { c with sym_code = (vs', List.tl es) } ], [])
-            | SymAssert, v :: vs' -> (
+                Result.ok
+                  (Continuation [ { c with sym_code = (vs', List.tl es) } ])
+            | SymAssert, v :: vs' ->
                 let v = simplify v in
-                debug ("Asserting: " ^ to_string (simplify v));
-                let opt_witness =
-                  let c = negate_relop (Option.get (to_relop v)) in
-                  solver_counter := !solver_counter + 1;
-                  let sat = E.check encoder [ c ] in
-                  if sat then
-                    let string_binds =
-                      E.string_binds encoder (Varmap.binds var_map)
-                    in
-                    let witness = Concolic.Store.strings_to_json string_binds in
-                    Some witness
-                  else None
-                in
-                if Option.is_some opt_witness then
-                  debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...")
-                else debug (string_of_pos e.at.left ^ ":Assert PASSED!");
-                match opt_witness with
-                | Some c ->
-                    let reason =
-                      "{" ^ "\"type\" : \"" ^ "Assertion Failure" ^ "\", "
-                      ^ "\"line\" : \""
-                      ^ (string_of_pos e.at.left
-                        ^
-                        if e.at.right = e.at.left then ""
-                        else "-" ^ string_of_pos e.at.right)
-                      ^ "\"" ^ "}"
-                    in
-                    Result.error (reason, c)
-                | None ->
-                    Result.ok ([ { c with sym_code = (vs', List.tl es) } ], []))
+                debug ("Asserting: " ^ Expression.to_string (simplify v));
+                let constr = negate_relop (Option.get (to_relop v)) in
+                solver_counter := !solver_counter + 1;
+                let sat = E.check encoder [ constr ] in
+                if sat then (
+                  E.add encoder constr;
+                  let string_binds =
+                    E.string_binds encoder (Varmap.binds var_map)
+                  in
+                  let witness = Concolic.Store.strings_to_json string_binds in
+                  debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
+                  Concolic.Eval.write_test_case ~witness:true witness;
+                  Result.error ("Assertion Failure", e.at))
+                else (
+                  debug (string_of_pos e.at.left ^ ":Assert PASSED!");
+                  Result.ok
+                    (Continuation [ { c with sym_code = (vs', List.tl es) } ]))
             | SymAssume, ex :: vs' -> (
                 match simplify ex with
                 | Num (I32 0l) ->
                     (* if it is 0 *)
-                    Result.ok ([], [])
+                    Result.ok (Continuation [])
                 | SymPtr (_, Num (I32 0l)) | Num (I32 _) ->
                     (* if it is not 0 *)
-                    Result.ok ([ { c with sym_code = (vs, List.tl es) } ], [])
+                    Result.ok
+                      (Continuation [ { c with sym_code = (vs, List.tl es) } ])
                 | ex ->
                     let co = Option.get (to_relop ex) in
                     solver_counter := !solver_counter + 1;
                     E.add encoder co;
                     if E.check encoder [] then
                       let c_true = { c with sym_code = (vs', List.tl es) } in
-                      Result.ok ([ c_true ], [])
-                    else Result.ok ([], []))
+                      Result.ok (Continuation [ c_true ])
+                    else Result.ok (Continuation []))
             | Symbolic (ty, b), Num (I32 i) :: vs' ->
                 let base = I64_convert.extend_i32_u i in
                 let symbol = if i = 0l then "x" else SM.load_string mem base in
@@ -932,7 +938,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let v = symbolic ty' x in
                 let es' = List.tl es in
                 Hashtbl.replace var_map x ty';
-                Result.ok ([ { c with sym_code = (v :: vs', es') } ], [])
+                Result.ok
+                  (Continuation [ { c with sym_code = (v :: vs', es') } ])
             | Boolop boolop, v1 :: v2 :: vs' -> (
                 (* results in i32 *)
                 let v2' = mk_relop v2 `I32Type in
@@ -941,25 +948,28 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let es' = List.tl es in
                 try
                   Result.ok
-                    ([ { c with sym_code = (simplify v3 :: vs', es') } ], [])
+                    (Continuation
+                       [ { c with sym_code = (simplify v3 :: vs', es') } ])
                 with exn ->
                   Result.ok
-                    ( [
-                        {
-                          c with
-                          sym_code =
-                            ( vs',
-                              (STrapping (numeric_error e.at exn) @@ e.at)
-                              :: es' );
-                        };
-                      ],
-                      [] ))
+                    (Continuation
+                       [
+                         {
+                           c with
+                           sym_code =
+                             ( vs',
+                               (STrapping (numeric_error e.at exn) @@ e.at)
+                               :: es' );
+                         };
+                       ]))
             | Alloc, Num (I32 sz) :: Num (I32 base) :: vs' ->
                 Hashtbl.add chunk_table base sz;
                 let sym_ptr = SymPtr (base, Num (I32 0l)) in
                 Result.ok
-                  ([ { c with sym_code = (sym_ptr :: vs', List.tl es) } ], [])
-            | Alloc, _ :: _ :: vs' -> Result.ok (concretize_alloc c, [])
+                  (Continuation
+                     [ { c with sym_code = (sym_ptr :: vs', List.tl es) } ])
+            | Alloc, _ :: _ :: vs' ->
+                Result.ok (Continuation (concretize_alloc c))
             | Free, ptr :: vs' -> (
                 match simplify ptr with
                 | SymPtr (base, Num (I32 0l)) ->
@@ -977,19 +987,23 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                         Hashtbl.remove chunk_table base;
                         List.tl es)
                     in
-                    Result.ok ([ { c with sym_code = (vs', es') } ], [])
+                    Result.ok
+                      (Continuation [ { c with sym_code = (vs', es') } ])
                 | value ->
                     failwith ("Free with invalid argument" ^ pp_to_string value)
                 )
             | PrintStack, vs ->
-                let vs' = List.map (fun v -> pp_to_string v) vs in
-                print_endline ("Stack:" ^ "\n" ^ String.concat "\n" vs');
+                let vs' = List.map (fun v -> Expression.pp_to_string v) vs in
+                debug
+                  ("Stack @ "
+                  ^ Source.string_of_pos e.at.left
+                  ^ ":" ^ "\n" ^ String.concat "\n" vs');
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (vs, es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintMemory, vs ->
                 print_endline ("Memory State:\n" ^ SM.to_string mem);
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (vs, es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintPC, vs ->
                 let open E in
                 let assertion = Encoding.Formula.to_formula !(encoder.pc) in
@@ -998,13 +1012,13 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   ^ " pc: "
                   ^ Encoding.Formula.pp_to_string assertion);
                 let es' = List.tl es in
-                Result.ok ([ { c with sym_code = (vs, es') } ], [])
+                Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintValue, v :: vs' ->
                 let es' = List.tl es in
                 print_endline
                   (Printf.sprintf "%d" e.at.left.line
-                  ^ ":val: " ^ pp_to_string v);
-                Result.ok ([ { c with sym_code = (vs, es') } ], [])
+                  ^ ":val: " ^ Expression.pp_to_string v);
+                Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | _ ->
                 print_endline
                   (string_of_region e.at ^ ":Not implemented " ^ instr_str e');
@@ -1017,64 +1031,79 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     else "-" ^ string_of_pos e.at.right)
                   ^ "\"" ^ "}"
                 in
-                Result.error (reason, "[]"))
+                Result.error (reason, e.at))
         | SLabel (n, es0, (vs', [])), vs ->
-            Result.ok ([ { c with sym_code = (vs' @ vs, List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs' @ vs, List.tl es) } ])
         | SLabel (n, es0, (vs', { it = Interrupt i; at } :: es')), vs ->
             let es' =
               (Interrupt i @@ at) :: [ SLabel (n, es0, (vs', es')) @@ e.at ]
             in
-            Result.ok ([ { c with sym_code = (vs, es' @ List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs, es' @ List.tl es) } ])
         | SLabel (n, es0, (vs', { it = STrapping msg; at } :: es')), vs ->
             (* TODO *)
             Trap.error e.at "trap"
         | SLabel (n, es0, (vs', { it = SReturning vs0; at } :: es')), vs ->
             let vs'' = take n vs0 e.at @ vs in
-            Result.ok ([ { c with sym_code = (vs'', List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs'', List.tl es) } ])
         | SLabel (n, es0, (vs', { it = SBreaking (0l, vs0); at } :: es')), vs ->
             let vs'' = take n vs0 e.at @ vs in
             let es' = List.map plain es0 in
-            Result.ok ([ { c with sym_code = (vs'', es' @ List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs'', es' @ List.tl es) } ])
         | SLabel (n, es0, (vs', { it = SBreaking (k, vs0); at } :: es')), vs ->
             let es0' = SBreaking (Int32.sub k 1l, vs0) @@ at in
-            Result.ok ([ { c with sym_code = (vs, es0' :: List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs, es0' :: List.tl es) } ])
         | SLabel (n, es0, code'), vs ->
-            (* FIXME: path conditions *)
             Result.map
-              (fun (cs', outs') ->
-                ( List.map
-                    (fun c ->
-                      let es0' = SLabel (n, es0, c.sym_code) @@ e.at in
-                      { c with sym_code = (vs, es0' :: List.tl es) })
-                    cs',
-                  outs' ))
+              (fun step_r ->
+                match step_r with
+                | End pc -> End pc
+                | Continuation cs ->
+                    Continuation
+                      (List.map
+                         (fun (c' : sym_config) ->
+                           let es0' = SLabel (n, es0, c'.sym_code) @@ e.at in
+                           { c' with sym_code = (vs, es0' :: List.tl es) })
+                         cs))
               (step { c with sym_code = code' })
         | SFrame (n, frame', (vs', [])), vs ->
-            Result.ok ([ { c with sym_code = (vs' @ vs, List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs' @ vs, List.tl es) } ])
         | SFrame (n, frame', (vs', { it = Interrupt i; at } :: es')), vs ->
             let es' =
               (Interrupt i @@ at) :: [ SFrame (n, frame', (vs', es')) @@ e.at ]
             in
-            Result.ok ([ { c with sym_code = (vs, es' @ List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs, es' @ List.tl es) } ])
         | SFrame (n, frame', (vs', { it = STrapping msg; at } :: es')), vs ->
             (* TODO *)
             Trap.error e.at "trap"
         | SFrame (n, frame', (vs', { it = SReturning vs0; at } :: es')), vs ->
             let vs'' = take n vs0 e.at @ vs in
-            Result.ok ([ { c with sym_code = (vs'', List.tl es) } ], [])
+            Result.ok
+              (Continuation [ { c with sym_code = (vs'', List.tl es) } ])
         | SFrame (n, frame', code'), vs ->
             Result.map
-              (fun (cs', outs') ->
-                ( List.map
-                    (fun (c' : sym_config) ->
-                      let es0 = SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at in
-                      {
-                        c' with
-                        sym_code = (vs, es0 :: List.tl es);
-                        sym_frame = clone_frame frame;
-                      })
-                    cs',
-                  outs' ))
+              (fun step_r ->
+                match step_r with
+                | End pc -> End pc
+                | Continuation cs ->
+                    Continuation
+                      (List.map
+                         (fun (c' : sym_config) ->
+                           let es0 =
+                             SFrame (n, c'.sym_frame, c'.sym_code) @@ e.at
+                           in
+                           {
+                             c' with
+                             sym_code = (vs, es0 :: List.tl es);
+                             sym_frame = clone_frame frame;
+                           })
+                         cs))
               (step
                  {
                    sym_frame = frame';
@@ -1112,7 +1141,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 in
                 let es0 = SFrame (List.length out, frame', code') @@ e.at in
                 Result.ok
-                  ([ { c with sym_code = (vs', es0 :: List.tl es) } ], [])
+                  (Continuation
+                     [ { c with sym_code = (vs', es0 :: List.tl es) } ])
             | Func.HostFunc (t, f) -> failwith "HostFunc error"))
 end
 
@@ -1144,33 +1174,48 @@ let func_to_globs (func : func_inst) : Globals.t =
   | Some inst -> Globals.from_list !inst.globals
   | None -> Hashtbl.create 0
 
-let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) : unit =
-  let open Interpreter in
-  let open Source in
-  let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
+let write_report (error : (string * Interpreter.Source.region) option)
+    (loop_time : float) (paths : int) (solver_count : int) (step_count : int) :
+    unit =
+  let spec, reason =
+    match error with
+    | None -> (true, "{}")
+    | Some e -> (false, Concolic.Eval.get_reason e)
+  in
+  let time_solver =
+    !Encoding.Incremental.time_solver +. !Encoding.Batch.time_solver
+  in
+  let report_str =
+    "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
+    ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
+    ^ "\"solver_time\" : \""
+    ^ string_of_float time_solver
+    ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int paths ^ ", "
+    ^ "\"solver_counter\" : " ^ string_of_int solver_count ^ ", "
+    ^ "\"instruction_counter\" : " ^ string_of_int step_count ^ "}"
+  in
+  Interpreter.Io.save_file
+    (Filename.concat !Interpreter.Flags.output "report.json")
+    report_str
+
+let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
+  let open Interpreter.Source in
+  let at =
+    match func with
+    | Interpreter.Func.AstFunc (_, _, f) -> f.at
+    | _ -> no_region
+  in
   (* extract globals to symbolic config *)
   let globs = func_to_globs func in
   let helper = parse_memory_and_encoding () in
-  let spec, reason, witness, loop_time, solver_time, paths =
+
+  Interpreter.Io.safe_mkdir !Interpreter.Flags.output;
+  let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
+  Interpreter.Io.safe_mkdir test_suite;
+
+  let spec, reason, loop_time, solver_time, paths =
     helper empty_module_inst (List.rev vs) [ SInvoke func @@ at ] mem0 globs
   in
 
-  Io.safe_mkdir !Flags.output;
-
-  (* Execution report *)
-  let fmt_str =
-    "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
-    ^ reason ^ ", " ^ "\"witness\" : " ^ witness ^ ", "
-    (* "\"coverage\" : \""          ^ (string_of_float coverage)     ^ "\", " ^ *)
-    ^ "\"loop_time\" : \""
-    ^ string_of_float loop_time ^ "\", " ^ "\"solver_time\" : \""
-    ^ string_of_float solver_time
-    ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int paths ^ ", "
-    ^ "\"solver_counter\" : "
-    ^ string_of_int !solver_counter
-    ^ (*", " ^*)
-      (* "\"instruction_counter\" : " ^ (string_of_int !step_cnt)      ^ ", " ^ *)
-      (* "\"incomplete\" : "          ^ (string_of_bool !incomplete)   ^ *)
-    "}"
-  in
-  Io.save_file (Filename.concat !Flags.output "report.json") fmt_str
+  (* TODO: review solver_counter, hybrid will be wrong *)
+  write_report reason loop_time paths !solver_counter 0

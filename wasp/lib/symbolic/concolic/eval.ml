@@ -624,9 +624,13 @@ let get_reason (err_t, at) : string =
   in
   "{" ^ "\"type\" : \"" ^ err_t ^ "\", " ^ "\"line\" : \"" ^ loc ^ "\"" ^ "}"
 
-let write_test_case ?(witness = false) out_dir test_data cnt : unit =
+let test_case_cntr = count 0
+
+(* TODO: this function should be a lib of both symbolic and concolic *)
+let write_test_case ?(witness = false) test_data : unit =
+  let out_dir = Filename.concat !Interpreter.Flags.output "test_suite" in
   if not (test_data = "[]") then
-    let i = cnt () in
+    let i = test_case_cntr () in
     let filename =
       if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
       else Printf.sprintf "%s/test_%05d.json" out_dir i
@@ -713,7 +717,6 @@ end
 
 module Guided_search (L : Work_list) = struct
   let invoke (c : config) (test_suite : string) =
-    let cntr = count 0 in
     let glob0 = Globals.copy c.glob
     and code0 = c.code
     and mem0 = Heap.memcpy c.mem in
@@ -742,7 +745,7 @@ module Guided_search (L : Work_list) = struct
       match code with
       | vs, { it = Interrupt Limit; at } :: _ -> None
       | vs, { it = Interrupt i; at } :: _ ->
-          write_test_case test_suite ~witness:true (Store.to_json store) cntr;
+          write_test_case ~witness:true (Store.to_json store);
           Some (string_of_interruption i, at)
       | vs, { it = Restart pc; _ } :: es ->
           iterations := !iterations - 1;
@@ -750,7 +753,7 @@ module Guided_search (L : Work_list) = struct
           else if L.is_empty wl || not (find_sat_pc wl) then None
           else loop (reset c glob0 code0 mem0)
       | _ ->
-          write_test_case test_suite (Store.to_json store) cntr;
+          write_test_case (Store.to_json store);
           if L.is_empty wl || not (find_sat_pc wl) then None
           else loop (reset c glob0 code0 mem0)
     in

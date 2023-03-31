@@ -1,14 +1,8 @@
 open Common
 open Encoding
-open Expression
 
 type bug = Overflow | UAF | InvalidFree
-
-type interruption =
-  | IntLimit
-  | AsmFail of pc
-  | AssFail of string
-  | Bug of bug * string
+type interruption = IntLimit | AssFail of string | Bug of bug * string
 
 (*  Symbolic Frame  *)
 type sym_frame = {
@@ -37,6 +31,7 @@ and sym_admin_instr' =
 
 module type Interpreter = sig
   type sym_config
+  type step_res = End of Expression.pc | Continuation of sym_config list
 
   val clone : sym_config -> sym_config * sym_config
   val time_solver : float ref
@@ -49,8 +44,7 @@ module type Interpreter = sig
     Globals.t ->
     sym_config
 
-  val step :
-    sym_config -> (sym_config list * Expression.pc list, string * string) result
+  val step : sym_config -> (step_res, string * Interpreter.Source.region) result
 end
 
 module type WorkList = sig
@@ -67,7 +61,8 @@ module type WorkList = sig
 end
 
 module TreeStrategy (L : WorkList) (I : Interpreter) = struct
-  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
+  let eval (c : I.sym_config) :
+      (Expression.pc list, string * Interpreter.Source.region) result =
     let w = L.create () in
     L.push c w;
 
@@ -76,9 +71,10 @@ module TreeStrategy (L : WorkList) (I : Interpreter) = struct
     while Option.is_none !err && not (L.is_empty w) do
       let c = L.pop w in
       match I.step c with
-      | Result.Ok (cs', outs') ->
-          L.add_seq w (List.to_seq cs');
-          outs := !outs @ outs'
+      | Result.Ok step_res -> (
+          match step_res with
+          | I.Continuation cs' -> L.add_seq w (List.to_seq cs')
+          | I.End e -> outs := e :: !outs)
       | Result.Error step_err -> err := Some step_err
     done;
 
@@ -94,7 +90,8 @@ module RS = TreeStrategy (RandArray)
 module BFS_L (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
+  let eval (c : I.sym_config) :
+      (Expression.pc list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -104,11 +101,13 @@ module BFS_L (I : Interpreter) = struct
       let l = Queue.length w in
       let c = Queue.pop w in
       match I.step c with
-      | Result.Ok (cs', outs') ->
-          if l + List.length cs' <= max_configs then
-            Queue.add_seq w (List.to_seq cs')
-          else Queue.push c w;
-          outs := !outs @ outs'
+      | Result.Ok step_res -> (
+          match step_res with
+          | I.Continuation cs' ->
+              if l + List.length cs' <= max_configs then
+                Queue.add_seq w (List.to_seq cs')
+              else Queue.push c w
+          | I.End e -> outs := e :: !outs)
       | Result.Error step_err -> err := Some step_err
     done;
 
@@ -120,7 +119,8 @@ end
 module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
+  let eval (c : I.sym_config) :
+      (Expression.pc list, string * Interpreter.Source.region) result =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -129,9 +129,10 @@ module Half_BFS (I : Interpreter) = struct
     while Option.is_none !err && not (Queue.is_empty w) do
       let c = Queue.pop w in
       match I.step c with
-      | Result.Ok (cs', outs') ->
-          Queue.add_seq w (List.to_seq cs');
-          outs := !outs @ outs'
+      | Result.Ok step_res -> (
+          match step_res with
+          | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
+          | I.End e -> outs := e :: !outs)
       | Result.Error step_err ->
           err := Some step_err;
           let l = Queue.length w in
@@ -152,7 +153,8 @@ module Half_BFS (I : Interpreter) = struct
 end
 
 module ProgressBFS (I : Interpreter) = struct
-  let eval (c : I.sym_config) : (Expression.pc list, string * string) result =
+  let eval (c : I.sym_config) :
+      (Expression.pc list, string * Interpreter.Source.region) result =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
@@ -168,11 +170,13 @@ module ProgressBFS (I : Interpreter) = struct
         let l = Queue.length hot in
         let c = Queue.pop hot in
         match I.step c with
-        | Result.Ok (cs', outs') ->
-            if l + List.length cs' <= !max_configs then
-              Queue.add_seq hot (List.to_seq cs')
-            else Queue.add_seq cold (List.to_seq cs');
-            outs := !outs @ outs'
+        | Result.Ok step_res -> (
+            match step_res with
+            | I.Continuation cs' ->
+                if l + List.length cs' <= !max_configs then
+                  Queue.add_seq hot (List.to_seq cs')
+                else Queue.add_seq cold (List.to_seq cs')
+            | I.End e -> outs := e :: !outs)
         | Result.Error step_err -> err := Some step_err
       done;
       Queue.transfer cold hot;
@@ -195,7 +199,8 @@ module Helper (I : Interpreter) = struct
 
   let helper (inst : Interpreter.Instance.module_inst) (vs : Expression.t list)
       (es : sym_admin_instr list) (sym_m : Concolic.Heap.t) (globs : Globals.t)
-      : bool * string * string * float * float * int =
+      : bool * (string * Interpreter.Source.region) option * float * float * int
+      =
     let c = I.sym_config inst vs es sym_m globs in
 
     let eval =
@@ -209,13 +214,13 @@ module Helper (I : Interpreter) = struct
     in
 
     let loop_start = Sys.time () in
-    let spec, reason, witness, paths =
+    let spec, reason, paths =
       match eval c with
-      | Result.Ok pcs -> (true, "{}", "[]", List.length pcs)
-      | Result.Error (reason, witness) -> (false, reason, witness, 1)
+      | Result.Ok pcs -> (true, None, List.length pcs)
+      | Result.Error step_err -> (false, Some step_err, 1)
     in
 
     let loop_time = Sys.time () -. loop_start in
 
-    (spec, reason, witness, loop_time, !I.time_solver, paths)
+    (spec, reason, loop_time, !I.time_solver, paths)
 end
