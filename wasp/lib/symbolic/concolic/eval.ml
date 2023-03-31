@@ -43,6 +43,7 @@ let numeric_error at = function
 type policy = Random | Depth | Breadth
 type bug = Overflow | UAF | InvalidFree
 type interruption = Limit | Failure of Formula.t | Bug of bug
+type value = Num.t * Expression.t
 type 'a stack = 'a list
 type frame = { inst : module_inst; locals : value ref list }
 
@@ -369,7 +370,7 @@ let rec step (c : config) : config =
         | MemorySize, vs ->
             let mem' = memory frame.inst (0l @@ e.at) in
             let v : Num.t = I32 (Interpreter.Memory.size mem') in
-            ((v, Num v) :: vs, [], pc, bp)
+            ((v, Val (Num v)) :: vs, [], pc, bp)
         | MemoryGrow, (I32 delta, _) :: vs' ->
             let mem' = memory frame.inst (0l @@ e.at) in
             let old_size = Interpreter.Memory.size mem' in
@@ -382,10 +383,10 @@ let rec step (c : config) : config =
               | Memory.SizeOverflow | Memory.SizeLimit | Memory.OutOfMemory ->
                 -1l
             in
-            ((I32 result, Num (I32 result)) :: vs', [], pc, bp)
+            ((I32 result, Val (Num (I32 result))) :: vs', [], pc, bp)
         | Const v, vs ->
             let v' = Evaluations.of_value v.it in
-            ((v', Num v') :: vs, [], pc, bp)
+            ((v', Val (Num v')) :: vs, [], pc, bp)
         | Test testop, v :: vs' -> (
             try (eval_testop v testop :: vs', [], pc, bp)
             with exn ->
@@ -460,7 +461,7 @@ let rec step (c : config) : config =
               (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], pc, bp))
         | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
             Hashtbl.add heap b a;
-            ((I32 b, SymPtr (b, Num (I32 0l))) :: vs', [], pc, bp)
+            ((I32 b, SymPtr (b, Val (Num (I32 0l)))) :: vs', [], pc, bp)
         | Free, (I32 i, _) :: vs' ->
             let es' =
               if not (Hashtbl.mem heap i) then
@@ -515,7 +516,7 @@ let rec step (c : config) : config =
                   let cond = Binop (I32 I32.And, t_imp, f_imp) in
                   ( (r, s_x),
                     Encoding.Formula.add_constraint
-                      (Relop (I32 I32.Ne, cond, Num (I32 0l)))
+                      (Relop (I32 I32.Ne, cond, Val (Num (I32 0l))))
                       pc )
             in
             (v :: vs', [], pc', bp)
@@ -552,8 +553,8 @@ let rec step (c : config) : config =
         | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
             let base = Interpreter.I64_convert.extend_i32_u i in
             let _, v = Heap.load_bytes mem base (Int32.to_int n) in
-            let result : Num.t = I32 (match v with Num _ -> 0l | _ -> 1l) in
-            ((result, Num result) :: vs', [], pc, bp)
+            let result : Num.t = I32 (match v with Val _ -> 0l | _ -> 1l) in
+            ((result, Val (Num result)) :: vs', [], pc, bp)
         | SetPriority, _ :: _ :: _ :: vs' -> (vs', [], pc, bp)
         | PopPriority, _ :: vs' -> (vs', [], pc, bp)
         | _ -> Crash.error e.at "missing or ill-typed operand on stack")
@@ -629,7 +630,7 @@ let rec step (c : config) : config =
         | Interpreter.Func.AstFunc (t, inst', f) ->
             let locals' =
               List.map
-                (fun v -> (v, Num v))
+                (fun v -> (v, Val (Num v)))
                 (List.map
                    (fun t -> Num.default_value (Evaluations.to_num_type t))
                    f.it.locals)
@@ -898,7 +899,7 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
        (List.mapi
           (fun i a ->
             let v = Global.load a in
-            (Int32.of_int i, (of_value v, Num (of_value v))))
+            (Int32.of_int i, (of_value v, Val (Num (of_value v)))))
           inst.globals));
   let c =
     config empty_module_inst (List.rev vs)

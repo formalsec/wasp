@@ -1,7 +1,6 @@
 open Encoding
-open Expression
 
-type globals = (int32, value) Hashtbl.t
+type globals = (int32, Num.t * Expression.t) Hashtbl.t
 type t = globals
 
 let create () = Hashtbl.create Interpreter.Flags.hashtbl_default_size

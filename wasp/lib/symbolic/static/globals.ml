@@ -36,7 +36,7 @@ let from_list (global_inst_list : global_inst list) : t =
         ( Int32.of_int idx,
           let value = Interpreter.Global.load glob in
           let typ = Interpreter.Global.type_of glob in
-          let expr = Num (Evaluations.of_value value) in
+          let expr = Val (Num (Evaluations.of_value value)) in
           alloc typ expr ))
       global_inst_list
   in

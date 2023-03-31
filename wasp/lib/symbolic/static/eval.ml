@@ -140,10 +140,11 @@ module type Encoder = sig
   val add_formula : t -> Encoding.Formula.t -> unit
   val check : t -> Expression.t option -> bool
   val fork : t -> Expression.t -> bool * bool
-  val value_binds : t -> (string * expr_type) list -> (string * Num.t) list
 
-  val string_binds :
-    t -> (string * expr_type) list -> (string * string * string) list
+  val value_binds :
+    t -> (string * expr_type) list -> (string * Expression.value) list
+
+  val string_binds : t -> (string * string * string) list
 end
 
 module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
@@ -319,7 +320,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let helper (size : int32 option) : sym_config option =
       let size_cond =
         Option.map
-          (function size -> Relop (I32 I32.Eq, s_size, Num (I32 size)))
+          (function size -> Relop (I32 I32.Eq, s_size, Val (Num (I32 size))))
           size
       in
       match E.check encoder size_cond with
@@ -355,11 +356,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   ^ Types.string_of_num_type (Types.type_of_num c_base))
           in
 
-          let base_cond = Relop (I32 I32.Eq, s_base, Num (I32 base)) in
+          let base_cond = Relop (I32 I32.Eq, s_base, Val (Num (I32 base))) in
           E.add c.encoder base_cond;
           Hashtbl.add c.chunk_table base size;
 
-          let sym_ptr = SymPtr (base, Num (I32 0l)) in
+          let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
           Some { c with sym_code = (sym_ptr :: List.tl vs, List.tl es) }
     in
 
@@ -389,7 +390,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     match es with
     | [] ->
         assert (E.check encoder None);
-        let string_binds = E.string_binds encoder (Varmap.binds varmap) in
+        let string_binds = E.string_binds encoder in
         let witness = Concolic.Store.strings_to_json string_binds in
         Concolic.Eval.write_test_case witness;
         let open E in
@@ -406,12 +407,12 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   (Continuation [ { c with sym_code = (vs', List.tl es) } ])
             | Select, ex :: v2 :: v1 :: vs' -> (
                 match simplify ex with
-                | Num (I32 0l) ->
+                | Val (Num (I32 0l)) ->
                     (* if it is 0 *)
                     Result.ok
                       (Continuation
                          [ { c with sym_code = (v2 :: vs', List.tl es) } ])
-                | Num (I32 _) ->
+                | Val (Num (I32 _)) ->
                     (* if it is not 0 *)
                     Result.ok
                       (Continuation
@@ -461,7 +462,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | If (ts, es1, es2), ex :: vs' -> (
                 let es' = List.tl es in
                 match simplify ex with
-                | Num (I32 0l) ->
+                | Val (Num (I32 0l)) ->
                     (* if it is 0 *)
                     Result.ok
                       (Continuation
@@ -472,7 +473,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                                (vs', [ SPlain (Block (ts, es2)) @@ e.at ] @ es');
                            };
                          ])
-                | Num (I32 _) ->
+                | Val (Num (I32 _)) ->
                     (* if it is not 0 *)
                     Result.ok
                       (Continuation
@@ -541,12 +542,12 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                      ])
             | BrIf x, ex :: vs' -> (
                 match simplify ex with
-                | Num (I32 0l) ->
+                | Val (Num (I32 0l)) ->
                     (* if it is 0 *)
                     let es' = List.tl es in
                     Result.ok
                       (Continuation [ { c with sym_code = (vs', es') } ])
-                | Num (I32 _) ->
+                | Val (Num (I32 _)) ->
                     (* if it is not 0 *)
                     Result.ok
                       (Continuation
@@ -605,7 +606,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                            (vs, [ SInvoke (func frame.sym_inst x) @@ e.at ] @ t);
                        };
                      ])
-            | CallIndirect x, Num (I32 i) :: vs ->
+            | CallIndirect x, Val (Num (I32 i)) :: vs ->
                 let func = func_elem frame.sym_inst (0l @@ e.at) i e.at in
                 let es' =
                   if type_ frame.sym_inst x <> Func.type_of func then
@@ -661,7 +662,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                           ^ Encoding.Types.string_of_num_type ty);
 
                       let ptr_cond =
-                        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Num ptr)
+                        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr))
                       in
                       E.add encoder ptr_cond;
 
@@ -707,7 +708,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 | BugException (b, at, _) ->
                     assert (E.check encoder None);
                     let string_binds =
-                      E.string_binds encoder (Varmap.binds varmap)
+                      E.string_binds encoder
                     in
                     let witness = Concolic.Store.strings_to_json string_binds in
                     Concolic.Eval.write_test_case ~witness:true witness;
@@ -750,7 +751,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                           ^ Encoding.Types.string_of_num_type ty);
 
                       let ptr_cond =
-                        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Num ptr)
+                        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr))
                       in
                       E.add encoder ptr_cond;
 
@@ -789,7 +790,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 | BugException (b, at, _) ->
                     assert (E.check encoder None);
                     let string_binds =
-                      E.string_binds encoder (Varmap.binds varmap)
+                      E.string_binds encoder
                     in
                     let witness = Concolic.Store.strings_to_json string_binds in
                     Concolic.Eval.write_test_case ~witness:true witness;
@@ -820,7 +821,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                      [
                        {
                          c with
-                         sym_code = (Num (Evaluations.of_value v.it) :: vs, es');
+                         sym_code =
+                           (Val (Num (Evaluations.of_value v.it)) :: vs, es');
                        };
                      ])
             | Test testop, v :: vs' -> (
@@ -962,16 +964,16 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                          sym_code = (Symbolic (`F64Type, x) :: vs', es');
                        };
                      ])
-            | SymAssert, Num (I32 0l) :: vs' ->
+            | SymAssert, Val (Num (I32 0l)) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
                 assert (E.check encoder None);
                 let string_binds =
-                  E.string_binds encoder (Varmap.binds varmap)
+                  E.string_binds encoder
                 in
                 let witness = Concolic.Store.strings_to_json string_binds in
                 Concolic.Eval.write_test_case ~witness:true witness;
                 Result.error ("Assertion Failure", e.at)
-            | SymAssert, Num (I32 i) :: vs' ->
+            | SymAssert, Val (Num (I32 i)) :: vs' ->
                 (* passed *)
                 debug (string_of_pos e.at.left ^ ":Assert PASSED!");
                 Result.ok
@@ -986,7 +988,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   E.add encoder constr;
                   assert (E.check encoder None);
                   let string_binds =
-                    E.string_binds encoder (Varmap.binds varmap)
+                    E.string_binds encoder
                   in
                   let witness = Concolic.Store.strings_to_json string_binds in
                   debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
@@ -998,10 +1000,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     (Continuation [ { c with sym_code = (vs', List.tl es) } ]))
             | SymAssume, ex :: vs' -> (
                 match simplify ex with
-                | Num (I32 0l) ->
+                | Val (Num (I32 0l)) ->
                     (* if it is 0 *)
                     Result.ok (Continuation [])
-                | SymPtr (_, Num (I32 0l)) | Num (I32 _) ->
+                | SymPtr (_, Val (Num (I32 0l))) | Val (Num (I32 _)) ->
                     (* if it is not 0 *)
                     Result.ok
                       (Continuation [ { c with sym_code = (vs, List.tl es) } ])
@@ -1013,7 +1015,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       let c_true = { c with sym_code = (vs', List.tl es) } in
                       Result.ok (Continuation [ c_true ])
                     else Result.ok (Continuation []))
-            | Symbolic (ty, b), Num (I32 i) :: vs' ->
+            | Symbolic (ty, b), Val (Num (I32 i)) :: vs' ->
                 let base = I64_convert.extend_i32_u i in
                 let symbol = if i = 0l then "x" else SM.load_string mem base in
                 let x = Varmap.next varmap symbol in
@@ -1045,9 +1047,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                                :: es' );
                          };
                        ]))
-            | Alloc, Num (I32 sz) :: Num (I32 base) :: vs' ->
+            | Alloc, Val (Num (I32 sz)) :: Val (Num (I32 base)) :: vs' ->
                 Hashtbl.add chunk_table base sz;
-                let sym_ptr = SymPtr (base, Num (I32 0l)) in
+                let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
                 Result.ok
                   (Continuation
                      [ { c with sym_code = (sym_ptr :: vs', List.tl es) } ])
@@ -1055,12 +1057,12 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 Result.ok (Continuation (concretize_alloc c))
             | Free, ptr :: vs' -> (
                 match simplify ptr with
-                | SymPtr (base, Num (I32 0l)) ->
+                | SymPtr (base, Val (Num (I32 0l))) ->
                     let es' =
                       if not (Hashtbl.mem chunk_table base) then (
                         assert (E.check encoder None);
                         let string_binds =
-                          E.string_binds encoder (Varmap.binds varmap)
+                          E.string_binds encoder
                         in
                         let witness =
                           Concolic.Store.strings_to_json string_binds
@@ -1213,7 +1215,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | Func.AstFunc (t, inst', f) ->
                 let locals' =
                   List.map
-                    (fun v -> Num v)
+                    (fun v -> Val (Num v))
                     (List.map
                        (fun t -> Num.default_value (Evaluations.to_num_type t))
                        f.it.locals)

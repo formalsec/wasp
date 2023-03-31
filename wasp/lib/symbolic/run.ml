@@ -523,7 +523,7 @@ let invoke_ce f vs inst =
     (List.map
        (fun v ->
          let v' = Concolic.Evaluations.of_value v.it in
-         (v', Expression.Num v'))
+         (v', Expression.(Val (Num v'))))
        vs)
     inst
 
@@ -532,7 +532,7 @@ let invoke_se f vs _ =
     (List.map
        (fun v ->
          let v' = Static.Evaluations.of_value v.it in
-         Expression.Num v')
+         Expression.(Val (Num v')))
        vs)
 
 let run_file file = input_file file run_script

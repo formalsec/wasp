@@ -13,12 +13,14 @@ let create () : t =
     typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
   }
 
-let to_store (varmap : t) (binds : (string * Num.t) list) : Concolic.Store.t =
+let to_store (varmap : t) (binds : (string * Expression.value) list) :
+    Concolic.Store.t =
   let sym = varmap.sym in
   let ord = varmap.ord in
   let map = Hashtbl.create Interpreter.Flags.hashtbl_default_size in
-  Hashtbl.add_seq map (List.to_seq binds);
-  Concolic.Store.from_parts sym ord map
+  let store = Concolic.Store.from_parts sym ord map in
+  Concolic.Store.init store binds;
+  store
 
 let next (varmap : t) (x : string) : string =
   let id = Counter.get_and_inc varmap.sym x in

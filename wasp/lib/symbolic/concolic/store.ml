@@ -27,14 +27,17 @@ let copy (s : t) : t =
 
 let clear (s : t) : unit = Hashtbl.clear s.map
 
-let init (s : t) (binds : bind list) : unit =
-  List.iter (fun (k, v) -> Hashtbl.add s.map k v) binds
+let init (s : t) (binds : (string * Expression.value) list) : unit =
+  List.iter
+    (fun (x, v) ->
+      match v with Num n -> Hashtbl.replace s.map x n | _ -> assert false)
+    binds
 
 let from_parts (sym : Counter.t) (ord : name BatDynArray.t)
     (map : (name, Num.t) Hashtbl.t) : t =
   { sym; ord; map }
 
-let create (binds : bind list) : t =
+let create (binds : (string * Expression.value) list) : t =
   let s =
     {
       sym = Counter.create ();
@@ -74,8 +77,11 @@ let next (s : t) (x : name) : name =
 
 let is_empty (s : t) : bool = 0 = Hashtbl.length s.map
 
-let update (s : t) (binds : bind list) : unit =
-  List.iter (fun (x, v) -> Hashtbl.replace s.map x v) binds
+let update (s : t) (binds : (string * Expression.value) list) : unit =
+  List.iter
+    (fun (x, v) ->
+      match v with Num n -> Hashtbl.replace s.map x n | _ -> assert false)
+    binds
 
 let to_json (s : t) : string =
   let jsonify_bind (b : bind) : string =
@@ -115,11 +121,10 @@ let to_expr (s : t) : expr list =
     (fun k (n : Num.t) acc ->
       let e =
         match n with
-        | I32 _ -> Relop (I32 I32.Eq, Symbolic (`I32Type, k), Num n)
-        | I64 _ -> Relop (I64 I64.Eq, Symbolic (`I64Type, k), Num n)
-        | F32 _ -> Relop (F32 F32.Eq, Symbolic (`F32Type, k), Num n)
-        | F64 _ -> Relop (F64 F64.Eq, Symbolic (`F64Type, k), Num n)
-        | _ -> assert false
+        | I32 _ -> Relop (I32 I32.Eq, Symbolic (`I32Type, k), Val (Num n))
+        | I64 _ -> Relop (I64 I64.Eq, Symbolic (`I64Type, k), Val (Num n))
+        | F32 _ -> Relop (F32 F32.Eq, Symbolic (`F32Type, k), Val (Num n))
+        | F64 _ -> Relop (F64 F64.Eq, Symbolic (`F64Type, k), Val (Num n))
       in
       e :: acc)
     s.map []
@@ -129,7 +134,7 @@ let rec eval (env : t) (e : expr) : Num.t =
   | SymPtr (b, o) ->
       let b : Num.t = I32 b in
       Eval_numeric.eval_binop (I32 I32.Add) b (eval env o)
-  | Num n -> n
+  | Val (Num n) -> n
   | Binop (op, e1, e2) ->
       let v1 = eval env e1 and v2 = eval env e2 in
       Eval_numeric.eval_binop op v1 v2
@@ -148,8 +153,7 @@ let rec eval (env : t) (e : expr) : Num.t =
         match eval env e' with
         | I32 x | F32 x -> Int64.of_int32 x
         | I64 x | F64 x -> x
-        | _ -> assert false
       in
       I64 (nland64 (Int64.shift_right v (l * 8)) (h - l))
   | Concat (e1, e2) -> eval env (simplify (e1 ++ e2))
-  | Str _ -> assert false
+  | Val _ -> assert false

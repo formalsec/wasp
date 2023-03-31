@@ -1,6 +1,5 @@
 open Encoding
 open Types
-open Expression
 open Interpreter.Memory
 
 type memory
@@ -28,10 +27,17 @@ val store_byte : memory -> address -> store -> unit
 val load_string : memory -> address -> string
 val load_bytes : memory -> address -> int -> string * Expression.t
 val store_bytes : memory -> address -> string -> unit
-val load_value : memory -> address -> offset -> num_type -> value
-val store_value : memory -> address -> offset -> value -> unit
+val load_value : memory -> address -> offset -> num_type -> Num.t * Expression.t
+val store_value : memory -> address -> offset -> Num.t * Expression.t -> unit
 
 val load_packed :
-  pack_size -> extension -> memory -> address -> offset -> num_type -> value
+  pack_size ->
+  extension ->
+  memory ->
+  address ->
+  offset ->
+  num_type ->
+  Num.t * Expression.t
 
-val store_packed : pack_size -> memory -> address -> offset -> value -> unit
+val store_packed :
+  pack_size -> memory -> address -> offset -> Num.t * Expression.t -> unit

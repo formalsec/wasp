@@ -42,7 +42,7 @@ module LazyMemory : MemoryBackend = struct
         | Some b ->
             Hashtbl.add lmem.map a b;
             b
-        | None -> Extract (Num (I64 0L), 1, 0))
+        | None -> Extract (Val (Num (I64 0L)), 1, 0))
 
   let from_heap (heap : Concolic.Heap.t) : t =
     let concolic_seq = Concolic.Heap.to_seq heap in
@@ -94,7 +94,7 @@ module MapMemory : MemoryBackend = struct
   let load_byte (map : t) (a : address) : Expression.t =
     match Hashtbl.find_opt map a with
     | Some b -> b
-    | None -> Extract (Num (I64 0L), 1, 0)
+    | None -> Extract (Val (Num (I64 0L)), 1, 0)
 
   let from_heap (map : Concolic.Heap.t) : t =
     let concolic_seq = Concolic.Heap.to_seq map in
@@ -151,7 +151,7 @@ module TreeMemory : MemoryBackend = struct
   let load_byte (map : t) (a : address) : Expression.t =
     match Int64Map.find_opt a map.tree with
     | Some b -> b
-    | None -> Extract (Num (I64 0L), 1, 0)
+    | None -> Extract (Val (Num (I64 0L)), 1, 0)
 
   let from_heap (map : Concolic.Heap.t) : t =
     let concolic_seq = Concolic.Heap.to_seq map in
@@ -248,20 +248,19 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       match ty with
       | `I32Type -> (
           match expr with
-          | Num (I64 v) -> Num (I32 (Int64.to_int32 v))
+          | Val (Num (I64 v)) -> Val (Num (I32 (Int64.to_int32 v)))
           | _ -> expr)
       | `I64Type -> expr
       | `F32Type -> (
           match expr with
-          | Num (I64 v) -> Num (F32 (Int64.to_int32 v))
+          | Val (Num (I64 v)) -> Val (Num (F32 (Int64.to_int32 v)))
           | Cvtop (I32 I32.ReinterpretFloat, v) -> v
           | _ -> Cvtop (F32 F32.ReinterpretInt, expr))
       | `F64Type -> (
           match expr with
-          | Num (I64 v) -> Num (F64 v)
+          | Val (Num (I64 v)) -> Val (Num (F64 v))
           | Cvtop (I64 I64.ReinterpretFloat, v) -> v
           | _ -> Cvtop (F64 F64.ReinterpretInt, expr))
-      | _ -> assert false
     in
     expr
 
@@ -272,7 +271,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     let expr =
       let rec loop acc i =
         if i >= Types.size_of_num_type ty then acc
-        else loop (acc @ [ Extract (Num (I64 0L), 1, 0) ]) (i + 1)
+        else loop (acc @ [ Extract (Val (Num (I64 0L)), 1, 0) ]) (i + 1)
       in
       let exprs = loop exprs (List.length exprs) in
       List.(fold_left (fun acc e -> e ++ acc) (hd exprs) (tl exprs))
@@ -285,7 +284,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       match ty with
       | `I32Type -> (
           match expr with
-          | Num (I64 v) -> Num (I32 (Int64.to_int32 v))
+          | Val (Num (I64 v)) -> Val (Num (I32 (Int64.to_int32 v)))
           | _ -> expr)
       | `I64Type -> expr
       | _ -> failwith "load_packed only exists for i32 and i64"
@@ -297,7 +296,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       let sb = MB.load_byte mem a in
       let b =
         match sb with
-        | Extract (Num (I64 b), 1, 0) -> Int64.to_int b
+        | Extract (Val (Num (I64 b)), 1, 0) -> Int64.to_int b
         | _ ->
             failwith
               ("Symmem.load_string failed to load a char"
@@ -315,16 +314,16 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       match ty with
       | `I32Type -> (
           match value with
-          | Num (I32 i) -> Num (I64 (Int64.of_int32 i))
+          | Val (Num (I32 i)) -> Val (Num (I64 (Int64.of_int32 i)))
           | _ -> value)
       | `I64Type -> value
       | `F32Type -> (
           match value with
-          | Num (F32 f) -> Num (I64 (Int64.of_int32 f))
+          | Val (Num (F32 f)) -> Val (Num (I64 (Int64.of_int32 f)))
           | _ -> Cvtop (I32 I32.ReinterpretFloat, value))
       | `F64Type -> (
           match value with
-          | Num (F64 f) -> Num (I64 f)
+          | Val (Num (F64 f)) -> Val (Num (I64 f))
           | _ -> Cvtop (I64 I64.ReinterpretFloat, value))
       | _ -> assert false
     in
@@ -334,8 +333,8 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       (value : Expression.t) =
     let value : Expression.t =
       match value with
-      | Num (I32 x) -> Num (I64 (Int64.of_int32 x))
-      | Num (I64 x) -> Num (I64 x)
+      | Val (Num (I32 x)) -> Val (Num (I64 (Int64.of_int32 x)))
+      | Val (Num (I64 x)) -> Val (Num (I64 x))
       | _ -> value
     in
     storen mem a o (length_pack_size sz) value

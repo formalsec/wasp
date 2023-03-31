@@ -14,7 +14,6 @@ let to_value (n : Num.t) : Interpreter.Values.value =
   | I64 i -> Values.I64 i
   | F32 f -> Values.F32 (F32.of_bits f)
   | F64 f -> Values.F64 (F64.of_bits f)
-  | _ -> assert false
 
 let of_value (v : Interpreter.Values.value) : Num.t =
   let open Interpreter in
@@ -33,7 +32,7 @@ let to_num_type (t : Interpreter.Types.value_type) =
   | Types.F64Type -> `F64Type
 
 (*  Evaluate a unary operation  *)
-let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
+let eval_unop (e : Num.t * expr) (op : Interpreter.Ast.unop) : Num.t * expr =
   let f32_unop op e =
     match op with
     | F32Op.Neg -> Unop (F32 Neg, e)
@@ -58,7 +57,7 @@ let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
   let c' = of_value (Interpreter.Eval_numeric.eval_unop op (to_value c)) in
   let s' =
     match s with
-    | Num _ -> Num c'
+    | Val (Num _) -> Val (Num c')
     | _ -> (
         let (* dispatch *)
         open Interpreter in
@@ -71,7 +70,8 @@ let eval_unop (e : Expression.value) (op : Interpreter.Ast.unop) : value =
   (c', s')
 
 (*  Evaluate a binary operation *)
-let eval_binop (e1 : value) (e2 : value) (op : Interpreter.Ast.binop) : value =
+let eval_binop (e1 : Num.t * t) (e2 : Num.t * t) (op : Interpreter.Ast.binop) :
+    Num.t * t =
   let i32_binop op e1 e2 =
     match op with
     | I32Op.Add -> Binop (I32 Add, e1, e2)
@@ -135,7 +135,7 @@ let eval_binop (e1 : value) (e2 : value) (op : Interpreter.Ast.binop) : value =
   in
   let s =
     match (s1, s2) with
-    | Num _, Num _ -> Num c
+    | Val (Num _), Val (Num _) -> Val (Num c)
     | _ -> (
         let (* dispatch *)
         open Interpreter in
@@ -148,25 +148,28 @@ let eval_binop (e1 : value) (e2 : value) (op : Interpreter.Ast.binop) : value =
   (c, s)
 
 (*  Evaluate a test operation  *)
-let eval_testop (e : value) (op : testop) : value =
+let eval_testop (e : Num.t * t) (op : testop) : Num.t * t =
   let c, s = e in
   let c' =
     Num.num_of_bool (Interpreter.Eval_numeric.eval_testop op (to_value c))
   in
   let s' =
     match s with
-    | Num _ -> Num c'
-    | SymPtr (b, Num _) -> Num c'
+    | Val (Num _) -> Val (Num c')
+    | SymPtr (b, Val (Num _)) -> Val (Num c')
     | _ -> (
         match op with
-        | Interpreter.Values.I32 I32Op.Eqz -> Relop (I32 Eq, s, Num (I32 0l))
-        | Interpreter.Values.I64 I64Op.Eqz -> Relop (I64 Eq, s, Num (I64 0L))
+        | Interpreter.Values.I32 I32Op.Eqz ->
+            Relop (I32 Eq, s, Val (Num (I32 0l)))
+        | Interpreter.Values.I64 I64Op.Eqz ->
+            Relop (I64 Eq, s, Val (Num (I64 0L)))
         | _ -> failwith "eval_testop: floats")
   in
   (c', s')
 
 (*  Evaluate a relative operation  *)
-let eval_relop (e1 : value) (e2 : value) (op : Interpreter.Ast.relop) : value =
+let eval_relop (e1 : Num.t * t) (e2 : Num.t * t) (op : Interpreter.Ast.relop) :
+    Num.t * t =
   let i32_relop op e1 e2 =
     match op with
     | I32Op.Eq -> Relop (I32 Eq, e1, e2)
@@ -218,7 +221,7 @@ let eval_relop (e1 : value) (e2 : value) (op : Interpreter.Ast.relop) : value =
   in
   let s =
     match (s1, s2) with
-    | Num _, Num _ -> Num c
+    | Val (Num _), Val (Num _) -> Val (Num c)
     | _ -> (
         let (* dispatch *)
         open Interpreter in
@@ -230,7 +233,7 @@ let eval_relop (e1 : value) (e2 : value) (op : Interpreter.Ast.relop) : value =
   in
   (c, s)
 
-let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
+let eval_cvtop (op : Interpreter.Ast.cvtop) (e : Num.t * t) : Num.t * t =
   (* TODO: sign bit *)
   let i32_cvtop op e =
     let c, s = e in
@@ -283,7 +286,7 @@ let eval_cvtop (op : Interpreter.Ast.cvtop) (e : value) : value =
   let c = of_value (Interpreter.Eval_numeric.eval_cvtop op (to_value c)) in
   let s =
     match s with
-    | Num _ -> Num c
+    | Val (Num _) -> Val (Num c)
     | _ -> (
         let (* dispatch cvtop func *)
         open Interpreter in
