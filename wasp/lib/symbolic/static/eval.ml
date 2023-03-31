@@ -49,7 +49,6 @@ let sym_frame sym_inst sym_locals = { sym_inst; sym_locals }
 
 exception BugException of bug * Interpreter.Source.region * string
 
-let solver_counter = ref 0
 let debug str = if !Interpreter.Flags.trace then print_endline str
 
 let time_call f args acc =
@@ -422,7 +421,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     let negated_co = negate_relop co in
                     let es' = List.tl es in
 
-                    solver_counter := !solver_counter + 2;
                     let sat_then, sat_else = E.fork encoder co in
 
                     let l =
@@ -488,7 +486,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
 
-                    solver_counter := !solver_counter + 2;
                     let sat_then, sat_else = E.fork encoder co in
 
                     let l =
@@ -562,7 +559,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     let negated_co = negate_relop co in
                     let es' = List.tl es in
 
-                    solver_counter := !solver_counter + 2;
                     let sat_then, sat_else = E.fork encoder co in
 
                     let l =
@@ -982,7 +978,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let v = simplify v in
                 debug ("Asserting: " ^ Expression.to_string (simplify v));
                 let constr = negate_relop (Option.get (to_relop v)) in
-                solver_counter := !solver_counter + 1;
                 let sat = E.check encoder (Some constr) in
                 if sat then (
                   E.add encoder constr;
@@ -1009,7 +1004,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       (Continuation [ { c with sym_code = (vs, List.tl es) } ])
                 | ex ->
                     let co = Option.get (to_relop ex) in
-                    solver_counter := !solver_counter + 1;
                     E.add encoder co;
                     if E.check encoder None then
                       let c_true = { c with sym_code = (vs', List.tl es) } in
@@ -1261,21 +1255,24 @@ let func_to_globs (func : func_inst) : Globals.t =
   | None -> Hashtbl.create 0
 
 let write_report (error : (string * Interpreter.Source.region) option)
-    (loop_time : float) (paths : int) (solver_count : int) (step_count : int) :
+    (loop_time : float) (paths : int) (step_count : int) :
     unit =
   let spec, reason =
     match error with
     | None -> (true, "{}")
     | Some e -> (false, Concolic.Eval.get_reason e)
   in
-  let time_solver =
+  let solver_time =
     !Encoding.Incremental.solver_time +. !Encoding.Batch.solver_time
+  in
+  let solver_count =
+    !Encoding.Incremental.solver_count + !Encoding.Batch.solver_count
   in
   let report_str =
     "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
     ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
     ^ "\"solver_time\" : \""
-    ^ string_of_float time_solver
+    ^ string_of_float solver_time
     ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int paths ^ ", "
     ^ "\"solver_counter\" : " ^ string_of_int solver_count ^ ", "
     ^ "\"instruction_counter\" : " ^ string_of_int step_count ^ "}"
@@ -1304,4 +1301,4 @@ let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
   in
 
   (* TODO: review solver_counter, hybrid will be wrong *)
-  write_report reason loop_time paths !solver_counter 0
+  write_report reason loop_time paths 0

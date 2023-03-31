@@ -123,7 +123,6 @@ exception BugException of config * region * bug
 let head = ref Execution_tree.Leaf
 let step_cnt = ref 0
 let iterations = ref 0
-let solver_time = ref 0.
 let loop_start = ref 0.
 let solver = Encoding.Batch.create ()
 let debug str = if !Interpreter.Flags.trace then print_endline str
