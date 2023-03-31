@@ -24,7 +24,8 @@ module MapMemory : MemoryBackend
 module TreeMemory : MemoryBackend
 
 module type SymbolicMemory = sig
-  type t
+  type b
+  type t = { backend : b; chunk_table : (int32, int32) Hashtbl.t }
 
   exception Bounds
 

@@ -176,7 +176,8 @@ module TreeMemory : MemoryBackend = struct
 end
 
 module type SymbolicMemory = sig
-  type t
+  type b
+  type t = { backend : b; chunk_table : (int32, int32) Hashtbl.t }
 
   exception Bounds
 
@@ -195,7 +196,8 @@ module type SymbolicMemory = sig
 end
 
 module SMem (MB : MemoryBackend) : SymbolicMemory = struct
-  type t = MB.t
+  type b = MB.t
+  type t = { backend : b; chunk_table : (int32, int32) Hashtbl.t }
 
   exception Bounds = MB.Bounds
 
@@ -228,12 +230,21 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     loop Int64.(add (effective_address a o) (of_int (n - 1))) n []
 
   (* Public functions *)
-  let from_heap = MB.from_heap
-  let clone = MB.clone
+  let from_heap (h : Concolic.Heap.t) : t =
+    let backend = MB.from_heap h in
+    let chunk_table = Hashtbl.create Interpreter.Flags.hashtbl_default_size in
+    { backend; chunk_table }
 
-  let load_value (mem : MB.t) (a : address) (o : offset) (ty : num_type) :
+  let clone (m : t) : t * t =
+    let backend1, backend2 = MB.clone m.backend in
+    let chunk_table1 = m.chunk_table in
+    let chunk_table2 = Hashtbl.copy chunk_table1 in
+    ( { backend = backend1; chunk_table = chunk_table1 },
+      { backend = backend2; chunk_table = chunk_table2 } )
+
+  let load_value (mem : t) (a : address) (o : offset) (ty : num_type) :
       Expression.t =
-    let exprs = loadn mem a o (Types.size_of_num_type ty) in
+    let exprs = loadn mem.backend a o (Types.size_of_num_type ty) in
     let expr =
       List.(
         fold_left
@@ -264,9 +275,9 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     in
     expr
 
-  let load_packed (sz : pack_size) (mem : MB.t) (a : address) (o : offset)
+  let load_packed (sz : pack_size) (mem : t) (a : address) (o : offset)
       (ty : num_type) : Expression.t =
-    let exprs = loadn mem a o (length_pack_size sz) in
+    let exprs = loadn mem.backend a o (length_pack_size sz) in
     (* pad with 0s *)
     let expr =
       let rec loop acc i =
@@ -291,9 +302,9 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     in
     expr
 
-  let load_string (mem : MB.t) (a : address) : string =
+  let load_string (mem : t) (a : address) : string =
     let rec loop a acc =
-      let sb = MB.load_byte mem a in
+      let sb = MB.load_byte mem.backend a in
       let b =
         match sb with
         | Extract (Val (Num (I64 b)), 1, 0) -> Int64.to_int b
@@ -306,8 +317,8 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     in
     loop a ""
 
-  let store_value (mem : MB.t) (a : address) (o : offset) (value : Expression.t)
-      : unit =
+  let store_value (mem : t) (a : address) (o : offset) (value : Expression.t) :
+      unit =
     let ty = Expression.type_of value in
     let sz = Types.size ty in
     let value =
@@ -327,9 +338,9 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
           | _ -> Cvtop (I64 I64.ReinterpretFloat, value))
       | _ -> assert false
     in
-    storen mem a o sz value
+    storen mem.backend a o sz value
 
-  let store_packed (sz : pack_size) (mem : MB.t) (a : address) (o : offset)
+  let store_packed (sz : pack_size) (mem : t) (a : address) (o : offset)
       (value : Expression.t) =
     let value : Expression.t =
       match value with
@@ -337,10 +348,13 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       | Val (Num (I64 x)) -> Val (Num (I64 x))
       | _ -> value
     in
-    storen mem a o (length_pack_size sz) value
+    storen mem.backend a o (length_pack_size sz) value
 
-  let to_string = MB.to_string
-  let to_heap = MB.to_heap
+  let to_string (m : t) : string = MB.to_string m.backend
+
+  let to_heap (m : t) (expr_to_value : Expression.t -> Num.t) : Concolic.Heap.t
+      =
+    MB.to_heap m.backend expr_to_value
 end
 
 module LazySMem : SymbolicMemory = SMem (LazyMemory)
