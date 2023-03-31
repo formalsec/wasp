@@ -89,6 +89,7 @@
               ocamlPackages.z3
               ocamlPackages.batteries
               ocamlPackages.base
+              ocamlPackages.ppx_inline_test
             ];
 
             preBuild = ''
