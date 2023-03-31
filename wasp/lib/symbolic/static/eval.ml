@@ -218,6 +218,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
   let to_concolic (c : sym_config) : Concolic.Eval.config =
     let open Concolic.Eval in
     let store =
+      assert (E.check c.encoder None);
       let binds = E.value_binds c.encoder (Varmap.binds c.varmap) in
       Varmap.to_store c.varmap binds
     in
@@ -328,6 +329,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
           (match size_cond with
           | Some size_cond -> E.add c.encoder size_cond
           | None -> ());
+          assert (E.check c.encoder None);
           let binds = E.value_binds c.encoder (Varmap.binds c.varmap) in
           let logic_env = Concolic.Store.create binds in
 
@@ -646,6 +648,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   match concretize_ptr sym_ptr with
                   | Some ptr -> ptr
                   | None ->
+                      assert (E.check encoder None);
                       let binds = E.value_binds encoder (Varmap.binds varmap) in
                       let logic_env = Concolic.Store.create binds in
 
@@ -702,6 +705,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     (Continuation [ { c with sym_code = (v :: vs', es') } ])
                 with
                 | BugException (b, at, _) ->
+                    assert (E.check encoder None);
                     let string_binds =
                       E.string_binds encoder (Varmap.binds varmap)
                     in
@@ -733,6 +737,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   match concretize_ptr sym_ptr with
                   | Some ptr -> ptr
                   | None ->
+                      assert (E.check encoder None);
                       let binds = E.value_binds encoder (Varmap.binds varmap) in
                       let logic_env = Concolic.Store.create binds in
 
@@ -782,6 +787,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
                 with
                 | BugException (b, at, _) ->
+                    assert (E.check encoder None);
                     let string_binds =
                       E.string_binds encoder (Varmap.binds varmap)
                     in
@@ -958,6 +964,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                      ])
             | SymAssert, Num (I32 0l) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
+                assert (E.check encoder None);
                 let string_binds =
                   E.string_binds encoder (Varmap.binds varmap)
                 in
@@ -977,6 +984,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let sat = E.check encoder (Some constr) in
                 if sat then (
                   E.add encoder constr;
+                  assert (E.check encoder None);
                   let string_binds =
                     E.string_binds encoder (Varmap.binds varmap)
                   in
@@ -1049,7 +1057,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 match simplify ptr with
                 | SymPtr (base, Num (I32 0l)) ->
                     let es' =
-                      if not (Hashtbl.mem chunk_table base) then
+                      if not (Hashtbl.mem chunk_table base) then (
+                        assert (E.check encoder None);
                         let string_binds =
                           E.string_binds encoder (Varmap.binds varmap)
                         in
@@ -1057,7 +1066,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                           Concolic.Store.strings_to_json string_binds
                         in
                         [ Interrupt (Bug (InvalidFree, witness)) @@ e.at ]
-                        @ List.tl es
+                        @ List.tl es)
                       else (
                         Hashtbl.remove chunk_table base;
                         List.tl es)
