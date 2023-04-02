@@ -703,9 +703,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 with
                 | BugException (b, at, _) ->
                     assert (E.check encoder None);
-                    let string_binds =
-                      E.string_binds encoder
-                    in
+                    let string_binds = E.string_binds encoder in
                     let witness = Concolic.Store.strings_to_json string_binds in
                     Concolic.Eval.write_test_case ~witness:true witness;
                     let bug_type =
@@ -785,9 +783,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 with
                 | BugException (b, at, _) ->
                     assert (E.check encoder None);
-                    let string_binds =
-                      E.string_binds encoder
-                    in
+                    let string_binds = E.string_binds encoder in
                     let witness = Concolic.Store.strings_to_json string_binds in
                     Concolic.Eval.write_test_case ~witness:true witness;
                     let bug_type =
@@ -963,9 +959,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | SymAssert, Val (Num (I32 0l)) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
                 assert (E.check encoder None);
-                let string_binds =
-                  E.string_binds encoder
-                in
+                let string_binds = E.string_binds encoder in
                 let witness = Concolic.Store.strings_to_json string_binds in
                 Concolic.Eval.write_test_case ~witness:true witness;
                 Result.error ("Assertion Failure", e.at)
@@ -982,9 +976,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 if sat then (
                   E.add encoder constr;
                   assert (E.check encoder None);
-                  let string_binds =
-                    E.string_binds encoder
-                  in
+                  let string_binds = E.string_binds encoder in
                   let witness = Concolic.Store.strings_to_json string_binds in
                   debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
                   Concolic.Eval.write_test_case ~witness:true witness;
@@ -1055,9 +1047,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     let es' =
                       if not (Hashtbl.mem chunk_table base) then (
                         assert (E.check encoder None);
-                        let string_binds =
-                          E.string_binds encoder
-                        in
+                        let string_binds = E.string_binds encoder in
                         let witness =
                           Concolic.Store.strings_to_json string_binds
                         in
@@ -1255,8 +1245,7 @@ let func_to_globs (func : func_inst) : Globals.t =
   | None -> Hashtbl.create 0
 
 let write_report (error : (string * Interpreter.Source.region) option)
-    (loop_time : float) (paths : int) (step_count : int) :
-    unit =
+    (loop_time : float) (paths : int) (step_count : int) : unit =
   let spec, reason =
     match error with
     | None -> (true, "{}")
