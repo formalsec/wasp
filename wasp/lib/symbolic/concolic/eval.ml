@@ -133,15 +133,6 @@ let loop_start = ref 0.
 let solver = Batch.create ()
 let debug str = if !Interpreter.Flags.trace then print_endline str
 
-let count (init : int) : unit -> int =
-  let next = ref init in
-  let next () =
-    let n = !next in
-    next := n + 1;
-    n
-  in
-  next
-
 let parse_policy (p : string) : policy option =
   match p with
   | "random" -> Some Random
@@ -679,7 +670,7 @@ let rec step (c : config) : config =
           (fun bp ->
             match bp with
             | Branchpoint _ -> ()
-            | Checkpoint cp -> 
+            | Checkpoint cp ->
                 let es' =
                   (Frame (n, !cp.frame, !cp.code) @@ e.at) :: List.tl es
                 and frame' = clone_frame frame in
@@ -730,18 +721,6 @@ let get_reason (err_t, at) : string =
     ^ if at.right = at.left then "" else "-" ^ string_of_pos at.right
   in
   "{" ^ "\"type\" : \"" ^ err_t ^ "\", " ^ "\"line\" : \"" ^ loc ^ "\"" ^ "}"
-
-let test_case_cntr = count 0
-
-(* TODO: this function should be a lib of both symbolic and concolic *)
-let write_test_case ?(witness = false) test_data : unit =
-  let out_dir = Filename.concat !Interpreter.Flags.output "test_suite" in
-  let i = test_case_cntr () in
-  let filename =
-    if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
-    else Printf.sprintf "%s/test_%05d.json" out_dir i
-  in
-  Interpreter.Io.save_file filename test_data
 
 let write_report error loop_time : unit =
   let spec, reason =
