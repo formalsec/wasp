@@ -12,8 +12,8 @@ def read_file(f):
 def read_json(f):
     try:
         data = read_file(f)
-        if not data:
-            return {}
+        if data is None:
+            return None
         return json.loads(data)
     except json.decoder.JSONDecodeError:
         return {}

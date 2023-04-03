@@ -147,7 +147,7 @@ def get_test_suite(testsuite):
     testcases = []
     for testcase in testsuite:
         inputs = io.read_json(testcase)
-        if not inputs:
+        if inputs is None:
             continue
         inputs = filter(lambda t: not (("__hb" in t["name"]) or
                                        ("ternary" in t["name"])),
