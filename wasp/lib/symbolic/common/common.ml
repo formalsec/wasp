@@ -1,5 +1,6 @@
 module Counter = Counter
 module RandArray = RandArray
+module Chunktable = Chunktable
 module Evaluations = Evaluations
 module Link = Interpreter.Error.Make ()
 module Trap = Interpreter.Error.Make ()

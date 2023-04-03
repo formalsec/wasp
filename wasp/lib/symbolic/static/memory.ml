@@ -1,3 +1,4 @@
+open Common
 open Encoding
 open Expression
 open Types
@@ -197,7 +198,7 @@ end
 
 module SMem (MB : MemoryBackend) : SymbolicMemory = struct
   type b = MB.t
-  type t = { backend : b; chunk_table : (int32, int32) Hashtbl.t }
+  type t = { backend : b; chunk_table : Chunktable.t }
 
   exception Bounds = MB.Bounds
 
@@ -232,13 +233,13 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
   (* Public functions *)
   let from_heap (h : Concolic.Heap.t) : t =
     let backend = MB.from_heap h in
-    let chunk_table = Hashtbl.create Interpreter.Flags.hashtbl_default_size in
+    let chunk_table = Chunktable.create () in
     { backend; chunk_table }
 
   let clone (m : t) : t * t =
     let backend1, backend2 = MB.clone m.backend in
     let chunk_table1 = m.chunk_table in
-    let chunk_table2 = Hashtbl.copy chunk_table1 in
+    let chunk_table2 = Chunktable.copy chunk_table1 in
     ( { backend = backend1; chunk_table = chunk_table1 },
       { backend = backend2; chunk_table = chunk_table2 } )
 

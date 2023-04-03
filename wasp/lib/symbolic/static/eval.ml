@@ -129,7 +129,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     sym_budget : int; (* to model stack overflow *)
     varmap : Varmap.t;
     sym_globals : Globals.t;
-    chunk_table : (int32, int32) Hashtbl.t;
     encoder : E.t;
   }
 
@@ -160,7 +159,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let sym_budget = c.sym_budget in
     let varmap = Varmap.copy c.varmap in
     let sym_globals = Globals.clone_globals c.sym_globals in
-    let chunk_table = Hashtbl.copy c.chunk_table in
     let encoder = E.clone c.encoder in
     ( { c with sym_mem = sm },
       {
@@ -170,7 +168,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
         sym_budget;
         varmap;
         sym_globals;
-        chunk_table;
         encoder;
       } )
 
@@ -185,7 +182,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       sym_budget = 100000;
       varmap = Varmap.create ();
       sym_globals = globs;
-      chunk_table = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
       encoder = E.create ();
     }
 
@@ -242,7 +238,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     in
     let code = code_to_conc c.sym_code in
     let mem = SM.to_heap c.sym_mem expr_to_value in
-    let heap = c.chunk_table in
+    let heap = (
+      let open SM in
+      c.sym_mem.chunk_table
+    )
+    in
     let pc =
       let open E in
       !(c.encoder.pc)
@@ -284,7 +284,18 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     | exn -> raise exn
 
   let concretize_alloc (c : sym_config) : sym_config list =
-    let { sym_code = vs, es; varmap; chunk_table; encoder; _ } = c in
+    let {
+      sym_code = vs, es;
+      varmap;
+      sym_mem;
+      encoder;
+      _
+    } = c in
+    let chunk_table = (
+      let open SM in
+      sym_mem.chunk_table
+    )
+    in
     let e, es' =
       match es with e :: es' -> (e, es') | _ -> failwith "unreachable"
     in
@@ -335,7 +346,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
           let base_cond = Relop (I32 I32.Eq, s_base, Val (Num (I32 base))) in
           E.add c.encoder base_cond;
-          Hashtbl.add c.chunk_table base size;
+          Common.Chunktable.replace chunk_table base size;
 
           let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
           Some { c with sym_code = (sym_ptr :: List.tl vs, List.tl es) }
@@ -356,11 +367,15 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       sym_code = vs, es;
       sym_mem = mem;
       varmap;
-      chunk_table;
       encoder;
       _;
     } =
       c
+    in
+    let chunk_table = (
+      let open SM in
+      mem.chunk_table
+    )
     in
     let open Interpreter in
     let open Source in
@@ -652,7 +667,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   (if Option.is_some base_ptr then
                    let low = Option.get base_ptr in
                    let chunk_size =
-                     try Hashtbl.find chunk_table low
+                     try Common.Chunktable.find chunk_table low
                      with Not_found -> raise (BugException (UAF, e.at, ""))
                    in
                    let high =
@@ -740,7 +755,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   (if Option.is_some base_ptr then
                    let low = Option.get base_ptr in
                    let chunk_size =
-                     try Hashtbl.find chunk_table low
+                     try Common.Chunktable.find chunk_table low
                      with Not_found -> raise (BugException (UAF, e.at, ""))
                    in
                    let high =
@@ -1015,7 +1030,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                          };
                        ]))
             | Alloc, Val (Num (I32 sz)) :: Val (Num (I32 base)) :: vs' ->
-                Hashtbl.add chunk_table base sz;
+                Common.Chunktable.replace chunk_table base sz;
                 let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
                 Result.ok
                   (Continuation
@@ -1026,7 +1041,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 match simplify ptr with
                 | SymPtr (base, Val (Num (I32 0l))) ->
                     let es' =
-                      if not (Hashtbl.mem chunk_table base) then (
+                      if not (Common.Chunktable.mem chunk_table base) then (
                         assert (E.check encoder None);
                         let string_binds = E.string_binds encoder in
                         let witness =
@@ -1035,7 +1050,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                         [ Interrupt (Bug (InvalidFree, witness)) @@ e.at ]
                         @ List.tl es)
                       else (
-                        Hashtbl.remove chunk_table base;
+                        Common.Chunktable.remove chunk_table base;
                         List.tl es)
                     in
                     Result.ok
@@ -1162,7 +1177,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                    sym_budget = c.sym_budget - 1;
                    varmap = c.varmap;
                    sym_globals = c.sym_globals;
-                   chunk_table = c.chunk_table;
                    encoder = c.encoder;
                  })
         | STrapping msg, vs -> assert false
