@@ -736,13 +736,12 @@ let test_case_cntr = count 0
 (* TODO: this function should be a lib of both symbolic and concolic *)
 let write_test_case ?(witness = false) test_data : unit =
   let out_dir = Filename.concat !Interpreter.Flags.output "test_suite" in
-  if not (test_data = "[]") then
-    let i = test_case_cntr () in
-    let filename =
-      if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
-      else Printf.sprintf "%s/test_%05d.json" out_dir i
-    in
-    Interpreter.Io.save_file filename test_data
+  let i = test_case_cntr () in
+  let filename =
+    if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
+    else Printf.sprintf "%s/test_%05d.json" out_dir i
+  in
+  Interpreter.Io.save_file filename test_data
 
 let write_report error loop_time : unit =
   let spec, reason =
