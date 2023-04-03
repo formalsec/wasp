@@ -274,7 +274,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let bp = [] in
     let tree = ref Concolic.Eval.head in
     let budget = c.sym_budget in
-    { frame; glob; code; mem; store; heap; pc; bp; tree; budget }
+    let call_stack = Stack.create () in
+    { frame; glob; code; mem; store; heap; pc; bp; tree; budget; call_stack }
 
   let concolic_invoke (c : sym_config) :
       (string * Interpreter.Source.region) option =

@@ -7,7 +7,7 @@ type name = string
 type bind = name * Num.t
 
 type store = {
-  sym : Counter.t;
+  sym : name Counter.t;
   ord : name BatDynArray.t;
   map : (name, Num.t) Hashtbl.t;
 }
@@ -33,7 +33,7 @@ let init (s : t) (binds : (string * Expression.value) list) : unit =
       match v with Num n -> Hashtbl.replace s.map x n | _ -> assert false)
     binds
 
-let from_parts (sym : Counter.t) (ord : name BatDynArray.t)
+let from_parts (sym : name Counter.t) (ord : name BatDynArray.t)
     (map : (name, Num.t) Hashtbl.t) : t =
   { sym; ord; map }
 

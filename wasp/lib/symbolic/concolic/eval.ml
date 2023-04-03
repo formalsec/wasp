@@ -69,10 +69,14 @@ type config = {
   store : Store.t;
   heap : (int32, int32) Hashtbl.t;
   pc : Formula.t;
-  bp : Formula.t list;
-  tree : Execution_tree.t ref ref;
+  bp : bp list;
+  tree : tree ref;
   budget : int;
+  call_stack : region Stack.t;
 }
+
+and tree = config ref Execution_tree.t ref
+and bp = Branchpoint of Formula.t * tree | Checkpoint of config ref
 
 let frame inst locals = { inst; locals }
 
@@ -101,8 +105,9 @@ let clone (c : config) : config =
   and pc = c.pc
   and bp = []
   and tree = ref !(c.tree)
-  and budget = c.budget in
-  { frame; glob; code; mem; store; heap; pc; bp; tree; budget }
+  and budget = c.budget
+  and call_stack = Stack.copy c.call_stack in
+  { frame; glob; code; mem; store; heap; pc; bp; tree; budget; call_stack }
 
 let config inst vs es mem glob tree =
   {
@@ -112,19 +117,20 @@ let config inst vs es mem glob tree =
     mem;
     store = Store.create [];
     heap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
-    pc = Encoding.Formula.create ();
+    pc = Formula.create ();
     bp = [];
     tree;
     budget = 100000;
+    call_stack = Stack.create ();
   }
 
 exception BugException of config * region * bug
 
-let head = ref Execution_tree.Leaf
+let head = ref Execution_tree.(Node (None, None, ref Leaf, ref Leaf))
 let step_cnt = ref 0
 let iterations = ref 0
 let loop_start = ref 0.
-let solver = Encoding.Batch.create ()
+let solver = Batch.create ()
 let debug str = if !Interpreter.Flags.trace then print_endline str
 
 let count (init : int) : unit -> int =
@@ -194,11 +200,51 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then Some (Encoding.Formula.add_constraint ~neg:bval c pc)
+  if to_branch then Some (Formula.add_constraint ~neg:bval c pc)
   else None
 
+module type Checkpoint = sig
+  val is_checkpoint : config -> bool
+end
+
+module NoCheckpoint : Checkpoint = struct
+  let is_checkpoint (_ : config) : bool = false
+end
+
+module FuncCheckpoint : Checkpoint = struct
+  let visited = Hashtbl.create Interpreter.Flags.hashtbl_default_size
+
+  let is_checkpoint (c : config) : bool =
+    let func = Stack.top c.call_stack in
+    if Hashtbl.mem visited func then false
+    else (
+      Hashtbl.add visited func true;
+      Execution_tree.can_branch !(c.tree)
+    )
+end
+
+module RandCheckpoint : Checkpoint = struct
+  let is_checkpoint (c : config) : bool =
+    Execution_tree.can_branch !(c.tree) && Random.bool ()
+end
+
+module DepthCheckpoint : Checkpoint = struct
+  let count = Counter.create ()
+
+  let is_checkpoint (c : config) : bool =
+    let size_pc = Formula.length c.pc in
+    Execution_tree.can_branch !(c.tree)
+    && size_pc mod 10 = 0
+    && Counter.get_and_inc count size_pc < 5
+end
+
+module type Stepper = sig
+  val step : config -> config
+end
+
+module ConcolicStepper (C : Checkpoint) : Stepper = struct
 let rec step (c : config) : config =
-  let { frame; glob; code = vs, es; mem; store; heap; pc; bp; tree; _ } = c in
+  let { frame; glob; code = vs, es; mem; store; heap; pc; bp; tree; call_stack; _ } = c in
   let e = List.hd es in
   let vs', es', pc', bp' =
     match (e.it, vs) with
@@ -222,43 +268,53 @@ let rec step (c : config) : config =
             if i = 0l then (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc, bp)
             else (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc, bp)
         | If (ts, es1, es2), (I32 i, ex) :: vs' ->
-            if i = 0l then
-              let bp' =
-                Base.Option.fold ~init:bp
-                  ~f:(fun bp br -> br :: bp)
-                  (branch_on_cond false ex pc tree)
-              in
-              let pc' = Encoding.Formula.add_constraint ~neg:true ex pc in
-              (vs', [ Plain (Block (ts, es2)) @@ e.at ], pc', bp')
-            else
-              let bp' =
-                Base.Option.fold ~init:bp
-                  ~f:(fun bp br -> br :: bp)
-                  (branch_on_cond true ex pc tree)
-              in
-              let pc' = Encoding.Formula.add_constraint ex pc in
-              (vs', [ Plain (Block (ts, es1)) @@ e.at ], pc', bp')
+            let (b, es1', es2') =
+              ( i <> 0l,
+                [ Plain (Block (ts, es1)) @@ e.at ],
+                [ Plain (Block (ts, es2)) @@ e.at ] )
+            in
+            let bp =
+              let pc' = Formula.add_constraint ~neg:b ex pc in
+              if not (C.is_checkpoint c) then bp
+              else
+                let c' = clone c in
+                ignore (branch_on_cond (not b) ex c'.pc c'.tree);
+                let es' = (if not b then es1' else es2') @ List.tl es in
+                let cp = ref { c' with code = (vs', es'); pc = pc' } in
+                Execution_tree.update_node !(c'.tree) cp;
+                Checkpoint cp :: bp
+            in
+            let bp' =
+              Base.Option.fold ~init:bp
+                ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
+               (branch_on_cond b ex pc tree)
+            in
+            let pc' = Formula.add_constraint ~neg:(not b) ex pc in
+            (vs', (if b then es1' else es2'), pc', bp')
         | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             if i = 0l then (vs', [], pc, bp)
             else (vs', [ Plain (Br x) @@ e.at ], pc, bp)
         | BrIf x, (I32 i, ex) :: vs' ->
-            if i = 0l then
-              let bp' =
-                Base.Option.fold ~init:bp
-                  ~f:(fun bp br -> br :: bp)
-                  (branch_on_cond false ex pc tree)
-              in
-              let pc' = Encoding.Formula.add_constraint ~neg:true ex pc in
-              (vs', [], pc', bp')
-            else
-              let bp' =
-                Base.Option.fold ~init:bp
-                  ~f:(fun bp br -> br :: bp)
-                  (branch_on_cond true ex pc tree)
-              in
-              let pc' = Encoding.Formula.add_constraint ex pc in
-              (vs', [ Plain (Br x) @@ e.at ], pc', bp')
+            let (b, es1', es2') = (i <> 0l, [ Plain (Br x) @@ e.at ], []) in
+            let bp =
+              let pc' = Formula.add_constraint ~neg:b ex pc in
+              if not (C.is_checkpoint c) then bp
+              else
+                let c' = clone c in
+                ignore (branch_on_cond (not b) ex c'.pc c'.tree);
+                let es' = (if not b then es1' else es2') @ List.tl es in
+                let cp = ref { c' with code = (vs', es'); pc = pc' } in
+                Execution_tree.update_node !(c'.tree) cp;
+                Checkpoint cp :: bp
+            in
+            let bp' =
+              Base.Option.fold ~init:bp
+                ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
+               (branch_on_cond b ex pc tree)
+            in
+            let pc' = Formula.add_constraint ~neg:(not b) ex pc in
+            (vs', (if b then es1' else es2'), pc', bp')
         | BrTable (xs, x), (I32 i, _) :: vs'
           when Interpreter.I32.ge_u i (Interpreter.Lib.List32.length xs) ->
             (vs', [ Plain (Br x) @@ e.at ], pc, bp)
@@ -279,23 +335,25 @@ let rec step (c : config) : config =
           ->
             if i = 0l then (v2 :: vs', [], pc, bp) else (v1 :: vs', [], pc, bp)
         | Select, (I32 i, ve) :: v2 :: v1 :: vs' ->
-            if i = 0l then
-              let bp' =
-                Base.Option.fold ~init:bp
-                  ~f:(fun bp br -> br :: bp)
-                  (branch_on_cond false ve pc tree)
-              in
-              ( v2 :: vs',
-                [],
-                Encoding.Formula.add_constraint ~neg:true ve pc,
-                bp' )
-            else
-              let bp' =
-                Base.Option.fold ~init:bp
-                  ~f:(fun bp br -> br :: bp)
-                  (branch_on_cond true ve pc tree)
-              in
-              (v1 :: vs', [], Encoding.Formula.add_constraint ve pc, bp')
+            let (b, vs1, vs2) = (i <> 0l, v1 :: vs', v2 :: vs') in
+            let bp =
+              let pc' = Formula.add_constraint ~neg:b ve pc in
+              if not (C.is_checkpoint c) then bp
+              else
+                let c' = clone c in
+                ignore (branch_on_cond (not b) ve c'.pc c'.tree);
+                let vs' = (if not b then vs1 else vs2) in
+                let cp = ref { c' with code = (vs', List.tl es); pc = pc' } in
+                Execution_tree.update_node !(c'.tree) cp;
+                Checkpoint cp :: bp
+            in
+            let bp' =
+              Base.Option.fold ~init:bp
+                ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
+               (branch_on_cond b ve pc tree)
+            in
+            let pc' = Formula.add_constraint ~neg:(not b) ve pc in
+            ((if b then vs1 else vs2), [], pc', bp')
         | LocalGet x, vs -> (!(local frame x) :: vs, [], pc, bp)
         | LocalSet x, (v, ex) :: vs' ->
             local frame x := (v, simplify ex);
@@ -413,30 +471,30 @@ let rec step (c : config) : config =
         | SymAssert, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
             (vs', [], pc, bp)
         | SymAssert, (I32 i, ex) :: vs' ->
-            let formulas = Encoding.Formula.add_constraint ~neg:true ex pc in
-            if not (Encoding.Batch.check_formulas solver [ formulas ]) then
+            let formulas = Formula.add_constraint ~neg:true ex pc in
+            if not (Batch.check_formulas solver [ formulas ]) then
               (vs', [], pc, bp)
             else
               let binds =
-                Encoding.Batch.value_binds solver (Store.get_key_types store)
+                Batch.value_binds solver (Store.get_key_types store)
               in
               Store.update store binds;
               (vs', [ Interrupt (Failure pc) @@ e.at ], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
-            let unsat = Encoding.Formula.False in
+            let unsat = Formula.False in
             if i = 0l then (vs', [ Restart unsat @@ e.at ], pc, bp)
             else (vs', [], pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
             if i = 0l then
               ( vs',
-                [ Restart (Encoding.Formula.add_constraint ex pc) @@ e.at ],
+                [ Restart (Formula.add_constraint ex pc) @@ e.at ],
                 pc,
                 bp )
             else (
               debug ">>> Assume passed. Continuing execution...";
               let tree', _ = Execution_tree.move_true !tree in
               tree := tree';
-              (vs', [], Encoding.Formula.add_constraint ex pc, bp))
+              (vs', [], Formula.add_constraint ex pc, bp))
         | Symbolic (ty, b), (I32 i, _) :: vs' ->
             let base = Interpreter.I64_convert.extend_i32_u i in
             let symbol = if i = 0l then "x" else Heap.load_string mem base in
@@ -514,7 +572,7 @@ let rec step (c : config) : config =
                   let f_imp = Binop (I32 I32.Or, s, f_eq) in
                   let cond = Binop (I32 I32.And, t_imp, f_imp) in
                   ( (r, s_x),
-                    Encoding.Formula.add_constraint
+                    Formula.add_constraint
                       (Relop (I32 I32.Ne, cond, Val (Num (I32 0l))))
                       pc )
             in
@@ -529,7 +587,7 @@ let rec step (c : config) : config =
             debug
               (Interpreter.Source.string_of_pos e.at.left
               ^ ":PC: "
-              ^ Encoding.Formula.(pp_to_string pc));
+              ^ Formula.(pp_to_string pc));
             (vs', [], pc, bp)
         | PrintMemory, vs' ->
             debug ("Mem:\n" ^ Heap.to_string mem);
@@ -577,8 +635,18 @@ let rec step (c : config) : config =
         (vs, [ Breaking (Int32.sub k 1l, vs0) @@ at ], pc, bp)
     | Label (n, es0, code'), vs ->
         let c' = step { c with code = code' } in
+        List.iter
+          (fun bp ->
+            match bp with
+            | Branchpoint _ -> ()
+            | Checkpoint cp ->
+                let es' = (Label (n, es0, !cp.code) @@ e.at) :: List.tl es in
+                cp := { !cp with code = (vs, es') })
+          c'.bp;
         (vs, [ Label (n, es0, c'.code) @@ e.at ], c'.pc, c'.bp)
-    | Frame (n, frame', (vs', [])), vs -> (vs' @ vs, [], pc, bp)
+    | Frame (n, frame', (vs', [])), vs ->
+        ignore (Stack.pop call_stack);
+        (vs' @ vs, [], pc, bp)
     | Frame (n, frame', (vs', { it = Restart pc; at } :: es')), vs ->
         (vs, [ Restart pc @@ at; Frame (n, frame', (vs', es')) @@ e.at ], pc, bp)
     | Frame (n, frame', (vs', { it = Interrupt i; at } :: es')), vs ->
@@ -604,8 +672,19 @@ let rec step (c : config) : config =
               bp = c.bp;
               tree = c.tree;
               budget = c.budget - 1;
+              call_stack = c.call_stack;
             }
         in
+        List.iter
+          (fun bp ->
+            match bp with
+            | Branchpoint _ -> ()
+            | Checkpoint cp -> 
+                let es' =
+                  (Frame (n, !cp.frame, !cp.code) @@ e.at) :: List.tl es
+                and frame' = clone_frame frame in
+                cp := { !cp with frame = frame'; code = (vs, es') })
+          c'.bp;
         (vs, [ Frame (n, c'.frame, c'.code) @@ e.at ], c'.pc, c'.bp)
     | Invoke func, vs when c.budget = 0 ->
         Exhaustion.error e.at "call stack exhausted"
@@ -627,6 +706,7 @@ let rec step (c : config) : config =
         let args, vs' = (take n vs e.at, drop n vs e.at) in
         match func with
         | Interpreter.Func.AstFunc (t, inst', f) ->
+            Stack.push f.at call_stack;
             let locals' =
               List.map
                 (fun v -> (v, Val (Num v)))
@@ -640,15 +720,9 @@ let rec step (c : config) : config =
             (vs', [ Frame (List.length out, frame', code') @@ e.at ], pc, bp)
         | Interpreter.Func.HostFunc (t, f) -> failwith "HostFunc error")
   in
-  let e' =
-    step_cnt := !step_cnt + 1;
-    if
-      (not (!Interpreter.Flags.inst_limit = -1))
-      && !step_cnt >= !Interpreter.Flags.inst_limit
-    then [ Interrupt Limit @@ e.at ]
-    else []
-  in
-  { c with code = (vs', e' @ es' @ List.tl es); pc = pc'; bp = bp' }
+  step_cnt := !step_cnt + 1;
+  { c with code = (vs', es' @ List.tl es); pc = pc'; bp = bp' }
+end
 
 let get_reason (err_t, at) : string =
   let loc =
@@ -678,10 +752,10 @@ let write_report error loop_time : unit =
     "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
     ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
     ^ "\"solver_time\" : \""
-    ^ string_of_float !Encoding.Batch.solver_time
+    ^ string_of_float !Batch.solver_time
     ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int !iterations ^ ", "
     ^ "\"solver_counter\" : "
-    ^ string_of_int !Encoding.Batch.solver_count
+    ^ string_of_int !Batch.solver_count
     ^ ", " ^ "\"instruction_counter\" : " ^ string_of_int !step_cnt ^ "}"
   in
   Interpreter.Io.save_file
@@ -706,10 +780,8 @@ let rec update_admin_instr f e =
   in
   { it; at = e.at }
 
-let update c (vs, es) pc =
-  let binds = Encoding.Batch.value_binds solver (Store.get_key_types c.store) in
-  let tree', _ = Execution_tree.move_true !(c.tree) in
-  c.tree := tree';
+let update c (vs, es) pc vars =
+  let binds = Batch.value_binds solver vars in
   Store.update c.store binds;
   Heap.update c.mem c.store;
   let f store (_, expr) = (Store.eval store expr, expr) in
@@ -720,26 +792,25 @@ let update c (vs, es) pc =
   { c with code; pc }
 
 let reset c glob code mem =
-  let binds = Encoding.Batch.value_binds solver (Store.get_key_types c.store) in
+  let binds = Batch.value_binds solver (Store.get_key_types c.store) in
   Store.reset c.store;
   Store.init c.store binds;
   Globals.clear c.glob;
   Globals.add_seq c.glob (Globals.to_seq glob);
-  Heap.clear c.mem;
-  Heap.add_seq c.mem (Heap.to_seq mem);
   Hashtbl.reset c.heap;
   c.tree := head;
   {
     c with
     frame = frame empty_module_inst [];
     code;
-    pc = Encoding.Formula.create ();
+    mem = Heap.memcpy mem;
+    pc = Formula.create ();
     bp = [];
     budget = 100000;
   }
 
 let s_reset (c : config) : config =
-  let binds = Encoding.Batch.value_binds solver (Store.get_key_types c.store) in
+  let binds = Batch.value_binds solver (Store.get_key_types c.store) in
   Store.update c.store binds;
   Heap.update c.mem c.store;
   let f store (_, expr) = (Store.eval store expr, expr) in
@@ -751,53 +822,74 @@ let s_reset (c : config) : config =
   in
   { c with code }
 
-module Guided_search (L : WorkList) = struct
+module Guided_search (L : WorkList) (S : Stepper) = struct
+  let enqueue (pc_wl, cp_wl) branch_points : unit =
+    List.iter
+      (fun bp ->
+        match bp with
+        | Branchpoint (pc, node) -> L.push (pc, node) pc_wl
+        | Checkpoint cp -> L.push cp cp_wl)
+      branch_points
+
+  let rec eval (c : config) wls : config =
+    match c.code with
+    | vs, [] -> c
+    | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
+    | vs, { it = Interrupt i; at } :: _ -> c
+    | vs, { it = Restart pc; at } :: _ -> iterations := !iterations - 1; c
+    | vs, es ->
+        let c' = S.step c in
+        enqueue wls c'.bp;
+        eval { c' with bp = [] } wls
+
+  let rec find_sat_pc pcs =
+    if L.is_empty pcs then None
+    else
+      let pc, node = L.pop pcs in
+      if not (Batch.check_formulas solver [ pc ]) then find_sat_pc pcs
+      else Some (pc, Execution_tree.find node)
+
+  let rec find_sat_cp cps =
+    if L.is_empty cps then None
+    else
+      let cp = L.pop cps in
+      if not (Batch.check_formulas solver [ !cp.pc ]) then find_sat_cp cps
+      else Some (!cp.pc, Some cp)
+
+  let find_sat_path (pcs, cps) =
+    match find_sat_cp cps with None -> find_sat_pc pcs | Some _ as cp -> cp
+
+
   let invoke (c : config) (test_suite : string) =
     let glob0 = Globals.copy c.glob
     and code0 = c.code
     and mem0 = Heap.memcpy c.mem in
-    let wl = L.create () in
-    let rec eval (c : config) : config =
-      match c.code with
-      | vs, [] -> c
-      | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-      | vs, { it = Restart pc; at } :: es -> c
-      | vs, { it = Interrupt i; at } :: es -> c
-      | vs, es ->
-          let c' = step c in
-          List.iter (fun pc -> L.push pc wl) c'.bp;
-          eval { c' with bp = [] }
-    in
-    let rec find_sat_pc pcs =
-      if L.is_empty pcs then false
-      else if not (Encoding.Batch.check_formulas solver [ L.pop pcs ]) then
-        find_sat_pc pcs
-      else true
-    in
+    let pc_wl = L.create () and cp_wl = L.create () in
     (* Main concolic loop *)
     let rec loop c =
       iterations := !iterations + 1;
-      let { code; store; bp; _ } = eval c in
-      List.iter (fun pc -> L.push pc wl) bp;
+      let { code; store; bp; tree; _ } = eval c (pc_wl, cp_wl) in
+      enqueue (pc_wl, cp_wl) bp;
       match code with
       | vs, { it = Interrupt Limit; at } :: _ -> None
       | vs, { it = Interrupt i; at } :: _ ->
           write_test_case ~witness:true (Store.to_json store);
           Some (string_of_interruption i, at)
-      | vs, { it = Restart pc; _ } :: es ->
-          iterations := !iterations - 1;
-          if Encoding.Batch.check_formulas solver [ pc ] then
-            loop (update c (vs, es) pc)
-          else if L.is_empty wl || not (find_sat_pc wl) then None
-          else loop (reset c glob0 code0 mem0)
+      | vs, { it = Restart pc; _ } :: es when Batch.check_formulas solver [ pc ]
+        ->
+          let tree', _ = Execution_tree.move_true !(c.tree) in
+          c.tree := tree';
+          loop (update c (vs, es) pc (Store.get_key_types store))
       | _ ->
           write_test_case (Store.to_json store);
-          if L.is_empty wl || not (find_sat_pc wl) then None
-          else loop (reset c glob0 code0 mem0)
+          match find_sat_path (pc_wl, cp_wl) with
+          | None -> None
+          | Some (pc', None) -> loop (reset c glob0 code0 mem0)
+          | Some (pc', Some cp) ->
+              let c' = clone !cp in
+              loop (update c' c'.code c'.pc (Formula.get_symbols pc'))
     in
-    loop_start := Sys.time ();
-    let error = loop c in
-    write_report error (Sys.time () -. !loop_start)
+    loop c
 
   let s_invoke (c : config) (test_suite : string) : (string * region) option =
     let c0 = clone c in
@@ -809,13 +901,19 @@ module Guided_search (L : WorkList) = struct
       | vs, { it = Restart pc; at } :: es -> c
       | vs, { it = Interrupt i; at } :: es -> c
       | vs, es ->
-          let c' = step c in
-          List.iter (fun pc -> L.push pc wl) c'.bp;
+          let c' = S.step c in
+          List.iter (fun bp ->
+            let pc = match bp with
+              | Checkpoint cp -> !cp.pc
+              | Branchpoint (pc, _) -> pc
+            in
+            L.push pc wl)
+          c'.bp;
           eval { c' with bp = [] }
     in
     let rec find_sat_pc pcs =
       if L.is_empty pcs then false
-      else if not (Encoding.Batch.check_formulas solver [ L.pop pcs ]) then
+      else if not (Batch.check_formulas solver [ L.pop pcs ]) then
         find_sat_pc pcs
       else true
     in
@@ -823,7 +921,13 @@ module Guided_search (L : WorkList) = struct
     let rec loop (c : config) =
       iterations := !iterations + 1;
       let { code; store; bp; pc; _ } = eval c in
-      List.iter (fun pc -> L.push pc wl) bp;
+      List.iter (fun bp ->
+            let pc = match bp with
+              | Checkpoint cp -> !cp.pc
+              | Branchpoint (pc, _) -> pc
+            in
+            L.push pc wl)
+      bp;
       match code with
       | vs, { it = Interrupt Limit; at } :: _ -> None
       | vs, { it = Interrupt i; at } :: _ ->
@@ -832,8 +936,8 @@ module Guided_search (L : WorkList) = struct
       | vs, { it = Restart pc; _ } :: es ->
           print_endline "--- attempting restart ---";
           iterations := !iterations - 1;
-          if Encoding.Batch.check_formulas solver [ pc ] then
-            loop (update c (vs, es) pc)
+          if Batch.check_formulas solver [ pc ] then
+            loop (update c (vs, es) pc (Store.get_key_types store))
           else if L.is_empty wl || not (find_sat_pc wl) then None
           else loop (s_reset (clone c0))
       | _ ->
@@ -845,7 +949,7 @@ module Guided_search (L : WorkList) = struct
     error
 
   let p_invoke (c : config) (test_suite : string) :
-      (Encoding.Formula.t, string * region) result =
+      (Formula.t, string * region) result =
     let rec eval (c : config) : config =
       match c.code with
       | vs, [] -> c
@@ -854,7 +958,7 @@ module Guided_search (L : WorkList) = struct
           c (* TODO: probably need to change this *)
       | vs, { it = Interrupt i; at } :: es -> c
       | vs, es ->
-          let c' = step c in
+          let c' = S.step c in
           eval c'
     in
     let c' = eval c in
@@ -870,13 +974,18 @@ module Guided_search (L : WorkList) = struct
     res
 end
 
-module DFS = Guided_search (Stack)
-module BFS = Guided_search (Queue)
-module RND = Guided_search (RandArray)
+
+module NoCheckpointStepper = ConcolicStepper (NoCheckpoint)
+module FuncCheckpointStepper = ConcolicStepper (FuncCheckpoint)
+module RandCheckpointStepper = ConcolicStepper (RandCheckpoint)
+module DepthCheckpointStepper = ConcolicStepper (DepthCheckpoint)
+module DFS = Guided_search (Stack) (NoCheckpointStepper)
+module BFS = Guided_search (Queue) (NoCheckpointStepper)
+module RND = Guided_search (RandArray) (NoCheckpointStepper)
 
 let set_timeout (time_limit : int) : unit =
   let alarm_handler i : unit =
-    Encoding.Batch.interrupt ();
+    Batch.interrupt ();
     let loop_time = Sys.time () -. !loop_start in
     write_report None loop_time;
     exit 0
@@ -905,14 +1014,16 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
       [ Invoke func @@ at ]
       mem0 glob (ref head)
   in
-  let f =
+  let invoke =
     match parse_policy !Flags.policy with
     | None -> Crash.error at ("invalid search policy '" ^ !Flags.policy ^ "'")
     | Some Depth -> DFS.invoke
     | Some Breadth -> BFS.invoke
     | Some Random -> RND.invoke
   in
-  f c test_suite
+  loop_start := Sys.time ();
+  let error = invoke c test_suite in
+  write_report error (Sys.time () -. !loop_start)
 
 let i32 (v : Interpreter.Values.value) at =
   match v with
