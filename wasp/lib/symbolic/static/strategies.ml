@@ -1,8 +1,10 @@
 open Common
 open Encoding
 
-type bug = Overflow | UAF | InvalidFree
-type interruption = IntLimit | AssFail of string | Bug of bug * string
+type interruption =
+  | IntLimit
+  | AssFail of string
+  | Bug of Chunktable.bug * string
 
 (*  Symbolic Frame  *)
 type sym_frame = {

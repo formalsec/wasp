@@ -21,7 +21,8 @@ let clone_frame (frame : sym_frame) : sym_frame =
 (* Symbolic frame *)
 let sym_frame sym_inst sym_locals = { sym_inst; sym_locals }
 
-exception BugException of bug * Interpreter.Source.region * string
+exception
+  BugException of Common.Chunktable.bug * Interpreter.Source.region * string
 
 let debug str = if !Interpreter.Flags.trace then print_endline str
 
@@ -161,15 +162,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let sym_globals = Globals.clone_globals c.sym_globals in
     let encoder = E.clone c.encoder in
     ( { c with sym_mem = sm },
-      {
-        sym_frame;
-        sym_code;
-        sym_mem;
-        sym_budget;
-        varmap;
-        sym_globals;
-        encoder;
-      } )
+      { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
+    )
 
   let sym_config (inst : module_inst) (vs : expr stack)
       (es : sym_admin_instr stack) (sym_m : Concolic.Heap.t) (globs : Globals.t)
@@ -238,10 +232,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     in
     let code = code_to_conc c.sym_code in
     let mem = SM.to_heap c.sym_mem expr_to_value in
-    let heap = (
+    let heap =
       let open SM in
       c.sym_mem.chunk_table
-    )
     in
     let pc =
       let open E in
@@ -276,25 +269,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     E.add_formula c.encoder npc';
     if E.check c.encoder None then Some c else None
 
-  let memory_error at = function
-    | SM.Bounds -> "out of bounds memory access"
-    | Interpreter.Memory.SizeOverflow -> "memory size overflow"
-    | Interpreter.Memory.SizeLimit -> "memory size limit reached"
-    | Interpreter.Memory.Type -> Crash.error at "type mismatch at memory access"
-    | exn -> raise exn
-
   let concretize_alloc (c : sym_config) : sym_config list =
-    let {
-      sym_code = vs, es;
-      varmap;
-      sym_mem;
-      encoder;
-      _
-    } = c in
-    let chunk_table = (
+    let { sym_code = vs, es; varmap; sym_mem; encoder; _ } = c in
+    let chunk_table =
       let open SM in
       sym_mem.chunk_table
-    )
     in
     let e, es' =
       match es with e :: es' -> (e, es') | _ -> failwith "unreachable"
@@ -372,10 +351,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     } =
       c
     in
-    let chunk_table = (
+    let chunk_table =
       let open SM in
       mem.chunk_table
-    )
     in
     let open Interpreter in
     let open Source in
@@ -663,63 +641,32 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     (Values.I32Value.of_value (Evaluations.to_value ptr))
                 in
                 let base_ptr = concretize_base_ptr sym_ptr in
-                try
-                  (if Option.is_some base_ptr then
-                   let low = Option.get base_ptr in
-                   let chunk_size =
-                     try Common.Chunktable.find chunk_table low
-                     with Not_found -> raise (BugException (UAF, e.at, ""))
-                   in
-                   let high =
-                     Int64.(add (of_int32 low) (of_int32 chunk_size))
-                   in
-                   let ptr_i64 =
-                     Int64.of_int32
-                       (Values.I32Value.of_value
-                          (Evaluations.to_value ptr))
-                   in
-                   let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
-                   (* ptr_val \notin [low, high] => overflow *)
-                   if ptr_val < Int64.of_int32 low || ptr_val >= high then
-                     raise (BugException (Overflow, e.at, "")));
-                  let v =
-                    match sz with
-                    | None ->
-                        SM.load_value mem ptr64 offset
-                          (Evaluations.to_num_type ty)
-                    | Some (sz, _) ->
-                        SM.load_packed sz mem ptr64 offset
-                          (Evaluations.to_num_type ty)
-                  in
-                  let es' = List.tl es in
-                  Result.ok
-                    (Continuation [ { c with sym_code = (v :: vs', es') } ])
+                match
+                  Option.bind base_ptr (fun bp ->
+                      Common.Chunktable.check_access chunk_table bp ptr offset)
                 with
-                | BugException (b, at, _) ->
-                    assert (E.check encoder None);
-                    let string_binds = E.string_binds encoder in
-                    let witness = Concolic.Store.strings_to_json string_binds in
-                    Common.write_test_case ~witness:true witness;
+                | Some b ->
                     let bug_type =
                       match b with
-                      | Overflow -> "Out of Bounds access"
-                      | UAF -> "Use After Free"
-                      | _ ->
-                          failwith "unreachable, other bugs shouldn't be here"
+                      | Common.Chunktable.Overflow -> "Out of Bounds access"
+                      | Common.Chunktable.UAF -> "Use After Free"
+                      | Common.Chunktable.InvalidFree ->
+                          failwith "unreachable, check_access can't return this"
                     in
-                    Result.error (bug_type, at)
-                | exn ->
+                    Result.error (bug_type, e.at)
+                | None ->
+                    let v =
+                      match sz with
+                      | None ->
+                          SM.load_value mem ptr64 offset
+                            (Common.Evaluations.to_num_type ty)
+                      | Some (sz, _) ->
+                          SM.load_packed sz mem ptr64 offset
+                            (Common.Evaluations.to_num_type ty)
+                    in
+                    let es' = List.tl es in
                     Result.ok
-                      (Continuation
-                         [
-                           {
-                             c with
-                             sym_code =
-                               ( vs',
-                                 [ STrapping (memory_error e.at exn) @@ e.at ]
-                               );
-                           };
-                         ]))
+                      (Continuation [ { c with sym_code = (v :: vs', es') } ]))
             | Store { offset; sz; _ }, ex :: sym_ptr :: vs' -> (
                 let sym_ptr = simplify sym_ptr in
                 let ptr =
@@ -751,56 +698,26 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     (Values.I32Value.of_value (Evaluations.to_value ptr))
                 in
                 let base_ptr = concretize_base_ptr sym_ptr in
-                try
-                  (if Option.is_some base_ptr then
-                   let low = Option.get base_ptr in
-                   let chunk_size =
-                     try Common.Chunktable.find chunk_table low
-                     with Not_found -> raise (BugException (UAF, e.at, ""))
-                   in
-                   let high =
-                     Int64.(add (of_int32 low) (of_int32 chunk_size))
-                   in
-                   let ptr_i64 =
-                     Int64.of_int32
-                       (Values.I32Value.of_value
-                          (Evaluations.to_value ptr))
-                   in
-                   let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
-                   (* ptr_val \notin [low, high[ => overflow *)
-                   if ptr_val < Int64.of_int32 low || ptr_val >= high then
-                     raise (BugException (Overflow, e.at, "")));
-                  (match sz with
-                  | None -> SM.store_value mem ptr64 offset ex
-                  | Some sz -> SM.store_packed sz mem ptr64 offset ex);
-                  let es' = List.tl es in
-                  Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
+                match
+                  Option.bind base_ptr (fun bp ->
+                      Common.Chunktable.check_access chunk_table bp ptr offset)
                 with
-                | BugException (b, at, _) ->
-                    assert (E.check encoder None);
-                    let string_binds = E.string_binds encoder in
-                    let witness = Concolic.Store.strings_to_json string_binds in
-                    Common.write_test_case ~witness:true witness;
+                | Some b ->
                     let bug_type =
                       match b with
-                      | Overflow -> "Out of Bounds access"
-                      | UAF -> "Use After Free"
-                      | _ ->
-                          failwith "unreachable, other bugs shouldn't be here"
+                      | Common.Chunktable.Overflow -> "Out of Bounds access"
+                      | Common.Chunktable.UAF -> "Use After Free"
+                      | Common.Chunktable.InvalidFree ->
+                          failwith "unreachable, check_access can't return this"
                     in
-                    Result.error (bug_type, at)
-                | exn ->
+                    Result.error (bug_type, e.at)
+                | None ->
+                    (match sz with
+                    | None -> SM.store_value mem ptr64 offset ex
+                    | Some sz -> SM.store_packed sz mem ptr64 offset ex);
+                    let es' = List.tl es in
                     Result.ok
-                      (Continuation
-                         [
-                           {
-                             c with
-                             sym_code =
-                               ( vs',
-                                 [ STrapping (memory_error e.at exn) @@ e.at ]
-                               );
-                           };
-                         ]))
+                      (Continuation [ { c with sym_code = (vs', es') } ]))
             | Const v, vs ->
                 let es' = List.tl es in
                 Result.ok
@@ -809,8 +726,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                        {
                          c with
                          sym_code =
-                           ( Val (Num (Evaluations.of_value v.it)) :: vs,
-                             es' );
+                           (Val (Num (Evaluations.of_value v.it)) :: vs, es');
                        };
                      ])
             | Test testop, v :: vs' -> (
@@ -1030,7 +946,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                          };
                        ]))
             | Alloc, Val (Num (I32 sz)) :: Val (Num (I32 base)) :: vs' ->
-                Common.Chunktable.replace chunk_table base sz;
+                Common.Chunktable.alloc chunk_table base sz;
                 let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
                 Result.ok
                   (Continuation
@@ -1047,7 +963,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                         let witness =
                           Concolic.Store.strings_to_json string_binds
                         in
-                        [ Interrupt (Bug (InvalidFree, witness)) @@ e.at ]
+                        [
+                          Interrupt
+                            (Bug (Common.Chunktable.InvalidFree, witness))
+                          @@ e.at;
+                        ]
                         @ List.tl es)
                       else (
                         Common.Chunktable.remove chunk_table base;
@@ -1197,8 +1117,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     (fun v -> Val (Num v))
                     (List.map
                        (fun t ->
-                         Encoding.Num.default_value
-                           (Evaluations.to_num_type t))
+                         Encoding.Num.default_value (Evaluations.to_num_type t))
                        f.it.locals)
                 in
                 let locals'' = List.rev args @ locals' in
