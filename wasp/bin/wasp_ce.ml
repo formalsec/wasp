@@ -40,9 +40,6 @@ let argspec =
       ( "--workspace",
         Arg.Set_string Flags.output,
         " directory to output report and test-suite (default=output)" );
-      ( "-m",
-        Arg.Set_int Flags.inst_limit,
-        " maximum instr interpreted during a model" );
       ( "--no-simplify",
         Arg.Clear Flags.simplify,
         " do not perform algebraic simplifications of symbolic expressions" );

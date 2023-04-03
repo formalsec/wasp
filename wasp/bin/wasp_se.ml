@@ -41,9 +41,6 @@ let argspec =
       ( "--workspace",
         Arg.Set_string Flags.output,
         " directory to output report and test-suite (default=output)" );
-      ( "-m",
-        Arg.Set_int Flags.inst_limit,
-        " maximum instr interpreted during a model" );
       ( "--policy",
         Arg.Set_string Flags.policy,
         " search policy random|depth|breadth|breadth-l|half-breadth (default: \
