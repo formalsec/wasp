@@ -621,8 +621,8 @@ let rec step (c : config) : config =
     | Returning vs', vs -> Crash.error e.at "undefined frame"
     | Breaking (k, vs'), vs -> Crash.error e.at "undefined label"
     | Label (n, es0, (vs', [])), vs -> (vs' @ vs, [], pc, bp)
-    | Label (n, es0, (vs', { it = Restart pc; at } :: es')), vs ->
-        (vs, [ Restart pc @@ at; Label (n, es0, (vs', es')) @@ e.at ], pc, bp)
+    | Label (n, es0, (vs', { it = Restart pc'; at } :: es')), vs ->
+        (vs, [ Restart pc' @@ at; Label (n, es0, (vs', es')) @@ e.at ], pc, bp)
     | Label (n, es0, (vs', { it = Interrupt i; at } :: es')), vs ->
         (vs, [ Interrupt i @@ at; Label (n, es0, (vs', es')) @@ e.at ], pc, bp)
     | Label (n, es0, (vs', { it = Trapping msg; at } :: es')), vs ->
@@ -647,8 +647,8 @@ let rec step (c : config) : config =
     | Frame (n, frame', (vs', [])), vs ->
         ignore (Stack.pop call_stack);
         (vs' @ vs, [], pc, bp)
-    | Frame (n, frame', (vs', { it = Restart pc; at } :: es')), vs ->
-        (vs, [ Restart pc @@ at; Frame (n, frame', (vs', es')) @@ e.at ], pc, bp)
+    | Frame (n, frame', (vs', { it = Restart pc'; at } :: es')), vs ->
+        (vs, [ Restart pc' @@ at; Frame (n, frame', (vs', es')) @@ e.at ], pc, bp)
     | Frame (n, frame', (vs', { it = Interrupt i; at } :: es')), vs ->
         ( vs,
           [ Interrupt i @@ at; Frame (n, frame', (vs', es')) @@ e.at ],
@@ -980,7 +980,7 @@ module FuncCheckpointStepper = ConcolicStepper (FuncCheckpoint)
 module RandCheckpointStepper = ConcolicStepper (RandCheckpoint)
 module DepthCheckpointStepper = ConcolicStepper (DepthCheckpoint)
 module DFS = Guided_search (Stack) (NoCheckpointStepper)
-module BFS = Guided_search (Queue) (NoCheckpointStepper)
+module BFS = Guided_search (Queue) (RandCheckpointStepper)
 module RND = Guided_search (RandArray) (NoCheckpointStepper)
 
 let set_timeout (time_limit : int) : unit =

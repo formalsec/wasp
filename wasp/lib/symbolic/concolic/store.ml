@@ -129,6 +129,9 @@ let to_expr (s : t) : expr list =
       e :: acc)
     s.map []
 
+let int64_of_value (v : Num.t) : int64 =
+  match v with I32 i | F32 i -> Int64.of_int32 i | I64 i | F64 i -> i
+
 let rec eval (env : t) (e : expr) : Num.t =
   match simplify e with
   | SymPtr (b, o) ->
@@ -147,13 +150,20 @@ let rec eval (env : t) (e : expr) : Num.t =
   | Cvtop (op, e') ->
       let v = eval env e' in
       Eval_numeric.eval_cvtop op v
-  | Symbolic (ty, var) -> find env var
+  | Symbolic (ty, var) -> get env var ty false
   | Extract (e', h, l) ->
-      let v =
-        match eval env e' with
-        | I32 x | F32 x -> Int64.of_int32 x
-        | I64 x | F64 x -> x
-      in
+      let v = int64_of_value (eval env e') in
       I64 (nland64 (Int64.shift_right v (l * 8)) (h - l))
-  | Concat (e1, e2) -> eval env (simplify (e1 ++ e2))
+  | Concat (e1, e2) -> (
+      let v1 = int64_of_value (eval env e1)
+      and v2 = int64_of_value (eval env e2) in
+      match (e1, e2) with
+      | Extract (_, h1, l1), Extract (_, h2, l2) ->
+          let i =
+            Int64.(logor (shift_left v1 (l1 * 8)) (shift_left v2 (l2 * 8)))
+          in
+          if (h1 - l2) + (h2 - l2) = 4 then I32 (Int64.to_int32 i) else I64 i
+      | Extract (_, h, l), Concat _ ->
+          I64 Int64.(logor (shift_left v1 (l * 8)) v2)
+      | _ -> assert false)
   | Val _ -> assert false
