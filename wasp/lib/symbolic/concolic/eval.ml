@@ -1,7 +1,7 @@
+open Evaluations
 open Common
 open Encoding
 open Expression
-open Evaluations
 open Types
 open Interpreter.Ast
 open Interpreter.Source
@@ -985,7 +985,7 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
        (List.mapi
           (fun i a ->
             let v = Global.load a in
-            (Int32.of_int i, (of_value v, Val (Num (of_value v)))))
+            (Int32.of_int i, (Evaluations.of_value v, Val (Num (Evaluations.of_value v)))))
           inst.globals));
   let c =
     config empty_module_inst (List.rev vs)

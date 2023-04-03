@@ -1,3 +1,7 @@
+module Counter = Counter
+module RandArray = RandArray
+module Evaluations = Evaluations
+
 module type WorkList = sig
   type 'a t
 
@@ -10,9 +14,6 @@ module type WorkList = sig
   val is_empty : 'a t -> bool
   val length : 'a t -> int
 end
-
-module Counter = Counter
-module RandArray = RandArray
 
 let count (init : int) : unit -> int =
   let next = ref init in

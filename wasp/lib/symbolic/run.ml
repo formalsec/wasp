@@ -1,4 +1,4 @@
-open Encoding
+open Encoding.Expression
 open Interpreter
 open Script
 open Source
@@ -522,8 +522,8 @@ let invoke_ce f vs inst =
   Concolic.Eval.main f
     (List.map
        (fun v ->
-         let v' = Concolic.Evaluations.of_value v.it in
-         (v', Expression.(Val (Num v'))))
+         let v' = Common.Evaluations.of_value v.it in
+         (v', (Val (Num v'))))
        vs)
     inst
 
@@ -531,8 +531,8 @@ let invoke_se f vs _ =
   Static.Eval.invoke f
     (List.map
        (fun v ->
-         let v' = Static.Evaluations.of_value v.it in
-         Expression.(Val (Num v')))
+         let v' = Common.Evaluations.of_value v.it in
+         (Val (Num v')))
        vs)
 
 let run_file file = input_file file run_script
