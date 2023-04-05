@@ -14,5 +14,6 @@ let queries = ref false
 let policy = ref "breadth"
 let encoding = ref "incremental"
 let memory = ref "map"
+let budget = 10000
 let hashtbl_default_size = 128
 let fixed_numbers = ref [ 0; 1; 2; 4; 8; 256; 4096 ]

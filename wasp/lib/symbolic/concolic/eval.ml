@@ -121,7 +121,7 @@ let config inst vs es mem glob tree =
     pc = Formula.create ();
     bp = [];
     tree;
-    budget = 100000;
+    budget = Interpreter.Flags.budget;
     call_stack = Stack.create ();
   }
 
@@ -147,7 +147,7 @@ let string_of_bug : bug -> string = function
   | InvalidFree -> "Invalid Free"
 
 let string_of_interruption : interruption -> string = function
-  | Limit -> "Instruction Limit"
+  | Limit -> "Analysis Limit"
   | Failure _ -> "Assertion Failure"
   | Bug b -> string_of_bug b
 
@@ -731,7 +731,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
             c'.bp;
           (vs, [ Frame (n, c'.frame, c'.code) @@ e.at ], c'.mem, c'.pc, c'.bp)
       | Invoke func, vs when c.budget = 0 ->
-          Exhaustion.error e.at "call stack exhausted"
+          (vs, [ Interrupt Limit @@ e.at ], mem, pc, bp)
       | Invoke func, vs -> (
           let symbolic_arg t =
             let x = Store.next store "arg" in
@@ -841,7 +841,7 @@ let reset c glob code mem =
     mem = Heap.memcpy mem;
     pc = Formula.create ();
     bp = [];
-    budget = 100000;
+    budget = Interpreter.Flags.budget;
   }
 
 let s_reset (c : config) : config =
@@ -870,6 +870,7 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     match c.code with
     | vs, [] -> c
     | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
+    | vs, { it = Interrupt Limit; at } :: _ -> { c with code = vs, [] }
     | vs, { it = Interrupt i; at } :: _ -> c
     | vs, { it = Restart pc; at } :: _ ->
         iterations := !iterations - 1;
@@ -907,7 +908,6 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
       let { code; store; bp; tree; _ } = eval c (pc_wl, cp_wl) in
       enqueue (pc_wl, cp_wl) bp;
       match code with
-      | vs, { it = Interrupt Limit; at } :: _ -> None
       | vs, { it = Interrupt i; at } :: _ ->
           write_test_case ~witness:true (Store.to_json store);
           Some (string_of_interruption i, at)
@@ -967,7 +967,6 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
           L.push pc wl)
         bp;
       match code with
-      | vs, { it = Interrupt Limit; at } :: _ -> None
       | vs, { it = Interrupt i; at } :: _ ->
           write_test_case ~witness:true (Store.to_json store);
           Some (string_of_interruption i, at)
