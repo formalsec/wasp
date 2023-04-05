@@ -1,7 +1,7 @@
 type count = int
 type 'a t = ('a, count) Hashtbl.t
 
-let create () : 'a t= Hashtbl.create Interpreter.Flags.hashtbl_default_size
+let create () : 'a t = Hashtbl.create Interpreter.Flags.hashtbl_default_size
 let clear (cnt : 'a t) : unit = Hashtbl.clear cnt
 let copy (cnt : 'a t) : 'a t = Hashtbl.copy cnt
 

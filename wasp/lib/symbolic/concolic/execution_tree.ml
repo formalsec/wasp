@@ -1,6 +1,6 @@
 type 'a t = Leaf | Node of 'a parent * 'a option * 'a left * 'a right
 and 'a parent = 'a t ref option
-and 'a left  = 'a t ref
+and 'a left = 'a t ref
 and 'a right = 'a t ref
 
 exception Invalid_branch
@@ -11,7 +11,8 @@ let is_node (t : 'a t ref) : bool = not (is_leaf t)
 let can_branch (t : 'a t ref) : bool =
   match !t with
   | Leaf -> true
-  | Node (_, _, l, r) -> ( match (!l, !r) with Leaf, Leaf -> true | _ -> false )
+  | Node (_, _, l, r) -> (
+      match (!l, !r) with Leaf, Leaf -> true | _ -> false)
 
 let rec update_node (t : 'a t ref) (v : 'a) : unit =
   match !t with

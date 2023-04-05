@@ -3,7 +3,13 @@ open Encoding
 open Types
 
 type typemap = (string, expr_type) Hashtbl.t
-type varmap = { sym : string Counter.t; ord : string BatDynArray.t; typemap : typemap }
+
+type varmap = {
+  sym : string Counter.t;
+  ord : string BatDynArray.t;
+  typemap : typemap;
+}
+
 type t = varmap
 
 let create () : t =

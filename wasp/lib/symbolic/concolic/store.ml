@@ -162,7 +162,7 @@ let rec eval (env : t) (e : expr) : Num.t =
           let i =
             Int64.(logor (shift_left v1 (l1 * 8)) (shift_left v2 (l2 * 8)))
           in
-          if (h1 - l2) + (h2 - l2) = 4 then I32 (Int64.to_int32 i) else I64 i
+          if h1 - l2 + (h2 - l2) = 4 then I32 (Int64.to_int32 i) else I64 i
       | Extract (_, h, l), Concat _ ->
           I64 Int64.(logor (shift_left v1 (l * 8)) v2)
       | _ -> assert false)

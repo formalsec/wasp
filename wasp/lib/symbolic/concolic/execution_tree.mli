@@ -1,6 +1,6 @@
 type 'a t = Leaf | Node of 'a parent * 'a option * 'a left * 'a right
 and 'a parent = 'a t ref option
-and 'a left  = 'a t ref
+and 'a left = 'a t ref
 and 'a right = 'a t ref
 
 exception Invalid_branch
