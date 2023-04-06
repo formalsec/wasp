@@ -10,21 +10,6 @@ open Interpreter.Ast
 (* TODO/FIXME: there's a lot of code at the top that
    needs to be extracted to a common module with concolic.ml *)
 
-let numeric_error at = function
-  | Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
-  | Interpreter.Numeric_error.IntegerOverflow -> "integer overflow"
-  | Interpreter.Numeric_error.IntegerDivideByZero -> "integer divide by zero"
-  | Interpreter.Numeric_error.InvalidConversionToInteger ->
-      "invalid conversion to integer"
-  | Interpreter.Eval_numeric.TypeError (i, v, t) ->
-      Crash.error at
-        ("type error, expected "
-        ^ Interpreter.Types.string_of_value_type t
-        ^ " as operand " ^ string_of_int i ^ ", got "
-        ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v)
-        )
-  | exn -> raise exn
-
 (* Administrative Expressions & Configurations *)
 type 'a stack = 'a list
 

@@ -44,3 +44,18 @@ let write_test_case ?(witness = false) test_data : unit =
       else Printf.sprintf "%s/test_%05d.json" out_dir i
     in
     Interpreter.Io.save_file filename test_data
+
+let numeric_error at = function
+  | Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
+  | Interpreter.Numeric_error.IntegerOverflow -> "integer overflow"
+  | Interpreter.Numeric_error.IntegerDivideByZero -> "integer divide by zero"
+  | Interpreter.Numeric_error.InvalidConversionToInteger ->
+      "invalid conversion to integer"
+  | Interpreter.Eval_numeric.TypeError (i, v, t) ->
+      Crash.error at
+        ("type error, expected "
+        ^ Interpreter.Types.string_of_value_type t
+        ^ " as operand " ^ string_of_int i ^ ", got "
+        ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v)
+        )
+  | exn -> raise exn
