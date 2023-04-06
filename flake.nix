@@ -14,7 +14,7 @@
   #     $ nix flake lock --update-input <input> ... --commit-lockfile
   #
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # Convenience functions for writing flakes
     flake-utils.url = "github:numtide/flake-utils";
     # Precisely filter files copied to the nix store
@@ -77,7 +77,7 @@
             strictDeps = true;
 
             nativeBuildInputs = [
-              (pkgs.z3.override {
+              (pkgs.z3_4_11.override {
                 ocamlBindings = true;
                 ocaml = ocamlPackages.ocaml;
                 findlib = ocamlPackages.findlib;
@@ -86,7 +86,9 @@
             ];
 
             buildInputs = [
-              ocamlPackages.z3
+              (ocamlPackages.z3.override {
+                z3 = pkgs.z3_4_11;
+              })
               ocamlPackages.batteries
               ocamlPackages.base
               ocamlPackages.ppx_inline_test
