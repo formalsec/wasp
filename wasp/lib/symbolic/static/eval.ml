@@ -1,3 +1,5 @@
+open Evaluations
+open Common
 open Encoding.Expression
 open Encoding.Types
 open Strategies
@@ -8,20 +10,8 @@ open Interpreter.Ast
 (* TODO/FIXME: there's a lot of code at the top that
    needs to be extracted to a common module with concolic.ml *)
 
-(* Errors *)
-
-module Link = Interpreter.Error.Make ()
-module Trap = Interpreter.Error.Make ()
-module Crash = Interpreter.Error.Make ()
-module Exhaustion = Interpreter.Error.Make ()
-
-exception Link = Link.Error
-exception Trap = Trap.Error
-exception Crash = Crash.Error (* failure that cannot happen in valid code *)
-exception Exhaustion = Exhaustion.Error
-
 let numeric_error at = function
-  | Common.Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
+  | Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
   | Interpreter.Numeric_error.IntegerOverflow -> "integer overflow"
   | Interpreter.Numeric_error.IntegerDivideByZero -> "integer divide by zero"
   | Interpreter.Numeric_error.InvalidConversionToInteger ->
@@ -670,7 +660,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 in
                 let ptr64 =
                   I64_convert.extend_i32_u
-                    (Values.I32Value.of_value (Common.Evaluations.to_value ptr))
+                    (Values.I32Value.of_value (Evaluations.to_value ptr))
                 in
                 let base_ptr = concretize_base_ptr sym_ptr in
                 try
@@ -686,7 +676,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                    let ptr_i64 =
                      Int64.of_int32
                        (Values.I32Value.of_value
-                          (Common.Evaluations.to_value ptr))
+                          (Evaluations.to_value ptr))
                    in
                    let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
                    (* ptr_val \notin [low, high] => overflow *)
@@ -696,10 +686,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     match sz with
                     | None ->
                         SM.load_value mem ptr64 offset
-                          (Common.Evaluations.to_num_type ty)
+                          (Evaluations.to_num_type ty)
                     | Some (sz, _) ->
                         SM.load_packed sz mem ptr64 offset
-                          (Common.Evaluations.to_num_type ty)
+                          (Evaluations.to_num_type ty)
                   in
                   let es' = List.tl es in
                   Result.ok
@@ -758,7 +748,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 in
                 let ptr64 =
                   I64_convert.extend_i32_u
-                    (Values.I32Value.of_value (Common.Evaluations.to_value ptr))
+                    (Values.I32Value.of_value (Evaluations.to_value ptr))
                 in
                 let base_ptr = concretize_base_ptr sym_ptr in
                 try
@@ -774,7 +764,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                    let ptr_i64 =
                      Int64.of_int32
                        (Values.I32Value.of_value
-                          (Common.Evaluations.to_value ptr))
+                          (Evaluations.to_value ptr))
                    in
                    let ptr_val = Int64.(add ptr_i64 (of_int32 offset)) in
                    (* ptr_val \notin [low, high[ => overflow *)
@@ -819,14 +809,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                        {
                          c with
                          sym_code =
-                           ( Val (Num (Common.Evaluations.of_value v.it)) :: vs,
+                           ( Val (Num (Evaluations.of_value v.it)) :: vs,
                              es' );
                        };
                      ])
             | Test testop, v :: vs' -> (
                 let es' = List.tl es in
                 try
-                  let v' = Evaluations.eval_testop v testop in
+                  let v' = eval_testop v testop in
                   Result.ok
                     (Continuation
                        [ { c with sym_code = (simplify v' :: vs', es') } ])
@@ -845,7 +835,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | Compare relop, v2 :: v1 :: vs' -> (
                 let es' = List.tl es in
                 try
-                  let v = Evaluations.eval_relop v1 v2 relop in
+                  let v = eval_relop v1 v2 relop in
                   Result.ok
                     (Continuation
                        [ { c with sym_code = (simplify v :: vs', es') } ])
@@ -864,7 +854,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | Unary unop, v :: vs' -> (
                 let es' = List.tl es in
                 try
-                  let v = Evaluations.eval_unop v unop in
+                  let v = eval_unop v unop in
                   Result.ok
                     (Continuation
                        [ { c with sym_code = (simplify v :: vs', es') } ])
@@ -883,7 +873,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | Binary binop, v2 :: v1 :: vs' -> (
                 let es' = List.tl es in
                 try
-                  let v = Evaluations.eval_binop v1 v2 binop in
+                  let v = eval_binop v1 v2 binop in
                   Result.ok
                     (Continuation
                        [ { c with sym_code = (simplify v :: vs', es') } ])
@@ -902,7 +892,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | Convert cvtop, v :: vs' -> (
                 let es' = List.tl es in
                 try
-                  let v' = Evaluations.eval_cvtop cvtop v in
+                  let v' = eval_cvtop cvtop v in
                   Result.ok
                     (Continuation
                        [ { c with sym_code = (simplify v' :: vs', es') } ])
@@ -1011,7 +1001,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let base = I64_convert.extend_i32_u i in
                 let symbol = if i = 0l then "x" else SM.load_string mem base in
                 let x = Varmap.next varmap symbol in
-                let ty' = Common.Evaluations.to_num_type ty in
+                let ty' = Evaluations.to_num_type ty in
                 let v = symbolic ty' x in
                 let es' = List.tl es in
                 Varmap.add varmap x ty';
@@ -1021,7 +1011,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 (* results in i32 *)
                 let v2' = mk_relop v2 `I32Type in
                 let v1' = mk_relop v1 `I32Type in
-                let v3 = Evaluations.eval_binop v1' v2' boolop in
+                let v3 = eval_binop v1' v2' boolop in
                 let es' = List.tl es in
                 try
                   Result.ok
@@ -1209,7 +1199,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     (List.map
                        (fun t ->
                          Encoding.Num.default_value
-                           (Common.Evaluations.to_num_type t))
+                           (Evaluations.to_num_type t))
                        f.it.locals)
                 in
                 let locals'' = List.rev args @ locals' in

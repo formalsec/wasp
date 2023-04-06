@@ -1,6 +1,15 @@
 module Counter = Counter
 module RandArray = RandArray
 module Evaluations = Evaluations
+module Link = Interpreter.Error.Make ()
+module Trap = Interpreter.Error.Make ()
+module Crash = Interpreter.Error.Make ()
+module Exhaustion = Interpreter.Error.Make ()
+
+exception Link = Link.Error
+exception Trap = Trap.Error
+exception Crash = Crash.Error
+exception Exhaustion = Exhaustion.Error
 
 module type WorkList = sig
   type 'a t

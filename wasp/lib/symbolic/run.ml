@@ -106,14 +106,10 @@ let input_from get_script run =
   | Parse.Syntax (at, msg) -> error at "syntax error" msg
   | Valid.Invalid (at, msg) -> error at "invalid module" msg
   | Import.Unknown (at, msg) -> error at "link failure" msg
-  | Concolic.Eval.Link (at, msg) -> error at "link failure" msg
-  | Concolic.Eval.Trap (at, msg) -> error at "runtime trap" msg
-  | Concolic.Eval.Exhaustion (at, msg) -> error at "resource exhaustion" msg
-  | Concolic.Eval.Crash (at, msg) -> error at "runtime crash" msg
-  | Static.Eval.Link (at, msg) -> error at "link failure" msg
-  | Static.Eval.Trap (at, msg) -> error at "runtime trap" msg
-  | Static.Eval.Exhaustion (at, msg) -> error at "resource exhaustion" msg
-  | Static.Eval.Crash (at, msg) -> error at "runtime crash" msg
+  | Common.Link (at, msg) -> error at "link failure" msg
+  | Common.Trap (at, msg) -> error at "runtime trap" msg
+  | Common.Exhaustion (at, msg) -> error at "resource exhaustion" msg
+  | Common.Crash (at, msg) -> error at "runtime crash" msg
   | Encode.Code (at, msg) -> error at "encoding error" msg
   | IO (at, msg) -> error at "i/o error" msg
   | Assert (at, msg) -> error at "assertion failure" msg
@@ -412,7 +408,7 @@ let run_assertion ass invoke =
         let imports = Import.link m in
         ignore (Concolic.Eval.init m imports)
       with
-      | exception (Import.Unknown (_, msg) | Concolic.Eval.Link (_, msg)) ->
+      | exception (Import.Unknown (_, msg) | Common.Link (_, msg)) ->
           assert_message ass.at "linking" msg re
       | _ -> Assert.error ass.at "expected linking error")
   | AssertUninstantiable (def, re) -> (
@@ -423,7 +419,7 @@ let run_assertion ass invoke =
         let imports = Import.link m in
         ignore (Concolic.Eval.init m imports)
       with
-      | exception Concolic.Eval.Trap (_, msg) ->
+      | exception Common.Trap (_, msg) ->
           assert_message ass.at "instantiation" msg re
       | _ -> Assert.error ass.at "expected instantiation error")
   | AssertReturn (act, rs) ->
@@ -434,13 +430,13 @@ let run_assertion ass invoke =
   | AssertTrap (act, re) -> (
       trace "Asserting trap...";
       match run_action act invoke with
-      | exception Concolic.Eval.Trap (_, msg) ->
+      | exception Common.Trap (_, msg) ->
           assert_message ass.at "runtime" msg re
       | _ -> Assert.error ass.at "expected runtime error")
   | AssertExhaustion (act, re) -> (
       trace "Asserting exhaustion...";
       match run_action act invoke with
-      | exception Concolic.Eval.Exhaustion (_, msg) ->
+      | exception Common.Exhaustion (_, msg) ->
           assert_message ass.at "exhaustion" msg re
       | _ -> Assert.error ass.at "expected exhaustion error")
 

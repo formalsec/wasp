@@ -6,15 +6,6 @@ open Types
 open Interpreter.Ast
 open Interpreter.Source
 open Interpreter.Instance
-module Link = Interpreter.Error.Make ()
-module Trap = Interpreter.Error.Make ()
-module Crash = Interpreter.Error.Make ()
-module Exhaustion = Interpreter.Error.Make ()
-
-exception Link = Link.Error
-exception Trap = Trap.Error
-exception Crash = Crash.Error
-exception Exhaustion = Exhaustion.Error
 
 let memory_error at = function
   | Heap.InvalidAddress a ->
