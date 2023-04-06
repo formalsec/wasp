@@ -1278,7 +1278,21 @@ let write_report (error : (string * Interpreter.Source.region) option)
     (Filename.concat !Interpreter.Flags.output "report.json")
     report_str
 
+let set_timeout (time_limit : int) : unit =
+  let alarm_handler i : unit =
+    Encoding.Batch.interrupt ();
+    Encoding.Incremental.interrupt ();
+    let loop_time = Sys.time () -. !Strategies.loop_start in
+    let paths = List.length !Strategies.pcs in
+    write_report None loop_time paths 0;
+    exit 0
+  in
+  if time_limit > 0 then (
+    Sys.(set_signal sigalrm (Signal_handle alarm_handler));
+    ignore (Unix.alarm time_limit))
+
 let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
+  set_timeout !Interpreter.Flags.timeout;
   let open Interpreter.Source in
   let at =
     match func with

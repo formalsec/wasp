@@ -56,24 +56,23 @@ module type Interpreter = sig
 end
 
 module TreeStrategy (L : WorkList) (I : Interpreter) = struct
-  let eval (c : I.sym_config) :
-      Encoding.Formula.t list * (string * Interpreter.Source.region) option =
+  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+      (string * Interpreter.Source.region) option =
     let w = L.create () in
     L.push c w;
 
     let err = ref None in
-    let outs = ref [] in
     while Option.is_none !err && not (L.is_empty w) do
       let c = L.pop w in
       match I.step c with
       | Result.Ok step_res -> (
           match step_res with
           | I.Continuation cs' -> L.add_seq w (List.to_seq cs')
-          | I.End e -> outs := e :: !outs)
+          | I.End e -> pcs := e :: !pcs)
       | Result.Error step_err -> err := Some step_err
     done;
 
-    (!outs, !err)
+    !err
 end
 
 module DFS = TreeStrategy (Stack)
@@ -83,13 +82,12 @@ module RS = TreeStrategy (RandArray)
 module BFS_L (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) :
-      Encoding.Formula.t list * (string * Interpreter.Source.region) option =
+  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+      (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
     let err = ref None in
-    let outs = ref [] in
     while Option.is_none !err && not (Queue.is_empty w) do
       let l = Queue.length w in
       let c = Queue.pop w in
@@ -100,30 +98,29 @@ module BFS_L (I : Interpreter) = struct
               if l + List.length cs' <= max_configs then
                 Queue.add_seq w (List.to_seq cs')
               else Queue.push c w
-          | I.End e -> outs := e :: !outs)
+          | I.End e -> pcs := e :: !pcs)
       | Result.Error step_err -> err := Some step_err
     done;
 
-    (!outs, !err)
+    !err
 end
 
 module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) :
-      Encoding.Formula.t list * (string * Interpreter.Source.region) option =
+  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+      (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
     let err = ref None in
-    let outs = ref [] in
     while Option.is_none !err && not (Queue.is_empty w) do
       let c = Queue.pop w in
       match I.step c with
       | Result.Ok step_res -> (
           match step_res with
           | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
-          | I.End e -> outs := e :: !outs)
+          | I.End e -> pcs := e :: !pcs)
       | Result.Error step_err ->
           err := Some step_err;
           let l = Queue.length w in
@@ -138,19 +135,18 @@ module Half_BFS (I : Interpreter) = struct
             Queue.transfer filtered w)
     done;
 
-    (!outs, !err)
+    !err
 end
 
 module ProgressBFS (I : Interpreter) = struct
-  let eval (c : I.sym_config) :
-      Encoding.Formula.t list * (string * Interpreter.Source.region) option =
+  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+      (string * Interpreter.Source.region) option =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
     let cold = Queue.create () in
 
     let err = ref None in
-    let outs = ref [] in
 
     while
       Option.is_none !err && not (Queue.is_empty hot && Queue.is_empty cold)
@@ -165,7 +161,7 @@ module ProgressBFS (I : Interpreter) = struct
                 if l + List.length cs' <= !max_configs then
                   Queue.add_seq hot (List.to_seq cs')
                 else Queue.add_seq cold (List.to_seq cs')
-            | I.End e -> outs := e :: !outs)
+            | I.End e -> pcs := e :: !pcs)
         | Result.Error step_err -> err := Some step_err
       done;
       Queue.transfer cold hot;
@@ -174,19 +170,18 @@ module ProgressBFS (I : Interpreter) = struct
         max_configs := !max_configs * 2
     done;
 
-    (!outs, !err)
+    !err
 end
 
 module Hybrid (I : Interpreter) = struct
   let max_configs = 128
 
-  let eval (c : I.sym_config) :
-      Encoding.Formula.t list * (string * Interpreter.Source.region) option =
+  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+      (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
     let err = ref None in
-    let outs = ref [] in
     while Option.is_none !err && not (Queue.is_empty w) do
       let l = Queue.length w in
       let c = Queue.pop w in
@@ -200,23 +195,22 @@ module Hybrid (I : Interpreter) = struct
         | Result.Ok step_res -> (
             match step_res with
             | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
-            | I.End e -> outs := e :: !outs)
+            | I.End e -> pcs := e :: !pcs)
         | Result.Error step_err -> err := Some step_err
     done;
 
-    (!outs, !err)
+    !err
 end
 
 module HybridP (I : Interpreter) = struct
   let max_configs = 128
 
-  let eval (c : I.sym_config) :
-      Encoding.Formula.t list * (string * Interpreter.Source.region) option =
+  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+      (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
     let err = ref None in
-    let outs = ref [] in
     while Option.is_none !err && not (Queue.is_empty w) do
       let l = Queue.length w in
       let c = Queue.pop w in
@@ -225,19 +219,22 @@ module HybridP (I : Interpreter) = struct
         match I.p_invoke c with
         | Error step_err -> err := Some step_err
         | Ok pc' ->
-            outs := pc' :: !outs;
+            pcs := pc' :: !pcs;
             Queue.add_seq w (Option.to_seq (I.p_finished c pc')))
       else
         match I.step c with
         | Result.Ok step_res -> (
             match step_res with
             | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
-            | I.End e -> outs := e :: !outs)
+            | I.End e -> pcs := e :: !pcs)
         | Result.Error step_err -> err := Some step_err
     done;
 
-    (!outs, !err)
+    !err
 end
+
+let loop_start = ref 0.0
+let pcs = ref []
 
 module Helper (I : Interpreter) = struct
   module DFS_I = DFS (I)
@@ -265,15 +262,17 @@ module Helper (I : Interpreter) = struct
       | _ -> failwith "unreachable"
     in
 
-    let loop_start = Sys.time () in
-    let pcs, step_err = eval c in
-    let spec, reason, paths =
+    loop_start := Sys.time ();
+    let step_err = eval c pcs in
+    let spec, reason =
       match step_err with
-      | None -> (true, None, List.length pcs)
-      | Some step_err -> (false, Some step_err, List.length pcs)
+      | None -> (true, None)
+      | Some step_err -> (false, Some step_err)
     in
 
-    let loop_time = Sys.time () -. loop_start in
+    let loop_time = Sys.time () -. !loop_start in
+
+    let paths = List.length !pcs in
 
     (spec, reason, loop_time, paths)
 end
