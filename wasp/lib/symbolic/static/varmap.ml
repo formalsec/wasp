@@ -6,7 +6,7 @@ type typemap = (string, expr_type) Hashtbl.t
 
 type varmap = {
   sym : string Counter.t;
-  ord : string BatDynArray.t;
+  ord : string Stack.t;
   typemap : typemap;
 }
 
@@ -15,7 +15,7 @@ type t = varmap
 let create () : t =
   {
     sym = Counter.create ();
-    ord = BatDynArray.create ();
+    ord = Stack.create ();
     typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
   }
 
@@ -42,10 +42,10 @@ let binds (varmap : t) : (string * expr_type) list =
 
 let copy (varmap : t) : t =
   let sym = Counter.copy varmap.sym
-  and ord = BatDynArray.copy varmap.ord
+  and ord = Stack.copy varmap.ord
   and typemap = Hashtbl.copy varmap.typemap in
   { sym; ord; typemap }
 
 let add (varmap : t) (name : string) (ty : expr_type) : unit =
-  BatDynArray.add varmap.ord name;
+  Stack.push name varmap.ord;
   Hashtbl.replace varmap.typemap name ty
