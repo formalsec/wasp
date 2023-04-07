@@ -1,4 +1,5 @@
 open Common
+open Bug
 open Encoding
 open Expression
 open Types
@@ -194,6 +195,12 @@ module type SymbolicMemory = sig
   val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
   val to_string : t -> string
   val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
+
+  (*TODO : change int32 to address (int64)*)
+  val alloc : t -> int32 -> size -> unit
+  val free : t -> int32 -> unit
+  val check_access : t -> int32 -> Num.t -> offset -> bug option
+  val check_bound : t -> int32 -> bool
 end
 
 module SMem (MB : MemoryBackend) : SymbolicMemory = struct
@@ -356,6 +363,17 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
   let to_heap (m : t) (expr_to_value : Expression.t -> Num.t) : Concolic.Heap.t
       =
     MB.to_heap m.backend expr_to_value
+
+  (*TODO : change int32 to address (int64)*)
+  let alloc (m : t) (b : int32) (s : size) =
+    Chunktable.replace m.chunk_table b s
+
+  let free (m : t) (b : int32) = Chunktable.remove m.chunk_table b
+
+  let check_access (m : t) (b : int32) (ptr : Num.t) (o : offset) =
+    Chunktable.check_access m.chunk_table b ptr o
+
+  let check_bound (m : t) (b : int32) = Chunktable.mem m.chunk_table b
 end
 
 module LazySMem : SymbolicMemory = SMem (LazyMemory)

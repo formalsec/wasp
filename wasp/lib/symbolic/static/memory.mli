@@ -1,4 +1,5 @@
 open Common
+open Bug
 open Encoding
 open Types
 open Interpreter.Memory
@@ -42,6 +43,12 @@ module type SymbolicMemory = sig
   val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
   val to_string : t -> string
   val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
+
+  (*TODO : change int32 to address (int64)*)
+  val alloc : t -> int32 -> size -> unit
+  val free : t -> int32 -> unit
+  val check_access : t -> int32 -> Num.t -> offset -> bug option
+  val check_bound : t -> int32 -> bool
 end
 
 module LazySMem : SymbolicMemory

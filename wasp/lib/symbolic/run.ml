@@ -430,8 +430,7 @@ let run_assertion ass invoke =
   | AssertTrap (act, re) -> (
       trace "Asserting trap...";
       match run_action act invoke with
-      | exception Common.Trap (_, msg) ->
-          assert_message ass.at "runtime" msg re
+      | exception Common.Trap (_, msg) -> assert_message ass.at "runtime" msg re
       | _ -> Assert.error ass.at "expected runtime error")
   | AssertExhaustion (act, re) -> (
       trace "Asserting exhaustion...";

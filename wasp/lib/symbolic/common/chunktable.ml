@@ -1,9 +1,7 @@
 open Encoding
+open Bug
 
 type t = (int32, int32) Hashtbl.t
-type bug = Overflow | UAF | InvalidFree
-
-exception BugException of bug * Interpreter.Source.region * string
 
 let replace (ct : t) (address : int32) (size : int32) =
   Hashtbl.replace ct address size

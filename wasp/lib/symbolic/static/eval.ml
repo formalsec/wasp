@@ -21,8 +21,7 @@ let clone_frame (frame : sym_frame) : sym_frame =
 (* Symbolic frame *)
 let sym_frame sym_inst sym_locals = { sym_inst; sym_locals }
 
-exception
-  BugException of Common.Chunktable.bug * Interpreter.Source.region * string
+exception BugException of Common.Bug.bug * Interpreter.Source.region * string
 
 let debug str = if !Interpreter.Flags.trace then print_endline str
 
@@ -271,10 +270,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
   let concretize_alloc (c : sym_config) : sym_config list =
     let { sym_code = vs, es; varmap; sym_mem; encoder; _ } = c in
-    let chunk_table =
-      let open SM in
-      sym_mem.chunk_table
-    in
     let e, es' =
       match es with e :: es' -> (e, es') | _ -> failwith "unreachable"
     in
@@ -325,7 +320,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
 
           let base_cond = Relop (I32 I32.Eq, s_base, Val (Num (I32 base))) in
           E.add c.encoder base_cond;
-          Common.Chunktable.replace chunk_table base size;
+          SM.alloc sym_mem base size;
 
           let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
           Some { c with sym_code = (sym_ptr :: List.tl vs, List.tl es) }
@@ -350,10 +345,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       _;
     } =
       c
-    in
-    let chunk_table =
-      let open SM in
-      mem.chunk_table
     in
     let open Interpreter in
     let open Source in
@@ -643,14 +634,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let base_ptr = concretize_base_ptr sym_ptr in
                 match
                   Option.bind base_ptr (fun bp ->
-                      Common.Chunktable.check_access chunk_table bp ptr offset)
+                      SM.check_access mem bp ptr offset)
                 with
                 | Some b ->
                     let bug_type =
                       match b with
-                      | Common.Chunktable.Overflow -> "Out of Bounds access"
-                      | Common.Chunktable.UAF -> "Use After Free"
-                      | Common.Chunktable.InvalidFree ->
+                      | Common.Bug.Overflow -> "Out of Bounds access"
+                      | Common.Bug.UAF -> "Use After Free"
+                      | Common.Bug.InvalidFree ->
                           failwith "unreachable, check_access can't return this"
                     in
                     Result.error (bug_type, e.at)
@@ -700,14 +691,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let base_ptr = concretize_base_ptr sym_ptr in
                 match
                   Option.bind base_ptr (fun bp ->
-                      Common.Chunktable.check_access chunk_table bp ptr offset)
+                      SM.check_access mem bp ptr offset)
                 with
                 | Some b ->
                     let bug_type =
                       match b with
-                      | Common.Chunktable.Overflow -> "Out of Bounds access"
-                      | Common.Chunktable.UAF -> "Use After Free"
-                      | Common.Chunktable.InvalidFree ->
+                      | Common.Bug.Overflow -> "Out of Bounds access"
+                      | Common.Bug.UAF -> "Use After Free"
+                      | Common.Bug.InvalidFree ->
                           failwith "unreachable, check_access can't return this"
                     in
                     Result.error (bug_type, e.at)
@@ -946,7 +937,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                          };
                        ]))
             | Alloc, Val (Num (I32 sz)) :: Val (Num (I32 base)) :: vs' ->
-                Common.Chunktable.alloc chunk_table base sz;
+                SM.alloc mem base sz;
                 let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
                 Result.ok
                   (Continuation
@@ -957,20 +948,19 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 match simplify ptr with
                 | SymPtr (base, Val (Num (I32 0l))) ->
                     let es' =
-                      if not (Common.Chunktable.mem chunk_table base) then (
+                      if not (SM.check_bound mem base) then (
                         assert (E.check encoder None);
                         let string_binds = E.string_binds encoder in
                         let witness =
                           Concolic.Store.strings_to_json string_binds
                         in
                         [
-                          Interrupt
-                            (Bug (Common.Chunktable.InvalidFree, witness))
+                          Interrupt (Bug (Common.Bug.InvalidFree, witness))
                           @@ e.at;
                         ]
                         @ List.tl es)
                       else (
-                        Common.Chunktable.remove chunk_table base;
+                        SM.free mem base;
                         List.tl es)
                     in
                     Result.ok
