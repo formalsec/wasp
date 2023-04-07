@@ -17,8 +17,7 @@ let memory_error at = function
   | exn -> raise exn
 
 type policy = Random | Depth | Breadth
-type bug = Overflow | UAF | InvalidFree
-type interruption = Limit | Failure of Formula.t | Bug of bug
+type interruption = Limit | Failure of Formula.t | Bug of Bug.bug
 type value = Num.t * Expression.t
 type 'a stack = 'a list
 type frame = { inst : module_inst; locals : value ref list }
@@ -43,7 +42,7 @@ type config = {
   code : code;
   mem : Heap.t;
   store : Store.t;
-  heap : (int32, int32) Hashtbl.t;
+  heap : Chunktable.t;
   pc : Formula.t;
   bp : bp list;
   tree : tree ref;
@@ -77,7 +76,7 @@ let clone (c : config) : Heap.t * config =
   and code = (vs, List.map clone_admin_instr es)
   and mem, mem' = Heap.clone c.mem
   and store = Store.copy c.store
-  and heap = Hashtbl.copy c.heap
+  and heap = Chunktable.copy c.heap
   and pc = c.pc
   and bp = []
   and tree = ref !(c.tree)
@@ -93,7 +92,7 @@ let config inst vs es mem glob tree =
     code = (vs, es);
     mem;
     store = Store.create [];
-    heap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
+    heap = Chunktable.create ();
     pc = Formula.create ();
     bp = [];
     tree;
@@ -101,7 +100,7 @@ let config inst vs es mem glob tree =
     call_stack = Stack.create ();
   }
 
-exception BugException of config * region * bug
+exception BugException of config * region * Bug.bug
 
 let head = ref Execution_tree.(Node (None, None, ref Leaf, ref Leaf))
 let step_cnt = ref 0
@@ -117,15 +116,10 @@ let parse_policy (p : string) : policy option =
   | "breadth" -> Some Breadth
   | _ -> None
 
-let string_of_bug : bug -> string = function
-  | Overflow -> "Overflow"
-  | UAF -> "Use After Free"
-  | InvalidFree -> "Invalid Free"
-
 let string_of_interruption : interruption -> string = function
   | Limit -> "Analysis Limit"
   | Failure _ -> "Assertion Failure"
-  | Bug b -> string_of_bug b
+  | Bug b -> Bug.string_of_bug b
 
 let plain e = Plain e.it @@ e.at
 
@@ -355,74 +349,47 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               Globals.add glob x.it v;
               (vs', [], mem, pc, bp)
           | Load { offset; ty; sz; _ }, (I32 i, sym_ptr) :: vs' -> (
-              let base = Interpreter.I64_convert.extend_i32_u i in
-              (* overflow check *)
-              let ptr = get_ptr (simplify sym_ptr) in
               try
-                (if Option.is_some ptr then
-                 let low =
-                   Interpreter.Values.I32Value.of_value
-                     (Evaluations.to_value (Option.get ptr))
-                 in
-                 let chunk_size =
-                   try Hashtbl.find heap low
-                   with Not_found -> raise (BugException (c, e.at, UAF))
-                 in
-                 let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
-                 and ptr_val = Int64.(add base (of_int32 offset)) in
-                 (* ptr_val \notin [low, high[ => overflow *)
-                 if ptr_val < Int64.of_int32 low || ptr_val >= high then
-                   raise (BugException (c, e.at, Overflow)));
-                let v, e =
-                  match sz with
-                  | None ->
-                      Heap.load_value mem base offset
-                        (Evaluations.to_num_type ty)
-                  | Some (sz, ext) ->
-                      Heap.load_packed sz ext mem base offset
-                        (Evaluations.to_num_type ty)
-                in
-                ((v, e) :: vs', [], mem, pc, bp)
-              with
-              | BugException (_, at, b) ->
-                  (vs', [ Interrupt (Bug b) @@ e.at ], mem, pc, bp)
-              | exn ->
-                  ( vs',
-                    [ Trapping (memory_error e.at exn) @@ e.at ],
-                    mem,
-                    pc,
-                    bp ))
+                let base = Interpreter.I64_convert.extend_i32_u i in
+                (* overflow check *)
+                let ptr = concretize_base_ptr (simplify sym_ptr) in
+                match
+                  Option.bind ptr (fun bp ->
+                      Chunktable.check_access heap bp (I32 i) offset)
+                with
+                | Some b -> (vs', [ Interrupt (Bug b) @@ e.at ], mem, pc, bp)
+                | None ->
+                    let v, e =
+                      match sz with
+                      | None ->
+                          Heap.load_value mem base offset
+                            (Evaluations.to_num_type ty)
+                      | Some (sz, ext) ->
+                          Heap.load_packed sz ext mem base offset
+                            (Evaluations.to_num_type ty)
+                    in
+                    ((v, e) :: vs', [], mem, pc, bp)
+              with exn ->
+                (vs', [ Trapping (memory_error e.at exn) @@ e.at ], mem, pc, bp)
+              )
           | Store { offset; sz; _ }, (v, ex) :: (I32 i, sym_ptr) :: vs' -> (
-              let base = Interpreter.I64_convert.extend_i32_u i in
-              let ptr = get_ptr (simplify sym_ptr) in
               try
-                (if Option.is_some ptr then
-                 let low =
-                   Interpreter.Values.I32Value.of_value
-                     (Evaluations.to_value (Option.get ptr))
-                 in
-                 let chunk_size =
-                   try Hashtbl.find heap low
-                   with Not_found -> raise (BugException (c, e.at, UAF))
-                 in
-                 let high = Int64.(add (of_int32 low) (of_int32 chunk_size))
-                 and ptr_val = Int64.(add base (of_int32 offset)) in
-                 if Int64.of_int32 low > ptr_val || ptr_val >= high then
-                   raise (BugException (c, e.at, Overflow)));
-                (match sz with
-                | None -> Heap.store_value mem base offset (v, simplify ex)
-                | Some sz ->
-                    Heap.store_packed sz mem base offset (v, simplify ex));
-                (vs', [], mem, pc, bp)
-              with
-              | BugException (_, at, b) ->
-                  (vs', [ Interrupt (Bug b) @@ e.at ], mem, pc, bp)
-              | exn ->
-                  ( vs',
-                    [ Trapping (memory_error e.at exn) @@ e.at ],
-                    mem,
-                    pc,
-                    bp ))
+                let base = Interpreter.I64_convert.extend_i32_u i in
+                let ptr = concretize_base_ptr (simplify sym_ptr) in
+                match
+                  Option.bind ptr (fun bp ->
+                      Chunktable.check_access heap bp (I32 i) offset)
+                with
+                | Some b -> (vs', [ Interrupt (Bug b) @@ e.at ], mem, pc, bp)
+                | None ->
+                    (match sz with
+                    | None -> Heap.store_value mem base offset (v, simplify ex)
+                    | Some sz ->
+                        Heap.store_packed sz mem base offset (v, simplify ex));
+                    (vs', [], mem, pc, bp)
+              with exn ->
+                (vs', [ Trapping (memory_error e.at exn) @@ e.at ], mem, pc, bp)
+              )
           | MemorySize, vs ->
               let mem' = memory frame.inst (0l @@ e.at) in
               let v : Num.t = I32 (Interpreter.Memory.size mem') in
@@ -528,7 +495,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           | Free, (I32 i, _) :: vs' ->
               let es' =
                 if not (Hashtbl.mem heap i) then
-                  [ Interrupt (Bug InvalidFree) @@ e.at ]
+                  [ Interrupt (Bug Bug.InvalidFree) @@ e.at ]
                 else (
                   Hashtbl.remove heap i;
                   [])
