@@ -42,7 +42,9 @@ module type SymbolicMemory = sig
   val store_value : t -> address -> offset -> Expression.t -> unit
   val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
   val to_string : t -> string
-  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
+
+  val to_heap :
+    t -> (Expression.t -> Num.t) -> Concolic.Heap.t * (int32, int32) Hashtbl.t
 
   (*TODO : change int32 to address (int64)*)
   val alloc : t -> int32 -> size -> unit

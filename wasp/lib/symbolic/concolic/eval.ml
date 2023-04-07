@@ -846,7 +846,7 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     match c.code with
     | vs, [] -> c
     | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-    | vs, { it = Interrupt Limit; at } :: _ -> { c with code = vs, [] }
+    | vs, { it = Interrupt Limit; at } :: _ -> { c with code = (vs, []) }
     | vs, { it = Interrupt i; at } :: _ -> c
     | vs, { it = Restart pc; at } :: _ ->
         iterations := !iterations - 1;

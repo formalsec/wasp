@@ -1,10 +1,7 @@
 open Common
 open Encoding
 
-type interruption =
-  | IntLimit
-  | AssFail of string
-  | Bug of Bug.bug * string
+type interruption = IntLimit | AssFail of string | Bug of Bug.bug * string
 
 (*  Symbolic Frame  *)
 type sym_frame = {

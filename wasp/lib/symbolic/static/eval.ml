@@ -230,11 +230,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       { at; it }
     in
     let code = code_to_conc c.sym_code in
-    let mem = SM.to_heap c.sym_mem expr_to_value in
-    let heap =
-      let open SM in
-      c.sym_mem.chunk_table
-    in
+    let mem, heap = SM.to_heap c.sym_mem expr_to_value in
     let pc =
       let open E in
       !(c.encoder.pc)
