@@ -12,6 +12,7 @@ depends: [
   "base"
   "batteries"
   "z3" {= "4.11.2"}
+  "ocamlformat"
   "odoc" {with-doc}
 ]
 build: [

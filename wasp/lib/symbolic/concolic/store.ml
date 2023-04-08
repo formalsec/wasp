@@ -150,7 +150,20 @@ let rec eval (env : t) (e : expr) : Num.t =
   | Cvtop (op, e') ->
       let v = eval env e' in
       Eval_numeric.eval_cvtop op v
-  | Symbolic (ty, var) -> get env var ty false
+  | Symbolic (ty, var) -> (
+      match find_opt env var with
+      | Some v -> v
+      | None ->
+          let v : Num.t =
+            match ty with
+            | `I32Type -> I32 (Int32.of_int (Random.int 127))
+            | `I64Type -> I64 (Int64.of_int (Random.int 127))
+            | `F32Type -> F32 (Int32.bits_of_float (Random.float 127.0))
+            | `F64Type -> F64 (Int64.bits_of_float (Random.float 127.0))
+            | _ -> assert false
+          in
+          Hashtbl.replace env.map var v;
+          v)
   | Extract (e', h, l) ->
       let v = int64_of_value (eval env e') in
       I64 (nland64 (Int64.shift_right v (l * 8)) (h - l))

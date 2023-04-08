@@ -17,4 +17,4 @@
  (name wasp)
  (synopsis "WASP is a symbolic execution engine for Wasm")
  (description "")
- (depends base batteries (z3 (= "4.11.2"))))
+ (depends base batteries (z3 (= "4.11.2")) ocamlformat))
