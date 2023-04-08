@@ -39,7 +39,7 @@ and sym_admin_instr' =
 
 type config = {
   frame : frame;
-  glob : Globals.t;
+  glob : value Globals.t;
   code : code;
   mem : Heap.t;
   store : Store.t;
@@ -806,14 +806,14 @@ let reset c glob code mem =
   let binds = Batch.value_binds solver (Store.get_key_types c.store) in
   Store.reset c.store;
   Store.init c.store binds;
-  Globals.clear c.glob;
-  Globals.add_seq c.glob (Globals.to_seq glob);
+  let glob = Globals.copy glob in
   Hashtbl.reset c.heap;
   c.tree := head;
   {
     c with
     frame = frame empty_module_inst [];
     code;
+    glob;
     mem = Heap.memcpy mem;
     pc = Formula.create ();
     bp = [];
@@ -1017,15 +1017,15 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
   let test_suite = Filename.concat !Flags.output "test_suite" in
   Io.safe_mkdir test_suite;
   let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
-  let glob = Globals.create () in
-  Globals.add_seq glob
-    (List.to_seq
-       (List.mapi
-          (fun i a ->
-            let v = Global.load a in
-            ( Int32.of_int i,
-              (Evaluations.of_value v, Val (Num (Evaluations.of_value v))) ))
-          inst.globals));
+  let glob =
+    Globals.of_seq
+      (Seq.mapi
+         (fun i a ->
+           let v = Global.load a in
+           ( Int32.of_int i,
+             (Evaluations.of_value v, Val (Num (Evaluations.of_value v))) ))
+         (List.to_seq inst.globals))
+  in
   let c =
     config empty_module_inst (List.rev vs)
       [ Invoke func @@ at ]

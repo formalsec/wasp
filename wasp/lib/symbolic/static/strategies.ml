@@ -39,7 +39,7 @@ module type Interpreter = sig
     Expression.t list ->
     sym_admin_instr list ->
     Concolic.Heap.t ->
-    Globals.t ->
+    Expression.t Globals.t ->
     sym_config
 
   val step : sym_config -> (step_res, string * Interpreter.Source.region) result
@@ -245,8 +245,9 @@ module Helper (I : Interpreter) = struct
   module HybridP_I = HybridP (I)
 
   let helper (inst : Interpreter.Instance.module_inst) (vs : Expression.t list)
-      (es : sym_admin_instr list) (sym_m : Concolic.Heap.t) (globs : Globals.t)
-      : bool * (string * Interpreter.Source.region) option * float * int =
+      (es : sym_admin_instr list) (sym_m : Concolic.Heap.t)
+      (globs : Expression.t Globals.t) :
+      bool * (string * Interpreter.Source.region) option * float * int =
     let c = I.sym_config inst vs es sym_m globs in
 
     let eval =

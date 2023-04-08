@@ -2,6 +2,7 @@ module Counter = Counter
 module RandArray = RandArray
 module Chunktable = Chunktable
 module Evaluations = Evaluations
+module Globals = Globals
 module Bug = Bug
 module Link = Interpreter.Error.Make ()
 module Trap = Interpreter.Error.Make ()

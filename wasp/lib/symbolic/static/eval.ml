@@ -111,8 +111,8 @@ module type Encoder = sig
   val clone : t -> t
   val add : t -> expr -> unit
   val add_formula : t -> Encoding.Formula.t -> unit
-  val check : t -> Encoding.Expression.t option -> bool
-  val fork : t -> Encoding.Expression.t -> bool * bool
+  val check : t -> expr option -> bool
+  val fork : t -> expr -> bool * bool
 
   val value_binds :
     t -> (string * expr_type) list -> (string * Encoding.Expression.value) list
@@ -128,7 +128,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     sym_mem : SM.t;
     sym_budget : int; (* to model stack overflow *)
     varmap : Varmap.t;
-    sym_globals : Globals.t;
+    sym_globals : expr Globals.t;
     encoder : E.t;
   }
 
@@ -158,15 +158,15 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let sm, sym_mem = SM.clone c.sym_mem in
     let sym_budget = c.sym_budget in
     let varmap = Varmap.copy c.varmap in
-    let sym_globals = Globals.clone_globals c.sym_globals in
+    let sym_globals = Globals.copy c.sym_globals in
     let encoder = E.clone c.encoder in
     ( { c with sym_mem = sm },
       { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
     )
 
   let sym_config (inst : module_inst) (vs : expr stack)
-      (es : sym_admin_instr stack) (sym_m : Concolic.Heap.t) (globs : Globals.t)
-      : sym_config =
+      (es : sym_admin_instr stack) (sym_m : Concolic.Heap.t)
+      (globs : expr Globals.t) : sym_config =
     {
       sym_frame = sym_frame inst [];
       sym_code = (vs, es);
@@ -188,6 +188,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let expr_to_value (ex : expr) : Encoding.Num.t =
       Concolic.Store.eval store ex
     in
+    let expr_to_pair (ex : expr) : Encoding.Num.t * expr =
+      (expr_to_value ex, ex)
+    in
     let frame_to_conc (f : sym_frame) : Concolic.Eval.frame =
       let { sym_inst; sym_locals } = f in
       let locals =
@@ -200,7 +203,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       { inst = sym_inst; locals }
     in
     let frame = frame_to_conc c.sym_frame in
-    let glob = Globals.to_globals c.sym_globals expr_to_value in
+    let glob = Globals.convert c.sym_globals expr_to_pair in
     let vs_to_conc (vs : expr stack) : value stack =
       List.map (fun ex -> (expr_to_value ex, ex)) vs
     in
@@ -604,14 +607,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 Result.ok
                   (Continuation [ { c with sym_code = (v :: vs', es') } ])
             | GlobalGet x, vs ->
-                let v' = Globals.load c.sym_globals x.it in
+                let v' = Globals.find c.sym_globals x.it in
                 let es' = List.tl es in
                 Result.ok
                   (Continuation [ { c with sym_code = (v' :: vs, es') } ])
             | GlobalSet x, v :: vs' -> (
                 let es' = List.tl es in
                 try
-                  Globals.store c.sym_globals x.it v;
+                  Globals.add c.sym_globals x.it v;
                   Result.ok (Continuation [ { c with sym_code = (vs', es') } ])
                 with
                 | Global.NotMutable ->
@@ -1162,10 +1165,16 @@ let parse_memory_and_encoding () =
   | "tree" -> TreeMem_EncondingSelector.parse_encoding ()
   | _ -> failwith "Invalid memory backend"
 
-let func_to_globs (func : func_inst) : Globals.t =
+let func_to_globs (func : func_inst) : expr Globals.t =
   match Interpreter.Func.get_inst func with
-  | Some inst -> Globals.from_list !inst.globals
-  | None -> Hashtbl.create 0
+  | Some inst ->
+      Globals.of_seq
+        (Seq.mapi
+           (fun i a ->
+             let v = Interpreter.Global.load a in
+             (Int32.of_int i, Val (Num (Evaluations.of_value v))))
+           (List.to_seq !inst.globals))
+  | None -> Globals.create ()
 
 let write_report (error : (string * Interpreter.Source.region) option)
     (loop_time : float) (paths : int) (step_count : int) : unit =
