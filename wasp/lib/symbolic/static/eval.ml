@@ -238,7 +238,28 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let bp = [] in
     let tree = ref Concolic.Eval.head in
     let budget = c.sym_budget in
-    let call_stack = Stack.create () in
+    let rec stack_from_code (code : code) =
+      let open Interpreter.Source in
+      let p = { file = ""; line = 0; column = 0 } in
+      let r = { left = p; right = p } in
+      let _, es = code in
+      match es with
+      | e :: _ -> (
+          match e.it with
+          | Frame (_, _, code') ->
+              let s = stack_from_code code' in
+              Stack.push r s;
+              s
+          | _ ->
+              let s = Stack.create () in
+              Stack.push r s;
+              s)
+      | _ ->
+          let s = Stack.create () in
+          Stack.push r s;
+          s
+    in
+    let call_stack = stack_from_code code in
     { frame; glob; code; mem; store; heap; pc; bp; tree; budget; call_stack }
 
   let concolic_invoke (c : sym_config) :
