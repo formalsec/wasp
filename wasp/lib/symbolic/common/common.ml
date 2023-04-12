@@ -62,3 +62,37 @@ let numeric_error at = function
         ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v)
         )
   | exn -> raise exn
+
+let logger (logs : (int * int * int) list ref) (get_finished : unit -> int) :
+    unit =
+  let cnt = ref 0 in
+  let handler (i : int) : unit =
+    print_endline "awoke";
+    let pcs = get_finished () in
+    let mem_size =
+      let open Gc in
+      let gc_stats = quick_stat () in
+      gc_stats.heap_words * 8
+    in
+    logs := (!cnt, pcs, mem_size) :: !logs;
+    cnt := !cnt + 1;
+    ignore (Unix.alarm 1)
+  in
+  Sys.(set_signal sigalrm (Signal_handle handler));
+  ignore (Unix.alarm 1)
+
+let print_logs (logs : (int * int * int) list) : unit =
+  let log_dir = Filename.concat !Interpreter.Flags.output "logs" in
+  Interpreter.Io.safe_mkdir log_dir;
+  let log_file =
+    Filename.concat
+      (Filename.concat !Interpreter.Flags.output "logs")
+      "pcs_mem.csv"
+  in
+  let logs_strings =
+    List.map
+      (fun (t, pcs, mem_size) -> Printf.sprintf "%d,%d,%d\n" t pcs mem_size)
+      logs
+  in
+  let logs_string = String.concat "" logs_strings in
+  Interpreter.Io.save_file log_file logs_string

@@ -262,6 +262,11 @@ module Helper (I : Interpreter) = struct
       | _ -> failwith "unreachable"
     in
 
+    let logs = ref [] in
+    if !Interpreter.Flags.log then (
+      let get_finished () : int = List.length !pcs in
+      logger logs get_finished;
+    );
     loop_start := Sys.time ();
     let step_err = eval c pcs in
     let spec, reason =
@@ -273,6 +278,10 @@ module Helper (I : Interpreter) = struct
     let loop_time = Sys.time () -. !loop_start in
 
     let paths = List.length !pcs in
+
+    if !Interpreter.Flags.log then (
+      print_logs !logs;
+    );
 
     (spec, reason, loop_time, paths)
 end

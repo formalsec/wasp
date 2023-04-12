@@ -57,6 +57,9 @@ let argspec =
       ( "--allocs",
         Arg.Int (fun i -> Flags.fixed_numbers := i :: !Flags.fixed_numbers),
         " add allocation size to be tested on symbolic allocations" );
+      ( "--log",
+        Arg.Set Flags.log,
+        " logs paths and memory (overrides timeout)" );
     ]
 
 let () =
