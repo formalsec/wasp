@@ -87,7 +87,7 @@ let logger (logs : (int * int * int) list ref) (get_finished : unit -> int)
     let mem_size =
       let open Gc in
       let gc_stats = quick_stat () in
-      gc_stats.heap_words * 8
+      gc_stats.live_words * 8
     in
     logs := (!cnt, pcs, mem_size) :: !logs;
     cnt := !cnt + 1;
