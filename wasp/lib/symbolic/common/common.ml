@@ -63,24 +63,6 @@ let numeric_error at = function
         )
   | exn -> raise exn
 
-let logger (logs : (int * int * int) list ref) (get_finished : unit -> int) :
-    unit =
-  let cnt = ref 0 in
-  let handler (i : int) : unit =
-    print_endline "awoke";
-    let pcs = get_finished () in
-    let mem_size =
-      let open Gc in
-      let gc_stats = quick_stat () in
-      gc_stats.heap_words * 8
-    in
-    logs := (!cnt, pcs, mem_size) :: !logs;
-    cnt := !cnt + 1;
-    ignore (Unix.alarm 1)
-  in
-  Sys.(set_signal sigalrm (Signal_handle handler));
-  ignore (Unix.alarm 1)
-
 let print_logs (logs : (int * int * int) list) : unit =
   let log_dir = Filename.concat !Interpreter.Flags.output "logs" in
   Interpreter.Io.safe_mkdir log_dir;
@@ -96,3 +78,29 @@ let print_logs (logs : (int * int * int) list) : unit =
   in
   let logs_string = String.concat "" logs_strings in
   Interpreter.Io.save_file log_file logs_string
+
+let logger (logs : (int * int * int) list ref) (get_finished : unit -> int)
+    (exiter : int -> unit) (loop_start : float ref) : unit =
+  let cnt = ref 1 in
+  let log () : unit =
+    let pcs = get_finished () in
+    let mem_size =
+      let open Gc in
+      let gc_stats = quick_stat () in
+      gc_stats.heap_words * 8
+    in
+    logs := (!cnt, pcs, mem_size) :: !logs;
+    cnt := !cnt + 1;
+    ignore (Unix.alarm 1)
+  in
+  let timeout = !Interpreter.Flags.timeout in
+  let handler =
+    if timeout > 0 then (fun (_ : int) ->
+      log ();
+      if Sys.time () -. !loop_start >= Float.of_int timeout then (
+        print_logs !logs;
+        exiter 0))
+    else fun (_ : int) -> log ()
+  in
+  Sys.(set_signal sigalrm (Signal_handle handler));
+  ignore (Unix.alarm 1)

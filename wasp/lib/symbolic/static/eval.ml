@@ -1176,43 +1176,9 @@ let func_to_globs (func : func_inst) : expr Globals.t =
            (List.to_seq !inst.globals))
   | None -> Globals.create ()
 
-let write_report (error : (string * Interpreter.Source.region) option)
-    (loop_time : float) (paths : int) (step_count : int) : unit =
-  let spec, reason =
-    match error with
-    | None -> (true, "{}")
-    | Some e -> (false, Concolic.Eval.get_reason e)
-  in
-  let solver_time =
-    !Encoding.Incremental.solver_time +. !Encoding.Batch.solver_time
-  in
-  let solver_count =
-    !Encoding.Incremental.solver_count + !Encoding.Batch.solver_count
-  in
-  let report_str =
-    "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
-    ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
-    ^ "\"solver_time\" : \""
-    ^ string_of_float solver_time
-    ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int paths ^ ", "
-    ^ "\"solver_counter\" : " ^ string_of_int solver_count ^ ", "
-    ^ "\"instruction_counter\" : " ^ string_of_int step_count ^ "}"
-  in
-  Interpreter.Io.save_file
-    (Filename.concat !Interpreter.Flags.output "report.json")
-    report_str
-
 let set_timeout (time_limit : int) : unit =
-  let alarm_handler i : unit =
-    Encoding.Batch.interrupt ();
-    Encoding.Incremental.interrupt ();
-    let loop_time = Sys.time () -. !Strategies.loop_start in
-    let paths = List.length !Strategies.pcs in
-    write_report None loop_time paths 0;
-    exit 0
-  in
   if time_limit > 0 then (
-    Sys.(set_signal sigalrm (Signal_handle alarm_handler));
+    Sys.(set_signal sigalrm (Signal_handle exiter));
     ignore (Unix.alarm time_limit))
 
 let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
@@ -1235,4 +1201,4 @@ let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
     helper empty_module_inst (List.rev vs) [ SInvoke func @@ at ] mem0 globs
   in
 
-  write_report reason loop_time paths 0
+  Strategies.write_report reason loop_time paths 0

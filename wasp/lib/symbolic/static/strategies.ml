@@ -234,6 +234,42 @@ end
 
 let loop_start = ref 0.0
 let pcs = ref []
+let logs = ref []
+
+let write_report (error : (string * Interpreter.Source.region) option)
+    (loop_time : float) (paths : int) (step_count : int) : unit =
+  if !Interpreter.Flags.log then print_logs !logs;
+  let spec, reason =
+    match error with
+    | None -> (true, "{}")
+    | Some e -> (false, Concolic.Eval.get_reason e)
+  in
+  let solver_time =
+    !Encoding.Incremental.solver_time +. !Encoding.Batch.solver_time
+  in
+  let solver_count =
+    !Encoding.Incremental.solver_count + !Encoding.Batch.solver_count
+  in
+  let report_str =
+    "{" ^ "\"specification\": " ^ string_of_bool spec ^ ", " ^ "\"reason\" : "
+    ^ reason ^ ", " ^ "\"loop_time\" : \"" ^ string_of_float loop_time ^ "\", "
+    ^ "\"solver_time\" : \""
+    ^ string_of_float solver_time
+    ^ "\", " ^ "\"paths_explored\" : " ^ string_of_int paths ^ ", "
+    ^ "\"solver_counter\" : " ^ string_of_int solver_count ^ ", "
+    ^ "\"instruction_counter\" : " ^ string_of_int step_count ^ "}"
+  in
+  Interpreter.Io.save_file
+    (Filename.concat !Interpreter.Flags.output "report.json")
+    report_str
+
+let exiter (i : int) =
+  Encoding.Batch.interrupt ();
+  Encoding.Incremental.interrupt ();
+  let loop_time = Sys.time () -. !loop_start in
+  let paths = List.length !pcs in
+  write_report None loop_time paths 0;
+  exit 0
 
 module Helper (I : Interpreter) = struct
   module DFS_I = DFS (I)
@@ -262,11 +298,9 @@ module Helper (I : Interpreter) = struct
       | _ -> failwith "unreachable"
     in
 
-    let logs = ref [] in
-    if !Interpreter.Flags.log then (
-      let get_finished () : int = List.length !pcs in
-      logger logs get_finished;
-    );
+    (if !Interpreter.Flags.log then
+     let get_finished () : int = List.length !pcs in
+     logger logs get_finished exiter loop_start);
     loop_start := Sys.time ();
     let step_err = eval c pcs in
     let spec, reason =
@@ -278,10 +312,6 @@ module Helper (I : Interpreter) = struct
     let loop_time = Sys.time () -. !loop_start in
 
     let paths = List.length !pcs in
-
-    if !Interpreter.Flags.log then (
-      print_logs !logs;
-    );
 
     (spec, reason, loop_time, paths)
 end
