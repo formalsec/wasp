@@ -49,6 +49,7 @@ let argspec =
       ( "--queries",
         Arg.Set Flags.queries,
         " output solver queries in .smt2 format" );
+      ("--log", Arg.Set Flags.log, " logs paths and memory");
     ]
 
 let () =

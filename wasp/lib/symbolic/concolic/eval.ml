@@ -106,6 +106,7 @@ let head = ref Execution_tree.(Node (None, None, ref Leaf, ref Leaf))
 let step_cnt = ref 0
 let iterations = ref 0
 let loop_start = ref 0.
+let logs = ref []
 let solver = Batch.create ()
 let debug str = if !Interpreter.Flags.trace then print_endline str
 
@@ -723,6 +724,7 @@ let get_reason (err_t, at) : string =
   "{" ^ "\"type\" : \"" ^ err_t ^ "\", " ^ "\"line\" : \"" ^ loc ^ "\"" ^ "}"
 
 let write_report error loop_time : unit =
+  if !Interpreter.Flags.log then print_logs !logs;
   let spec, reason =
     match error with None -> (true, "{}") | Some e -> (false, get_reason e)
   in
@@ -966,15 +968,15 @@ module DFS = Guided_search (Stack) (NoCheckpointStepper)
 module BFS = Guided_search (Queue) (NoCheckpointStepper)
 module RND = Guided_search (RandArray) (NoCheckpointStepper)
 
+let exiter i : unit =
+  Batch.interrupt ();
+  let loop_time = Sys.time () -. !loop_start in
+  write_report None loop_time;
+  exit 0
+
 let set_timeout (time_limit : int) : unit =
-  let alarm_handler i : unit =
-    Batch.interrupt ();
-    let loop_time = Sys.time () -. !loop_start in
-    write_report None loop_time;
-    exit 0
-  in
   if time_limit > 0 then (
-    Sys.(set_signal sigalrm (Signal_handle alarm_handler));
+    Sys.(set_signal sigalrm (Signal_handle exiter));
     ignore (Unix.alarm time_limit))
 
 let main (func : func_inst) (vs : value list) (inst : module_inst)
@@ -1005,6 +1007,9 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
     | Some Breadth -> BFS.invoke
     | Some Random -> RND.invoke
   in
+  (if !Interpreter.Flags.log then
+   let get_finished () : int = !iterations in
+   logger logs get_finished exiter loop_start);
   loop_start := Sys.time ();
   let error = invoke c test_suite in
   write_report error (Sys.time () -. !loop_start)
