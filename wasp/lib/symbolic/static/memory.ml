@@ -180,7 +180,7 @@ end
 
 module type SymbolicMemory = sig
   type b
-  type t = { backend : b; chunk_table : (int32, int32) Hashtbl.t }
+  type t = { backend : b; chunk_table : Chunktable.t }
 
   exception Bounds
 

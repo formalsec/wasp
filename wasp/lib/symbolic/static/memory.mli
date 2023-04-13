@@ -26,8 +26,7 @@ module MapMemory : MemoryBackend
 module TreeMemory : MemoryBackend
 
 module type SymbolicMemory = sig
-  type b
-  type t = { backend : b; chunk_table : Chunktable.t }
+  type t
 
   exception Bounds
 
