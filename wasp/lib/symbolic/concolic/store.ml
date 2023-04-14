@@ -179,4 +179,4 @@ let rec eval (env : t) (e : expr) : Num.t =
       | Extract (_, h, l), Concat _ ->
           I64 Int64.(logor (shift_left v1 (l * 8)) v2)
       | _ -> assert false)
-  | Val _ -> assert false
+  | Val _ | Triop _ | Quantifier _ -> assert false

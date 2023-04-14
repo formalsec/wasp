@@ -30,7 +30,10 @@ and sym_admin_instr' =
 
 module type Interpreter = sig
   type sym_config
-  type step_res = End of Encoding.Formula.t | Continuation of sym_config list
+
+  type step_res =
+    | End of Encoding.Expression.t
+    | Continuation of sym_config list
 
   val clone : sym_config -> sym_config * sym_config
 
@@ -49,13 +52,13 @@ module type Interpreter = sig
 
   val p_invoke :
     sym_config ->
-    (Encoding.Formula.t, string * Interpreter.Source.region) result
+    (Encoding.Expression.t, string * Interpreter.Source.region) result
 
-  val p_finished : sym_config -> Encoding.Formula.t -> sym_config option
+  val p_finished : sym_config -> Encoding.Expression.t -> sym_config option
 end
 
 module TreeStrategy (L : WorkList) (I : Interpreter) = struct
-  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     let w = L.create () in
     L.push c w;
@@ -81,7 +84,7 @@ module RS = TreeStrategy (RandArray)
 module BFS_L (I : Interpreter) = struct
   let max_configs = 32
 
-  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
@@ -107,7 +110,7 @@ end
 module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
-  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
@@ -138,7 +141,7 @@ module Half_BFS (I : Interpreter) = struct
 end
 
 module ProgressBFS (I : Interpreter) = struct
-  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     let max_configs = ref 2 in
     let hot = Queue.create () in
@@ -175,7 +178,7 @@ end
 module Hybrid (I : Interpreter) = struct
   let max_configs = 128
 
-  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
@@ -204,7 +207,7 @@ end
 module HybridP (I : Interpreter) = struct
   let max_configs = 128
 
-  let eval (c : I.sym_config) (pcs : Formula.t list ref) :
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;

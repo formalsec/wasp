@@ -105,12 +105,11 @@ let instr_str e =
 
 module type Encoder = sig
   type s
-  type t = { solver : s; pc : Encoding.Formula.t ref }
+  type t = { solver : s; pc : Encoding.Expression.t ref }
 
   val create : unit -> t
   val clone : t -> t
   val add : t -> expr -> unit
-  val add_formula : t -> Encoding.Formula.t -> unit
   val check : t -> expr option -> bool
   val fork : t -> expr -> bool * bool
 
@@ -132,7 +131,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     encoder : E.t;
   }
 
-  type step_res = End of Encoding.Formula.t | Continuation of sym_config list
+  type step_res =
+    | End of Encoding.Expression.t
+    | Continuation of sym_config list
 
   let rec clone_admin_instr e =
     let open Interpreter.Source in
@@ -271,21 +272,21 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     debug "-- Switching to concolic mode...";
     let open E in
     debug
-      ("-- path_condition = " ^ Encoding.Formula.pp_to_string !(c.encoder.pc));
+      ("-- path_condition = " ^ Encoding.Expression.pp_to_string !(c.encoder.pc));
     let conc_c = to_concolic c in
     let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
     Concolic.Eval.BFS.s_invoke conc_c test_suite
 
   let p_invoke (c : sym_config) :
-      (Encoding.Formula.t, string * Interpreter.Source.region) result =
+      (Encoding.Expression.t, string * Interpreter.Source.region) result =
     let conc_c = to_concolic c
     and test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
     Concolic.Eval.BFS.p_invoke conc_c test_suite
 
-  let p_finished (c : sym_config) (pc' : Encoding.Formula.t) : sym_config option
-      =
-    let npc' = Encoding.Formula.negate pc' in
-    E.add_formula c.encoder npc';
+  let p_finished (c : sym_config) (pc' : Encoding.Expression.t) :
+      sym_config option =
+    let npc' = Encoding.Boolean.mk_not pc' in
+    E.add c.encoder npc';
     if E.check c.encoder None then Some c else None
 
   let concretize_alloc (c : sym_config) : sym_config list =
@@ -929,7 +930,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let symbol = if i = 0l then "x" else SM.load_string mem base in
                 let x = Varmap.next varmap symbol in
                 let ty' = Evaluations.to_num_type ty in
-                let v = symbolic ty' x in
+                let v = Encoding.Expression.mk_symbolic ty' x in
                 let es' = List.tl es in
                 Varmap.add varmap x ty';
                 Result.ok
@@ -1005,7 +1006,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 print_endline
                   (Printf.sprintf "%d" e.at.left.line
                   ^ " pc: "
-                  ^ Encoding.Formula.pp_to_string !(encoder.pc));
+                  ^ Encoding.Expression.pp_to_string !(encoder.pc));
                 let es' = List.tl es in
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintValue, v :: vs' ->
