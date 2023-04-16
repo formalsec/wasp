@@ -179,17 +179,19 @@ module TreeMemory : MemoryBackend = struct
 end
 
 module type SymbolicMemory = sig
-  type b
-  type t = { backend : b; chunk_table : Chunktable.t }
+  type t
 
   exception Bounds
 
   val from_heap : Concolic.Heap.t -> t
   val clone : t -> t * t
-  val load_value : t -> address -> offset -> num_type -> Expression.t
+  val load_value : (Expression.t -> Num.t) -> t -> Expression.t -> 
+    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result 
 
   val load_packed :
-    pack_size -> t -> address -> offset -> num_type -> Expression.t
+  (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> 
+    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
+
 
   val load_string : t -> address -> string
   val store_value : t -> address -> offset -> Expression.t -> unit
@@ -202,7 +204,7 @@ module type SymbolicMemory = sig
   (*TODO : change int32 to address (int64)*)
   val alloc : t -> int32 -> size -> unit
   val free : t -> int32 -> unit
-  val check_access : t -> int32 -> Num.t -> offset -> bug option
+  val check_access : t -> Expression.t -> Num.t -> offset -> bug option
   val check_bound : t -> int32 -> bool
 end
 
@@ -253,65 +255,114 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     ( { backend = backend1; chunk_table = chunk_table1 },
       { backend = backend2; chunk_table = chunk_table2 } )
 
-  let load_value (mem : t) (a : address) (o : offset) (ty : num_type) :
-      Expression.t =
-    let exprs = loadn mem.backend a o (Types.size_of_num_type ty) in
-    let expr =
-      List.(
-        fold_left
-          (fun acc e -> Expression.Concat (e, acc))
-          (hd exprs) (tl exprs))
-    in
-    (* simplify concats *)
-    let expr = Expression.simplify expr in
-    (* remove extract *)
-    let expr = Expression.simplify ~extract:true expr in
-    let expr =
-      match ty with
-      | `I32Type -> (
-          match expr with
-          | Val (Num (I64 v)) -> Val (Num (I32 (Int64.to_int32 v)))
-          | _ -> expr)
-      | `I64Type -> expr
-      | `F32Type -> (
-          match expr with
-          | Val (Num (I64 v)) -> Val (Num (F32 (Int64.to_int32 v)))
-          | Cvtop (I32 I32.ReinterpretFloat, v) -> v
-          | _ -> Cvtop (F32 F32.ReinterpretInt, expr))
-      | `F64Type -> (
-          match expr with
-          | Val (Num (I64 v)) -> Val (Num (F64 v))
-          | Cvtop (I64 I64.ReinterpretFloat, v) -> v
-          | _ -> Cvtop (F64 F64.ReinterpretInt, expr))
-    in
-    expr
+  let check_access (m : t) (sym_ptr : Expression.t) (ptr : Num.t) (o : offset) : bug option =
+    let base_ptr = concretize_base_ptr sym_ptr in
+    Option.bind base_ptr (fun bp -> 
+      Chunktable.check_access m.chunk_table bp ptr o)
 
-  let load_packed (sz : pack_size) (mem : t) (a : address) (o : offset)
-      (ty : num_type) : Expression.t =
-    let exprs = loadn mem.backend a o (length_pack_size sz) in
-    (* pad with 0s *)
-    let expr =
-      let rec loop acc i =
-        if i >= Types.size_of_num_type ty then acc
-        else loop (acc @ [ Extract (Val (Num (I64 0L)), 1, 0) ]) (i + 1)
+  let load_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
+    (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
+    ((t * Expression.t * Expression.t list) list, bug) result =
+    let sym_ptr = simplify sym_ptr in
+    let ptr =
+      match concretize_ptr sym_ptr with
+      | Some ptr -> ptr
+      | None -> expr_to_value sym_ptr
+    in
+    let a =
+      let open Interpreter in
+      I64_convert.extend_i32_u
+        (Values.I32Value.of_value (Evaluations.to_value ptr))
+    in
+    match
+      check_access mem sym_ptr ptr o
+    with
+    | Some b -> Result.error (b)
+    | None ->
+      let exprs = loadn mem.backend a o (Types.size_of_num_type ty) in
+      let expr =
+        List.(
+          fold_left
+            (fun acc e -> Expression.Concat (e, acc))
+            (hd exprs) (tl exprs))
       in
-      let exprs = loop exprs (List.length exprs) in
-      List.(fold_left (fun acc e -> e ++ acc) (hd exprs) (tl exprs))
+      (* simplify concats *)
+      let expr = Expression.simplify expr in
+      (* remove extract *)
+      let expr = Expression.simplify ~extract:true expr in
+      let expr =
+        match ty with
+        | `I32Type -> (
+            match expr with
+            | Val (Num (I64 v)) -> Val (Num (I32 (Int64.to_int32 v)))
+            | _ -> expr)
+        | `I64Type -> expr
+        | `F32Type -> (
+            match expr with
+            | Val (Num (I64 v)) -> Val (Num (F32 (Int64.to_int32 v)))
+            | Cvtop (I32 I32.ReinterpretFloat, v) -> v
+            | _ -> Cvtop (F32 F32.ReinterpretInt, expr))
+        | `F64Type -> (
+            match expr with
+            | Val (Num (I64 v)) -> Val (Num (F64 v))
+            | Cvtop (I64 I64.ReinterpretFloat, v) -> v
+            | _ -> Cvtop (F64 F64.ReinterpretInt, expr))
+      in
+      let ptr_cond =
+        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+      in
+      let res = (mem, expr, ptr_cond) :: []
+      in
+      Result.ok (res)
+
+  let load_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
+  (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
+  ((t * Expression.t * Expression.t list) list, bug) result =
+    let sym_ptr = simplify sym_ptr in
+    let ptr =
+      match concretize_ptr sym_ptr with
+      | Some ptr -> ptr
+      | None -> expr_to_value sym_ptr
     in
-    (* simplify concats *)
-    let expr = Expression.simplify expr in
-    (* remove extract *)
-    let expr = Expression.simplify ~extract:true expr in
-    let expr =
-      match ty with
-      | `I32Type -> (
-          match expr with
-          | Val (Num (I64 v)) -> Val (Num (I32 (Int64.to_int32 v)))
-          | _ -> expr)
-      | `I64Type -> expr
-      | _ -> failwith "load_packed only exists for i32 and i64"
+    let a =
+      let open Interpreter in
+      I64_convert.extend_i32_u
+        (Values.I32Value.of_value (Evaluations.to_value ptr))
     in
-    expr
+    match
+      check_access mem sym_ptr ptr o
+    with
+    | Some b -> Result.error (b)
+    | None ->
+        let exprs = loadn mem.backend a o (length_pack_size sz) in
+        (* pad with 0s *)
+        let expr =
+          let rec loop acc i =
+            if i >= Types.size_of_num_type ty then acc
+            else loop (acc @ [ Extract (Val (Num (I64 0L)), 1, 0) ]) (i + 1)
+          in
+          let exprs = loop exprs (List.length exprs) in
+          List.(fold_left (fun acc e -> e ++ acc) (hd exprs) (tl exprs))
+        in
+        (* simplify concats *)
+        let expr = Expression.simplify expr in
+        (* remove extract *)
+        let expr = Expression.simplify ~extract:true expr in
+        let expr =
+          match ty with
+          | `I32Type -> (
+              match expr with
+              | Val (Num (I64 v)) -> Val (Num (I32 (Int64.to_int32 v)))
+              | _ -> expr)
+          | `I64Type -> expr
+          | _ -> failwith "load_packed only exists for i32 and i64"
+        in
+        let ptr_cond =
+          Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+        in
+        let res = (mem, expr, ptr_cond) :: []
+        in
+        Result.ok (res)
 
   let load_string (mem : t) (a : address) : string =
     let rec loop a acc =
@@ -372,9 +423,6 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     Chunktable.replace m.chunk_table b s
 
   let free (m : t) (b : int32) : unit = Chunktable.remove m.chunk_table b
-
-  let check_access (m : t) (b : int32) (ptr : Num.t) (o : offset) : bug option =
-    Chunktable.check_access m.chunk_table b ptr o
 
   let check_bound (m : t) (b : int32) : bool = Chunktable.mem m.chunk_table b
 end
