@@ -172,6 +172,19 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
     )
 
+  let clone_no_mem (c : sym_config) : sym_config * sym_config =
+    let vs, es = c.sym_code in
+    let sym_frame = clone_frame c.sym_frame in
+    let sym_code = (vs, List.map clone_admin_instr es) in
+    let sym_mem = c.sym_mem in
+    let sym_budget = c.sym_budget in
+    let varmap = Varmap.copy c.varmap in
+    let sym_globals = Globals.clone_globals c.sym_globals in
+    let encoder = E.clone c.encoder in
+    ( c ,
+      { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
+    )
+
   let sym_config (inst : module_inst) (vs : expr stack)
       (es : sym_admin_instr stack) (sym_m : Concolic.Heap.t)
       (globs : expr Globals.t) : sym_config =
@@ -360,23 +373,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     in
     if List.length fixed_attempts > 0 then fixed_attempts
     else [ Option.get (helper None) ]
-
-  let rec add_conds (encoder: E.t) (conds : t list) =
-    match conds with
-    | c :: [] -> E.add encoder c
-    | c :: l  -> 
-        E.add encoder c; add_conds encoder l
-    | [] -> ()
-  
-  let config_load (config : sym_config) (vs' : t stack) (res : (SM.t * t * t list)) =
-    let c, cf = clone config
-    in
-    let vs, es = cf.sym_code
-    in
-    match res with
-    | (m, v, conds) -> add_conds cf.encoder conds;
-    let es' = List.tl es in
-    { cf with sym_code = (v :: vs', es') }
 
   let rec step (c : sym_config) :
       (step_res, string * Interpreter.Source.region) result =
@@ -646,14 +642,13 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     Crash.error e.at "type mismatch at global write")
             | Load { offset; ty; sz; _ }, sym_ptr :: vs' -> (
                 let store =
-                  assert (E.check c.encoder None);
-                  let binds = E.value_binds c.encoder (Varmap.binds c.varmap) in
-                  Varmap.to_store c.varmap binds
+                  assert (E.check encoder None);
+                  let binds = E.value_binds encoder (Varmap.binds varmap) in
+                  Concolic.Store.create binds
                 in
                 let expr_to_value (ex : expr) : Encoding.Num.t =
                   Concolic.Store.eval store ex
                 in
-                let sym_ptr = simplify sym_ptr in
                 let res =
                   match sz with
                   | None ->
@@ -663,9 +658,18 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       SM.load_packed expr_to_value sz mem sym_ptr offset
                         (Common.Evaluations.to_num_type ty)
                 in
+                let config_load (config : sym_config) (res : (SM.t * t * t list)) =
+                  let c, cf = clone_no_mem config
+                  in
+                  match res with
+                  | (m, v, conds) -> List.iter (fun cond -> E.add cf.encoder cond) conds;
+                  let es' = List.tl es in
+                  (* debug (string_of_int (List.length es) ^ " " ^ string_of_int (List.length es')); *)
+                  { cf with sym_code = (v :: vs', es'); sym_mem = m }
+                in
                 match res with
-                | Ok mem_res -> 
-                    Result.ok (Continuation (List.map (fun trio -> config_load c vs' trio) mem_res))
+                | Ok mem_res -> let l = (List.map (fun trio -> config_load c trio) mem_res) in
+                    Result.ok (Continuation (l))
                 | Error b -> 
                     let bug_type =
                       match b with
@@ -675,7 +679,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                           failwith "unreachable, check_access can't return this"
                     in
                     Result.error (bug_type, e.at))
-
             | Store { offset; sz; _ }, ex :: sym_ptr :: vs' -> (
                 let sym_ptr = simplify sym_ptr in
                 let ptr =
