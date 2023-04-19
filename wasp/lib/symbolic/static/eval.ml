@@ -122,10 +122,6 @@ module type Encoder = sig
   val string_binds : t -> (string * string * string) list
 end
 
-
-
-
-
 module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
   Interpreter = struct
   type sym_config = {
@@ -172,7 +168,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
     )
 
-  let clone_no_mem (c : sym_config) : sym_config * sym_config =
+  let clone_no_mem (c : sym_config) : sym_config =
     let vs, es = c.sym_code in
     let sym_frame = clone_frame c.sym_frame in
     let sym_code = (vs, List.map clone_admin_instr es) in
@@ -181,9 +177,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let varmap = Varmap.copy c.varmap in
     let sym_globals = Globals.clone_globals c.sym_globals in
     let encoder = E.clone c.encoder in
-    ( c ,
-      { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
-    )
+    { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
 
   let sym_config (inst : module_inst) (vs : expr stack)
       (es : sym_admin_instr stack) (sym_m : Concolic.Heap.t)
@@ -641,12 +635,20 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 | Global.Type ->
                     Crash.error e.at "type mismatch at global write")
             | Load { offset; ty; sz; _ }, sym_ptr :: vs' -> (
-                let store =
-                  assert (E.check encoder None);
-                  let binds = E.value_binds encoder (Varmap.binds varmap) in
-                  Concolic.Store.create binds
-                in
+                let store_r = ref None in
                 let expr_to_value (ex : expr) : Encoding.Num.t =
+                  let store =
+                    match !store_r with
+                    | Some store -> store
+                    | None ->
+                        assert (E.check encoder None);
+                        let binds =
+                          E.value_binds encoder (Varmap.binds varmap)
+                        in
+                        let store = Concolic.Store.create binds in
+                        store_r := Some store;
+                        store
+                  in
                   Concolic.Store.eval store ex
                 in
                 let res =
@@ -658,19 +660,20 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       SM.load_packed expr_to_value sz mem sym_ptr offset
                         (Common.Evaluations.to_num_type ty)
                 in
-                let config_load (config : sym_config) (res : (SM.t * t * t list)) =
-                  let c, cf = clone_no_mem config
-                  in
-                  match res with
-                  | (m, v, conds) -> List.iter (fun cond -> E.add cf.encoder cond) conds;
+                let config_load (config : sym_config) (res : SM.t * t * t list)
+                    =
+                  let cf = clone_no_mem config in
+                  let m, v, conds = res in
+                  List.iter (fun cond -> E.add cf.encoder cond) conds;
                   let es' = List.tl es in
                   (* debug (string_of_int (List.length es) ^ " " ^ string_of_int (List.length es')); *)
                   { cf with sym_code = (v :: vs', es'); sym_mem = m }
                 in
                 match res with
-                | Ok mem_res -> let l = (List.map (fun trio -> config_load c trio) mem_res) in
-                    Result.ok (Continuation (l))
-                | Error b -> 
+                | Ok mem_res ->
+                    let l = List.map (fun trio -> config_load c trio) mem_res in
+                    Result.ok (Continuation l)
+                | Error b ->
                     let bug_type =
                       match b with
                       | Common.Bug.Overflow -> "Out of Bounds access"
@@ -711,9 +714,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   I64_convert.extend_i32_u
                     (Values.I32Value.of_value (Evaluations.to_value ptr))
                 in
-                match 
-                  SM.check_access mem sym_ptr ptr offset
-                with
+                match SM.check_access mem sym_ptr ptr offset with
                 | Some b ->
                     let bug_type =
                       match b with
