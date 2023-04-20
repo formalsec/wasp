@@ -193,6 +193,22 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       encoder = E.create ();
     }
 
+  let expr_to_value (ex : expr) (c : sym_config) (v : Varmap.varmap) : Encoding.Num.t =
+    let store_r = ref None in
+    let store =
+      match !store_r with
+      | Some store -> store
+      | None ->
+          assert (E.check c.encoder None);
+          let binds =
+            E.value_binds c.encoder (Varmap.binds v)
+          in
+          let store = Concolic.Store.create binds in
+          store_r := Some store;
+          store
+    in
+    Concolic.Store.eval store ex
+
   let to_concolic (c : sym_config) : Concolic.Eval.config =
     let open Concolic.Eval in
     let store =
@@ -635,21 +651,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 | Global.Type ->
                     Crash.error e.at "type mismatch at global write")
             | Load { offset; ty; sz; _ }, sym_ptr :: vs' -> (
-                let store_r = ref None in
-                let expr_to_value (ex : expr) : Encoding.Num.t =
-                  let store =
-                    match !store_r with
-                    | Some store -> store
-                    | None ->
-                        assert (E.check encoder None);
-                        let binds =
-                          E.value_binds encoder (Varmap.binds varmap)
-                        in
-                        let store = Concolic.Store.create binds in
-                        store_r := Some store;
-                        store
-                  in
-                  Concolic.Store.eval store ex
+                let expr_to_value (ex : expr) =
+                  expr_to_value ex c varmap
                 in
                 let res =
                   match sz with
@@ -683,39 +686,29 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     in
                     Result.error (bug_type, e.at))
             | Store { offset; sz; _ }, ex :: sym_ptr :: vs' -> (
-                let sym_ptr = simplify sym_ptr in
-                let ptr =
-                  match concretize_ptr sym_ptr with
-                  | Some ptr -> ptr
-                  | None ->
-                      assert (E.check encoder None);
-                      let binds =
-                        E.value_binds encoder ~symbols:(Varmap.binds varmap)
-                      in
-                      let logic_env = Concolic.Store.create binds in
-
-                      let ptr = Concolic.Store.eval logic_env sym_ptr in
-                      let ty = Encoding.Num.type_of ptr in
-                      if ty != `I32Type then
-                        failwith
-                          (Printf.sprintf "%d" e.at.left.line
-                          ^ ":Store with non i32 ptr: "
-                          ^ Encoding.Types.string_of_type ty);
-
-                      let ptr_cond =
-                        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr))
-                      in
-                      E.add encoder ptr_cond;
-
-                      (* TODO: generate a configuration equal to the original with the condition denied in the path_cond ? *)
-                      ptr
+                let expr_to_value (ex : expr) =
+                  expr_to_value ex c varmap
                 in
-                let ptr64 =
-                  I64_convert.extend_i32_u
-                    (Values.I32Value.of_value (Evaluations.to_value ptr))
+                let res =
+                  match sz with
+                  | None -> SM.store_value expr_to_value mem sym_ptr offset ex
+                  | Some sz ->
+                      SM.store_packed expr_to_value sz mem sym_ptr offset ex
                 in
-                match SM.check_access mem sym_ptr ptr offset with
-                | Some b ->
+                let config_store (config : sym_config) (res : SM.t * t list)
+                    =
+                  let cf = clone_no_mem config in
+                  let m, conds = res in
+                  List.iter (fun cond -> E.add cf.encoder cond) conds;
+                  let es' = List.tl es in
+                  (* debug (string_of_int (List.length es) ^ " " ^ string_of_int (List.length es')); *)
+                  { cf with sym_code = (vs', es') ; sym_mem = m }
+                in
+                match res with
+                | Ok mem_res ->
+                    let l = List.map (fun pair -> config_store c pair) mem_res in
+                    Result.ok (Continuation l)
+                | Error b ->
                     let bug_type =
                       match b with
                       | Common.Bug.Overflow -> "Out of Bounds access"
@@ -723,14 +716,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       | Common.Bug.InvalidFree ->
                           failwith "unreachable, check_access can't return this"
                     in
-                    Result.error (bug_type, e.at)
-                | None ->
-                    (match sz with
-                    | None -> SM.store_value mem ptr64 offset ex
-                    | Some sz -> SM.store_packed sz mem ptr64 offset ex);
-                    let es' = List.tl es in
-                    Result.ok
-                      (Continuation [ { c with sym_code = (vs', es') } ]))
+                    Result.error (bug_type, e.at))
             | Const v, vs ->
                 let es' = List.tl es in
                 Result.ok

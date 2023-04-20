@@ -40,8 +40,13 @@ module type SymbolicMemory = sig
       offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
 
     val load_string : t -> address -> string
-    val store_value : t -> address -> offset -> Expression.t -> unit
-    val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
+
+    val store_value : 
+      (Expression.t -> Num.t) -> t -> Expression.t -> offset -> Expression.t -> 
+          ((t * Expression.t list) list, bug) result
+    val store_packed : 
+      (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
+          ((t * Expression.t list) list, bug) result
     val to_string : t -> string
   
     val to_heap :

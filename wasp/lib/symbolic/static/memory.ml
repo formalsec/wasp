@@ -185,17 +185,22 @@ module type SymbolicMemory = sig
 
   val from_heap : Concolic.Heap.t -> t
   val clone : t -> t * t
-  val load_value : (Expression.t -> Num.t) -> t -> Expression.t -> 
-    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result 
+  val load_value : 
+    (Expression.t -> Num.t) -> t -> Expression.t -> 
+      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result 
 
   val load_packed :
-  (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> 
-    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
+    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> 
+      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
 
 
   val load_string : t -> address -> string
-  val store_value : t -> address -> offset -> Expression.t -> unit
-  val store_packed : pack_size -> t -> address -> offset -> Expression.t -> unit
+  val store_value : 
+    (Expression.t -> Num.t) -> t -> Expression.t -> offset -> Expression.t -> 
+        ((t * Expression.t list) list, bug) result
+  val store_packed : 
+    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
+        ((t * Expression.t list) list, bug) result
   val to_string : t -> string
 
   val to_heap :
@@ -220,6 +225,19 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     if Interpreter.I64.lt_u ea a then raise MB.Bounds;
     ea
 
+  let concr_ptr (sym_ptr : Expression.t ) 
+    (expr_to_value : (Expression.t -> Num.t)) = 
+    let sym_ptr = simplify sym_ptr in
+    let ptr =
+      match concretize_ptr sym_ptr with
+      | Some ptr -> ptr
+      | None -> expr_to_value sym_ptr
+    in
+    let open Interpreter in
+    (I64_convert.extend_i32_u
+      (Values.I32Value.of_value (Evaluations.to_value ptr)), ptr)
+
+  
   let length_pack_size (sz : pack_size) : int =
     match sz with Pack8 -> 1 | Pack16 -> 2 | Pack32 -> 4
 
@@ -263,16 +281,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
   let load_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
-    let sym_ptr = simplify sym_ptr in
-    let ptr =
-      match concretize_ptr sym_ptr with
-      | Some ptr -> ptr
-      | None -> expr_to_value sym_ptr
-    in
-    let a =
-      let open Interpreter in
-      I64_convert.extend_i32_u
-        (Values.I32Value.of_value (Evaluations.to_value ptr))
+    let a, ptr = concr_ptr sym_ptr expr_to_value
     in
     match
       check_access mem sym_ptr ptr o
@@ -316,18 +325,9 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       Result.ok (res)
 
   let load_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
-  (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
-  ((t * Expression.t * Expression.t list) list, bug) result =
-    let sym_ptr = simplify sym_ptr in
-    let ptr =
-      match concretize_ptr sym_ptr with
-      | Some ptr -> ptr
-      | None -> expr_to_value sym_ptr
-    in
-    let a =
-      let open Interpreter in
-      I64_convert.extend_i32_u
-        (Values.I32Value.of_value (Evaluations.to_value ptr))
+    (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
+    ((t * Expression.t * Expression.t list) list, bug) result =
+    let a, ptr = concr_ptr sym_ptr expr_to_value
     in
     match
       check_access mem sym_ptr ptr o
@@ -379,38 +379,66 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     in
     loop a ""
 
-  let store_value (mem : t) (a : address) (o : offset) (value : Expression.t) :
-      unit =
-    let ty = Expression.type_of value in
-    let sz = Types.size ty in
-    let value =
-      match ty with
-      | `I32Type -> (
-          match value with
-          | Val (Num (I32 i)) -> Val (Num (I64 (Int64.of_int32 i)))
-          | _ -> value)
-      | `I64Type -> value
-      | `F32Type -> (
-          match value with
-          | Val (Num (F32 f)) -> Val (Num (I64 (Int64.of_int32 f)))
-          | _ -> Cvtop (I32 I32.ReinterpretFloat, value))
-      | `F64Type -> (
-          match value with
-          | Val (Num (F64 f)) -> Val (Num (I64 f))
-          | _ -> Cvtop (I64 I64.ReinterpretFloat, value))
-      | _ -> assert false
+  let store_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
+    (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
+    ((t * Expression.t list) list, bug) result =
+    let a, ptr = concr_ptr sym_ptr expr_to_value
     in
-    storen mem.backend a o sz value
+    match
+      check_access mem sym_ptr ptr o
+    with
+    | Some b -> Result.error (b)
+    | None ->
+        let ty = Expression.type_of value in
+        let sz = Types.size ty in
+        let value =
+          match ty with
+          | `I32Type -> (
+              match value with
+              | Val (Num (I32 i)) -> Val (Num (I64 (Int64.of_int32 i)))
+              | _ -> value)
+          | `I64Type -> value
+          | `F32Type -> (
+              match value with
+              | Val (Num (F32 f)) -> Val (Num (I64 (Int64.of_int32 f)))
+              | _ -> Cvtop (I32 I32.ReinterpretFloat, value))
+          | `F64Type -> (
+              match value with
+              | Val (Num (F64 f)) -> Val (Num (I64 f))
+              | _ -> Cvtop (I64 I64.ReinterpretFloat, value))
+          | _ -> assert false
+        in
+        storen mem.backend a o sz value;
+        let ptr_cond =
+          Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+        in
+        let res = (mem, ptr_cond) :: []
+        in
+        Result.ok (res)
 
-  let store_packed (sz : pack_size) (mem : t) (a : address) (o : offset)
-      (value : Expression.t) : unit =
-    let value : Expression.t =
-      match value with
-      | Val (Num (I32 x)) -> Val (Num (I64 (Int64.of_int32 x)))
-      | Val (Num (I64 x)) -> Val (Num (I64 x))
-      | _ -> value
+  let store_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
+    (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
+    ((t * Expression.t list) list, bug) result =
+    let a, ptr = concr_ptr sym_ptr expr_to_value
     in
-    storen mem.backend a o (length_pack_size sz) value
+    match
+      check_access mem sym_ptr ptr o
+    with
+    | Some b -> Result.error (b)
+    | None ->
+        let value : Expression.t =
+          match value with
+          | Val (Num (I32 x)) -> Val (Num (I64 (Int64.of_int32 x)))
+          | Val (Num (I64 x)) -> Val (Num (I64 x))
+          | _ -> value
+        in
+        storen mem.backend a o (length_pack_size sz) value;
+        let ptr_cond =
+          Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+        in
+        let res = (mem, ptr_cond) :: []
+        in
+        Result.ok (res)
 
   let to_string (m : t) : string = MB.to_string m.backend
 
