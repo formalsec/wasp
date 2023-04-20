@@ -86,12 +86,12 @@ let logger (logs : (int * int * int) list ref) (get_finished : unit -> int)
     let pcs = get_finished () in
     let mem_size =
       let open Gc in
-      let gc_stats = quick_stat () in
+      let gc_stats = stat () in
       gc_stats.live_words * 8
     in
-    logs := (!cnt, pcs, mem_size) :: !logs;
+    logs := (10 * !cnt, pcs, mem_size) :: !logs;
     cnt := !cnt + 1;
-    ignore (Unix.alarm 1)
+    ignore (Unix.alarm 10)
   in
   let timeout = !Interpreter.Flags.timeout in
   let handler =
@@ -103,4 +103,4 @@ let logger (logs : (int * int * int) list ref) (get_finished : unit -> int)
     else fun (_ : int) -> log ()
   in
   Sys.(set_signal sigalrm (Signal_handle handler));
-  ignore (Unix.alarm 1)
+  ignore (Unix.alarm 10)
