@@ -595,8 +595,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       SM.load_packed expr_to_value sz mem sym_ptr offset
                         (Common.Evaluations.to_num_type ty)
                 in
-                let config_load (config : sym_config) (res : SM.t * t * t list) =
-                  let cf = clone_no_mem config in
+                let config_load (config : sym_config) (res : SM.t * t * t list) (cl : bool)=
+                let cf = if cl then clone_no_mem config else c in
                   let m, v, conds = res in
                   List.iter (fun cond -> E.add cf.encoder cond) conds;
                   let es' = List.tl es in
@@ -605,7 +605,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 in
                 match res with
                 | Ok mem_res ->
-                    let l = List.map (fun trio -> config_load c trio) mem_res in
+                    let cl = if List.length mem_res = 1 then false else true
+                    in
+                    let l = List.map (fun trio -> config_load c trio cl) mem_res in
                     Result.ok (Continuation l)
                 | Error b ->
                     let bug_type =
@@ -626,8 +628,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | Some sz ->
                       SM.store_packed expr_to_value sz mem sym_ptr offset ex
                 in
-                let config_store (config : sym_config) (res : SM.t * t list) =
-                  let cf = clone_no_mem config in
+                let config_store (config : sym_config) (res : SM.t * t list) (cl : bool)=
+                  let cf = if cl then clone_no_mem config else c in
                   let m, conds = res in
                   List.iter (fun cond -> E.add cf.encoder cond) conds;
                   let es' = List.tl es in
@@ -636,7 +638,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 in
                 match res with
                 | Ok mem_res ->
-                    let l = List.map (fun pair -> config_store c pair) mem_res in
+                    let cl = if List.length mem_res = 1 then false else true
+                    in
+                    let l = List.map (fun pair -> config_store c pair cl) mem_res in
                     Result.ok (Continuation l)
                 | Error b ->
                     let bug_type =
@@ -883,15 +887,17 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 in
                 let res = SM.alloc check_concr expr_to_value mem base size
                 in
-                let config_alloc (config : sym_config) (res : SM.t * int32 * t list) =
-                  let cf = clone_no_mem config in
+                let config_alloc (config : sym_config) (res : SM.t * int32 * t list) (cl : bool)=
+                  let cf = if cl then clone_no_mem config else c in
                   let m, b, conds = res in
                   List.iter (fun cond -> E.add cf.encoder cond) conds;
                   let es' = List.tl es in
                   let sym_ptr = SymPtr (b, Val (Num (I32 0l))) in
                   { cf with sym_code = (sym_ptr :: vs', es'); sym_mem = m }
                 in
-                let l = List.map (fun trio -> config_alloc c trio) res in
+                let cl = if List.length res = 1 then false else true
+                in
+                let l = List.map (fun trio -> config_alloc c trio cl) res in
                 Result.ok (Continuation l))
             | Free, ptr :: vs' -> (
                 match simplify ptr with
