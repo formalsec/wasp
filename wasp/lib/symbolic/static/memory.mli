@@ -37,26 +37,28 @@ module type SymbolicMemory = sig
     ((t * Expression.t * Expression.t list) list, bug) result
   val load_packed :
     (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> 
-      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
+    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
 
-    val load_string : t -> address -> string
+  val load_string : t -> address -> string
 
-    val store_value : 
-      (Expression.t -> Num.t) -> t -> Expression.t -> offset -> Expression.t -> 
-          ((t * Expression.t list) list, bug) result
-    val store_packed : 
-      (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
-          ((t * Expression.t list) list, bug) result
-    val to_string : t -> string
-  
-    val to_heap :
-      t -> (Expression.t -> Num.t) -> Concolic.Heap.t * (int32, int32) Hashtbl.t
-  
-    (*TODO : change int32 to address (int64)*)
-    val alloc : t -> int32 -> size -> unit
-    val free : t -> int32 -> unit
-    val check_access : t -> Expression.t -> Num.t -> offset -> bug option
-    val check_bound : t -> int32 -> bool
+  val store_value : 
+    (Expression.t -> Num.t) -> t -> Expression.t -> offset -> Expression.t -> 
+        ((t * Expression.t list) list, bug) result
+  val store_packed : 
+    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
+        ((t * Expression.t list) list, bug) result
+  val to_string : t -> string
+
+  val to_heap :
+    t -> (Expression.t -> Num.t) -> Concolic.Heap.t * (int32, int32) Hashtbl.t
+
+  (*TODO : change int32 to address (int64)*)
+  val alloc : 
+    (Expression.t option -> bool) -> (Expression.t -> Num.t) ->
+    t -> Expression.t -> Expression.t -> (t * int32 * Expression.t list) list 
+  val free : t -> int32 -> unit
+  val check_access : t -> Expression.t -> Num.t -> offset -> bug option
+  val check_bound : t -> int32 -> bool
 end
 
 module LazySMem : SymbolicMemory

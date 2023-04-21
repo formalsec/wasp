@@ -316,74 +316,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     E.add c.encoder npc';
     if E.check c.encoder None then Some c else None
 
-  let concretize_alloc (c : sym_config) : sym_config list =
-    let { sym_code = vs, es; varmap; sym_mem; encoder; _ } = c in
-    let e, es' =
-      match es with e :: es' -> (e, es') | _ -> failwith "unreachable"
-    in
-    let s_size, s_base, vs' =
-      match vs with
-      | s_size :: s_base :: vs' -> (s_size, s_base, vs')
-      | _ -> failwith "unreachable"
-    in
-
-    let helper (size : int32 option) : sym_config option =
-      let size_cond =
-        Option.map
-          (function size -> Relop (I32 I32.Eq, s_size, Val (Num (I32 size))))
-          size
-      in
-      match E.check encoder size_cond with
-      | false -> None
-      | true ->
-          let _, c = clone c in
-          (match size_cond with
-          | Some size_cond -> E.add c.encoder size_cond
-          | None -> ());
-          assert (E.check c.encoder None);
-          let binds =
-            E.value_binds c.encoder ~symbols:(Varmap.binds c.varmap)
-          in
-          let logic_env = Concolic.Store.create binds in
-
-          let open Interpreter.Source in
-          let c_size = Concolic.Store.eval logic_env s_size in
-          let size =
-            match c_size with
-            | I32 size -> size
-            | _ ->
-                failwith
-                  (Printf.sprintf "%d" e.at.left.line
-                  ^ ":Alloc with non i32 size: "
-                  ^ string_of_type (Encoding.Num.type_of c_size))
-          in
-          let c_base = Concolic.Store.eval logic_env s_base in
-          let base =
-            match c_base with
-            | I32 base -> base
-            | _ ->
-                failwith
-                  (Printf.sprintf "%d" e.at.left.line
-                  ^ ":Alloc with non i32 base: "
-                  ^ string_of_type (Encoding.Num.type_of c_base))
-          in
-
-          let base_cond = Relop (I32 I32.Eq, s_base, Val (Num (I32 base))) in
-          E.add c.encoder base_cond;
-          SM.alloc sym_mem base size;
-
-          let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
-          Some { c with sym_code = (sym_ptr :: List.tl vs, List.tl es) }
-    in
-
-    let fixed_attempts =
-      List.filter_map helper
-        (List.map Option.some
-           (List.map Int32.of_int !Interpreter.Flags.fixed_numbers))
-    in
-    if List.length fixed_attempts > 0 then fixed_attempts
-    else [ Option.get (helper None) ]
-
   let rec step (c : sym_config) :
       (step_res, string * Interpreter.Source.region) result =
     let {
@@ -663,8 +595,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       SM.load_packed expr_to_value sz mem sym_ptr offset
                         (Common.Evaluations.to_num_type ty)
                 in
-                let config_load (config : sym_config) (res : SM.t * t * t list)
-                    =
+                let config_load (config : sym_config) (res : SM.t * t * t list) =
                   let cf = clone_no_mem config in
                   let m, v, conds = res in
                   List.iter (fun cond -> E.add cf.encoder cond) conds;
@@ -695,8 +626,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | Some sz ->
                       SM.store_packed expr_to_value sz mem sym_ptr offset ex
                 in
-                let config_store (config : sym_config) (res : SM.t * t list)
-                    =
+                let config_store (config : sym_config) (res : SM.t * t list) =
                   let cf = clone_no_mem config in
                   let m, conds = res in
                   List.iter (fun cond -> E.add cf.encoder cond) conds;
@@ -944,14 +874,25 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                                :: es' );
                          };
                        ]))
-            | Alloc, Val (Num (I32 sz)) :: Val (Num (I32 base)) :: vs' ->
-                SM.alloc mem base sz;
-                let sym_ptr = SymPtr (base, Val (Num (I32 0l))) in
-                Result.ok
-                  (Continuation
-                     [ { c with sym_code = (sym_ptr :: vs', List.tl es) } ])
-            | Alloc, _ :: _ :: vs' ->
-                Result.ok (Continuation (concretize_alloc c))
+            | Alloc, size :: base :: vs' -> (
+                let check_concr (size_cond : t option) : bool =
+                  E.check encoder size_cond
+                in
+                let expr_to_value (ex : expr) =
+                  expr_to_value ex c varmap
+                in
+                let res = SM.alloc check_concr expr_to_value mem base size
+                in
+                let config_alloc (config : sym_config) (res : SM.t * int32 * t list) =
+                  let cf = clone_no_mem config in
+                  let m, b, conds = res in
+                  List.iter (fun cond -> E.add cf.encoder cond) conds;
+                  let es' = List.tl es in
+                  let sym_ptr = SymPtr (b, Val (Num (I32 0l))) in
+                  { cf with sym_code = (sym_ptr :: vs', es'); sym_mem = m }
+                in
+                let l = List.map (fun trio -> config_alloc c trio) res in
+                Result.ok (Continuation l))
             | Free, ptr :: vs' -> (
                 match simplify ptr with
                 | SymPtr (base, Val (Num (I32 0l))) ->

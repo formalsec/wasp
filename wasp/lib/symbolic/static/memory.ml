@@ -207,7 +207,10 @@ module type SymbolicMemory = sig
     t -> (Expression.t -> Num.t) -> Concolic.Heap.t * (int32, int32) Hashtbl.t
 
   (*TODO : change int32 to address (int64)*)
-  val alloc : t -> int32 -> size -> unit
+  val alloc : 
+    (Expression.t option -> bool) -> (Expression.t -> Num.t) ->
+    t -> Expression.t -> Expression.t -> (t * int32 * Expression.t list) list 
+
   val free : t -> int32 -> unit
   val check_access : t -> Expression.t -> Num.t -> offset -> bug option
   val check_bound : t -> int32 -> bool
@@ -281,6 +284,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
   let load_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
+    
     let a, ptr = concr_ptr sym_ptr expr_to_value
     in
     match
@@ -447,8 +451,52 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     (MB.to_heap m.backend expr_to_value, m.chunk_table)
 
   (*TODO : change int32 to address (int64)*)
-  let alloc (m : t) (b : int32) (s : size) =
-    Chunktable.replace m.chunk_table b s
+  let alloc (check_concr : Expression.t option -> bool) (expr_to_value : Expression.t -> Num.t)
+    (m : t) (sym_b : Expression.t) (sym_s : Expression.t) : 
+    (t * int32 * Expression.t list) list =
+    let helper (c_size : int32 option) : 
+      (t * int32 * Expression.t list) option =
+      let size_cond =
+        Option.map
+          (function c_size -> Relop (I32 I32.Eq, sym_s, Val (Num (I32 c_size))))
+          c_size
+      in
+      match check_concr size_cond with
+      | false -> None
+      | true ->
+          let b = expr_to_value sym_b in
+          match b with
+          | I32 base ->
+              let _, mc = clone m in
+              let size = 
+                match c_size with
+                | Some size -> size
+                | _ -> failwith "unreachable"
+              in
+              Chunktable.replace mc.chunk_table base size;
+              let base_cond = Relop (I32 I32.Eq, sym_b, Val (Num (b))) 
+              in
+              let size_cond = 
+                (match size_cond with
+                | Some size_cond -> size_cond
+                | None -> failwith "unreachable") in
+              Some (mc, base, size_cond :: base_cond :: [])
+          | _ -> failwith "Alloc non I32 base"
+    in
+    match (sym_s, sym_b) with
+    (* concrete alloc *)
+    |  Val (Num (I32 sz)),  Val (Num (I32 base)) -> 
+        Chunktable.replace m.chunk_table base sz;
+        (m, base, []) :: []
+    (* sym alloc *)
+    | _, _ ->  
+      let fixed_attempts =
+        List.filter_map helper
+          (List.map Option.some
+              (List.map Int32.of_int !Interpreter.Flags.fixed_numbers))
+      in
+      if List.length fixed_attempts > 0 then fixed_attempts
+      else [ Option.get (helper None) ]
 
   let free (m : t) (b : int32) : unit = Chunktable.remove m.chunk_table b
 
