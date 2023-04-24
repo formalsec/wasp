@@ -901,28 +901,22 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 Result.ok (Continuation l))
             | Free, ptr :: vs' -> (
                 match simplify ptr with
-                | SymPtr (base, Val (Num (I32 0l))) ->
-                    let es' =
-                      if not (SM.check_bound mem base) then (
-                        assert (E.check encoder None);
-                        let string_binds = E.string_binds encoder in
-                        let witness =
-                          Concolic.Store.strings_to_json string_binds
-                        in
-                        [
-                          Interrupt (Bug (Common.Bug.InvalidFree, witness))
-                          @@ e.at;
-                        ]
-                        @ List.tl es)
-                      else (
-                        SM.free mem base;
-                        List.tl es)
-                    in
-                    Result.ok
-                      (Continuation [ { c with sym_code = (vs', es') } ])
+                | SymPtr (base, Val (Num (I32 0l))) -> (
+                    match SM.free mem base with
+                    | Ok mem_res ->                     
+                        Result.ok
+                        (Continuation [ { c with sym_code = (vs', List.tl es) } ])
+                    | Error b ->
+                        let bug_type =
+                          match b with
+                          | Common.Bug.Overflow -> "Out of Bounds access"
+                          | Common.Bug.UAF -> "Use After Free"
+                          | Common.Bug.InvalidFree ->
+                              failwith "unreachable, check_access can't return this"
+                          in
+                          Result.error (bug_type, e.at))
                 | value ->
-                    failwith ("Free with invalid argument" ^ pp_to_string value)
-                )
+                    failwith ("Free with invalid argument" ^ pp_to_string value))
             | PrintStack, vs ->
                 let vs' = List.map (fun v -> pp_to_string v) vs in
                 debug

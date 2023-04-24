@@ -56,7 +56,7 @@ module type SymbolicMemory = sig
   val alloc : 
     (Expression.t option -> bool) -> (Expression.t -> Num.t) ->
     t -> Expression.t -> Expression.t -> (t * int32 * Expression.t list) list 
-  val free : t -> int32 -> unit
+  val free : t -> int32 -> (unit, bug) result
   val check_access : t -> Expression.t -> Num.t -> offset -> bug option
   val check_bound : t -> int32 -> bool
 end

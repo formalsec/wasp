@@ -211,7 +211,7 @@ module type SymbolicMemory = sig
     (Expression.t option -> bool) -> (Expression.t -> Num.t) ->
     t -> Expression.t -> Expression.t -> (t * int32 * Expression.t list) list 
 
-  val free : t -> int32 -> unit
+  val free : t -> int32 -> (unit, bug) result
   val check_access : t -> Expression.t -> Num.t -> offset -> bug option
   val check_bound : t -> int32 -> bool
 end
@@ -498,9 +498,16 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       if List.length fixed_attempts > 0 then fixed_attempts
       else [ Option.get (helper None) ]
 
-  let free (m : t) (b : int32) : unit = Chunktable.remove m.chunk_table b
-
   let check_bound (m : t) (b : int32) : bool = Chunktable.mem m.chunk_table b
+
+  let free (m : t) (b : int32) : (unit, bug) result = 
+    if not (check_bound m b) then (
+      Result.error(InvalidFree)
+    )
+    else (
+      Result.ok (Chunktable.remove m.chunk_table b)
+    )
+
 end
 
 module LazySMem : SymbolicMemory = SMem (LazyMemory)
