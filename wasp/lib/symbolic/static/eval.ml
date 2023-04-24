@@ -175,7 +175,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let sym_mem = c.sym_mem in
     let sym_budget = c.sym_budget in
     let varmap = Varmap.copy c.varmap in
-    let sym_globals = Globals.clone_globals c.sym_globals in
+    let sym_globals = Globals.copy c.sym_globals in
     let encoder = E.clone c.encoder in
     { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
 
