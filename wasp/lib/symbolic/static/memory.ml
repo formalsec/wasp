@@ -1,6 +1,7 @@
 open Common
 open Bug
 open Encoding
+open Value
 open Expression
 open Types
 open Interpreter.Memory
@@ -131,7 +132,7 @@ module MapMemory : MemoryBackend = struct
             | I64 cb -> Int64.to_int cb
             | _ ->
                 failwith
-                  ("Memory should be composed of bytes: " ^ Num.string_of_num c)
+                  ("Memory should be composed of bytes: " ^ Num.to_string c)
           in
           (a, (cb, b)))
         address_symb_seq

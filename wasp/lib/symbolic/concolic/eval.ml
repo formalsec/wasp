@@ -1,6 +1,7 @@
 open Evaluations
 open Common
 open Encoding
+open Value
 open Expression
 open Types
 open Interpreter.Ast
@@ -474,15 +475,15 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               let x = Store.next store symbol in
               let ty' = Evaluations.to_num_type ty in
               let v = Store.get store x ty' b in
-              ((v, Expression.mk_symbolic ty' x) :: vs', [], mem, pc, bp)
+              ((v, Expression.mk_symbol ty' x) :: vs', [], mem, pc, bp)
           | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
-              let sv2' = mk_relop sv2 (Types.type_of_num v2) in
+              let sv2' = mk_relop sv2 (Num.type_of v2) in
               let v2' =
-                Num.(num_of_bool (not (v2 = default_value (type_of_num v2))))
+                Num.(num_of_bool (not (v2 = default_value (type_of v2))))
               in
-              let sv1' = mk_relop sv1 (Types.type_of_num v1) in
+              let sv1' = mk_relop sv1 (Num.type_of v1) in
               let v1' =
-                Num.(num_of_bool (not (v1 = default_value (type_of_num v1))))
+                Num.(num_of_bool (not (v1 = default_value (type_of v1))))
               in
               try
                 let v3, sv3 = eval_binop (v1', sv1') (v2', sv2') boolop in
@@ -508,28 +509,28 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbolic `I32Type x) :: vs', [], mem, pc, bp)
+              ((v, Expression.mk_symbol `I32Type x) :: vs', [], mem, pc, bp)
           | GetSymInt64 x, vs' ->
               let v =
                 try Store.find store x
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbolic `I64Type x) :: vs', [], mem, pc, bp)
+              ((v, Expression.mk_symbol `I64Type x) :: vs', [], mem, pc, bp)
           | GetSymFloat32 x, vs' ->
               let v =
                 try Store.find store x
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbolic `F32Type x) :: vs', [], mem, pc, bp)
+              ((v, Expression.mk_symbol `F32Type x) :: vs', [], mem, pc, bp)
           | GetSymFloat64 x, vs' ->
               let v =
                 try Store.find store x
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbolic `F64Type x) :: vs', [], mem, pc, bp)
+              ((v, Expression.mk_symbol `F64Type x) :: vs', [], mem, pc, bp)
           | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs'
             ->
               let r : Num.t = I32 (if c = 0l then r2 else r1) in
@@ -540,7 +541,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                 | Some s ->
                     let x = Store.next store "__ternary" in
                     Store.add store x r;
-                    let s_x = Expression.mk_symbolic `I32Type x in
+                    let s_x = Expression.mk_symbol `I32Type x in
                     let t_eq = Relop (I32 I32.Eq, s_x, s_r1) in
                     let t_imp = Binop (I32 I32.Or, negate_relop s, t_eq) in
                     let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
@@ -574,7 +575,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
               let res : Num.t * Expression.t =
                 match (ex1, ex2) with
-                | Symbolic (`I32Type, x), Symbolic (`I32Type, y) ->
+                | Symbol (`I32Type, x), Symbol (`I32Type, y) ->
                     if x = y then (I32 1l, Relop (I32 I32.Eq, ex1, ex2))
                     else (I32 0l, Relop (I32 I32.Ne, ex1, ex2))
                 | _, _ ->
@@ -680,7 +681,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           let symbolic_arg t =
             let x = Store.next store "arg" in
             let v = Store.get store x t false in
-            (v, Expression.mk_symbolic t x)
+            (v, Expression.mk_symbol t x)
           in
           let (Interpreter.Types.FuncType (ins, out)) =
             Interpreter.Func.type_of func

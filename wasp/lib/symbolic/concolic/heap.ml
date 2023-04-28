@@ -1,4 +1,5 @@
 open Encoding
+open Value
 open Types
 open Expression
 open Interpreter.Memory
@@ -189,7 +190,7 @@ let store_value (h : t) (a : address) (o : offset) (v : Num.t * Expression.t) :
         in
         (x, e)
   in
-  storen h a o (Types.size (Types.type_of_num cv)) (cv', sv')
+  storen h a o (Types.size (Num.type_of cv)) (cv', sv')
 
 let extend x n = function
   | ZX -> x

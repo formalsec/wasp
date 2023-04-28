@@ -27,17 +27,19 @@ let copy (s : t) : t =
 
 let clear (s : t) : unit = Hashtbl.clear s.map
 
-let init (s : t) (binds : (string * Expression.value) list) : unit =
+let init (s : t) (binds : (string * Value.t) list) : unit =
   List.iter
     (fun (x, v) ->
-      match v with Num n -> Hashtbl.replace s.map x n | _ -> assert false)
+      match v with
+      | Value.Num n -> Hashtbl.replace s.map x n
+      | _ -> assert false)
     binds
 
 let from_parts (sym : name Counter.t) (ord : name Stack.t)
     (map : (name, Num.t) Hashtbl.t) : t =
   { sym; ord; map }
 
-let create (binds : (string * Expression.value) list) : t =
+let create (binds : (string * Value.t) list) : t =
   let s =
     {
       sym = Counter.create ();
@@ -77,18 +79,20 @@ let next (s : t) (x : name) : name =
 
 let is_empty (s : t) : bool = 0 = Hashtbl.length s.map
 
-let update (s : t) (binds : (string * Expression.value) list) : unit =
+let update (s : t) (binds : (string * Value.t) list) : unit =
   List.iter
     (fun (x, v) ->
-      match v with Num n -> Hashtbl.replace s.map x n | _ -> assert false)
+      match v with
+      | Value.Num n -> Hashtbl.replace s.map x n
+      | _ -> assert false)
     binds
 
 let to_json (s : t) : string =
   let jsonify_bind (b : bind) : string =
     let n, v = b in
-    "{" ^ "\"name\" : \"" ^ n ^ "\", " ^ "\"value\" : \"" ^ Num.string_of_num v
+    "{" ^ "\"name\" : \"" ^ n ^ "\", " ^ "\"value\" : \"" ^ Num.to_string v
     ^ "\", " ^ "\"type\" : \""
-    ^ Types.string_of_num_type (Types.type_of_num v)
+    ^ Types.string_of_type (Num.type_of v)
     ^ "\"" ^ "}"
   in
   "["
@@ -110,21 +114,27 @@ let to_string (s : t) : string =
   Seq.fold_left
     (fun a k ->
       let v = find s k in
-      a ^ "(" ^ k ^ "->" ^ Num.string_of_num v ^ ")\n")
+      a ^ "(" ^ k ^ "->" ^ Num.to_string v ^ ")\n")
     "" (Stack.to_seq s.ord)
 
 let get_key_types (s : t) : (string * expr_type) list =
-  Hashtbl.fold (fun k v acc -> (k, Types.type_of_num v) :: acc) s.map []
+  Hashtbl.fold (fun k v acc -> (k, Num.type_of v) :: acc) s.map []
 
 let to_expr (s : t) : expr list =
   Hashtbl.fold
     (fun k (n : Num.t) acc ->
       let e =
         match n with
-        | I32 _ -> Relop (I32 I32.Eq, Symbolic (`I32Type, k), Val (Num n))
-        | I64 _ -> Relop (I64 I64.Eq, Symbolic (`I64Type, k), Val (Num n))
-        | F32 _ -> Relop (F32 F32.Eq, Symbolic (`F32Type, k), Val (Num n))
-        | F64 _ -> Relop (F64 F64.Eq, Symbolic (`F64Type, k), Val (Num n))
+        | I32 _ ->
+            BitVector.mk_eq (mk_symbol `I32Type k) (Val (Value.Num n)) `I32Type
+        | I64 _ ->
+            BitVector.mk_eq (mk_symbol `I64Type k) (Val (Value.Num n)) `I64Type
+        | F32 _ ->
+            FloatingPoint.mk_eq (mk_symbol `F32Type k) (Val (Value.Num n))
+              `F32Type
+        | F64 _ ->
+            FloatingPoint.mk_eq (mk_symbol `F64Type k) (Val (Value.Num n))
+              `F64Type
       in
       e :: acc)
     s.map []
@@ -137,7 +147,7 @@ let rec eval (env : t) (e : expr) : Num.t =
   | SymPtr (b, o) ->
       let b : Num.t = I32 b in
       Eval_numeric.eval_binop (I32 I32.Add) b (eval env o)
-  | Val (Num n) -> n
+  | Val (Value.Num n) -> n
   | Binop (op, e1, e2) ->
       let v1 = eval env e1 and v2 = eval env e2 in
       Eval_numeric.eval_binop op v1 v2
@@ -150,7 +160,7 @@ let rec eval (env : t) (e : expr) : Num.t =
   | Cvtop (op, e') ->
       let v = eval env e' in
       Eval_numeric.eval_cvtop op v
-  | Symbolic (ty, var) -> (
+  | Symbol (ty, var) -> (
       match find_opt env var with
       | Some v -> v
       | None ->

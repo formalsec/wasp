@@ -58,7 +58,7 @@ let i32_binop op e1 e2 =
   | I32Op.Or -> BitVector.mk_or e1 e2 `I32Type
   | I32Op.Sub -> BitVector.mk_sub e1 e2 `I32Type
   | I32Op.DivS -> BitVector.mk_div_s e1 e2 `I32Type
-  | I32Op.DivU ->  BitVector.mk_div_u e1 e2 `I32Type
+  | I32Op.DivU -> BitVector.mk_div_u e1 e2 `I32Type
   | I32Op.Xor -> BitVector.mk_xor e1 e2 `I32Type
   | I32Op.Mul -> BitVector.mk_mul e1 e2 `I32Type
   | I32Op.Shl -> BitVector.mk_shl e1 e2 `I32Type
@@ -76,7 +76,7 @@ let i64_binop op e1 e2 =
   | I64Op.Or -> BitVector.mk_or e1 e2 `I64Type
   | I64Op.Sub -> BitVector.mk_sub e1 e2 `I64Type
   | I64Op.DivS -> BitVector.mk_div_s e1 e2 `I64Type
-  | I64Op.DivU ->  BitVector.mk_div_u e1 e2 `I64Type
+  | I64Op.DivU -> BitVector.mk_div_u e1 e2 `I64Type
   | I64Op.Xor -> BitVector.mk_xor e1 e2 `I64Type
   | I64Op.Mul -> BitVector.mk_mul e1 e2 `I64Type
   | I64Op.Shl -> BitVector.mk_shl e1 e2 `I64Type

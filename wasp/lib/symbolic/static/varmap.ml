@@ -19,8 +19,7 @@ let create () : t =
     typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
   }
 
-let to_store (varmap : t) (binds : (string * Expression.value) list) :
-    Concolic.Store.t =
+let to_store (varmap : t) (binds : (string * Value.t) list) : Concolic.Store.t =
   let sym = varmap.sym in
   let ord = varmap.ord in
   let map = Hashtbl.create Interpreter.Flags.hashtbl_default_size in

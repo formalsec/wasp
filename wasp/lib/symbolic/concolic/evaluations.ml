@@ -1,5 +1,6 @@
 open Common.Evaluations
 open Encoding
+open Value
 open Expression
 open Types
 open I64
