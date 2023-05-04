@@ -27,11 +27,11 @@ let copy (s : t) : t =
 
 let clear (s : t) : unit = Hashtbl.clear s.map
 
-let init (s : t) (binds : (string * Value.t) list) : unit =
+let init (s : t) (binds : (Symbol.t * Value.t) list) : unit =
   List.iter
     (fun (x, v) ->
       match v with
-      | Value.Num n -> Hashtbl.replace s.map x n
+      | Value.Num n -> Hashtbl.replace s.map (Symbol.to_string x) n
       | _ -> assert false)
     binds
 
@@ -39,7 +39,7 @@ let from_parts (sym : name Counter.t) (ord : name Stack.t)
     (map : (name, Num.t) Hashtbl.t) : t =
   { sym; ord; map }
 
-let create (binds : (string * Value.t) list) : t =
+let create (binds : (Symbol.t * Value.t) list) : t =
   let s =
     {
       sym = Counter.create ();
@@ -79,11 +79,11 @@ let next (s : t) (x : name) : name =
 
 let is_empty (s : t) : bool = 0 = Hashtbl.length s.map
 
-let update (s : t) (binds : (string * Value.t) list) : unit =
+let update (s : t) (binds : (Symbol.t * Value.t) list) : unit =
   List.iter
     (fun (x, v) ->
       match v with
-      | Value.Num n -> Hashtbl.replace s.map x n
+      | Value.Num n -> Hashtbl.replace s.map (Symbol.to_string x) n
       | _ -> assert false)
     binds
 
@@ -117,8 +117,10 @@ let to_string (s : t) : string =
       a ^ "(" ^ k ^ "->" ^ Num.to_string v ^ ")\n")
     "" (Stack.to_seq s.ord)
 
-let get_key_types (s : t) : (string * expr_type) list =
-  Hashtbl.fold (fun k v acc -> (k, Num.type_of v) :: acc) s.map []
+let get_key_types (s : t) : Symbol.t list =
+  Hashtbl.fold
+    (fun k v acc -> Symbol.mk_symbol (Num.type_of v) k :: acc)
+    s.map []
 
 let to_expr (s : t) : expr list =
   Hashtbl.fold
@@ -126,14 +128,16 @@ let to_expr (s : t) : expr list =
       let e =
         match n with
         | I32 _ ->
-            BitVector.mk_eq (mk_symbol `I32Type k) (Val (Value.Num n)) `I32Type
+            BitVector.mk_eq (mk_symbol_s `I32Type k) (Val (Value.Num n))
+              `I32Type
         | I64 _ ->
-            BitVector.mk_eq (mk_symbol `I64Type k) (Val (Value.Num n)) `I64Type
+            BitVector.mk_eq (mk_symbol_s `I64Type k) (Val (Value.Num n))
+              `I64Type
         | F32 _ ->
-            FloatingPoint.mk_eq (mk_symbol `F32Type k) (Val (Value.Num n))
+            FloatingPoint.mk_eq (mk_symbol_s `F32Type k) (Val (Value.Num n))
               `F32Type
         | F64 _ ->
-            FloatingPoint.mk_eq (mk_symbol `F64Type k) (Val (Value.Num n))
+            FloatingPoint.mk_eq (mk_symbol_s `F64Type k) (Val (Value.Num n))
               `F64Type
       in
       e :: acc)
@@ -160,19 +164,20 @@ let rec eval (env : t) (e : expr) : Num.t =
   | Cvtop (op, e') ->
       let v = eval env e' in
       Eval_numeric.eval_cvtop op v
-  | Symbol (ty, var) -> (
-      match find_opt env var with
+  | Symbol s -> (
+      let x = Symbol.to_string s in
+      match find_opt env x with
       | Some v -> v
       | None ->
           let v : Num.t =
-            match ty with
+            match Symbol.type_of s with
             | `I32Type -> I32 (Int32.of_int (Random.int 127))
             | `I64Type -> I64 (Int64.of_int (Random.int 127))
             | `F32Type -> F32 (Int32.bits_of_float (Random.float 127.0))
             | `F64Type -> F64 (Int64.bits_of_float (Random.float 127.0))
             | _ -> assert false
           in
-          Hashtbl.replace env.map var v;
+          Hashtbl.replace env.map x v;
           v)
   | Extract (e', h, l) ->
       let v = int64_of_value (eval env e') in

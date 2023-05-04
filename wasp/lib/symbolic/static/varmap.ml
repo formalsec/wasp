@@ -19,7 +19,8 @@ let create () : t =
     typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
   }
 
-let to_store (varmap : t) (binds : (string * Value.t) list) : Concolic.Store.t =
+let to_store (varmap : t) (binds : (Symbol.t * Value.t) list) : Concolic.Store.t
+    =
   let sym = varmap.sym in
   let ord = varmap.ord in
   let map = Hashtbl.create Interpreter.Flags.hashtbl_default_size in
@@ -36,8 +37,8 @@ let get_vars_by_type (t : expr_type) (varmap : t) : string list =
     (fun k v acc -> if v = t then k :: acc else acc)
     varmap.typemap []
 
-let binds (varmap : t) : (string * expr_type) list =
-  Hashtbl.fold (fun k v acc -> (k, v) :: acc) varmap.typemap []
+let binds (varmap : t) : Symbol.t list =
+  Hashtbl.fold (fun k v acc -> Symbol.mk_symbol v k :: acc) varmap.typemap []
 
 let copy (varmap : t) : t =
   let sym = Counter.copy varmap.sym
