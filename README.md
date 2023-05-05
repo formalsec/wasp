@@ -23,7 +23,7 @@ eval $(opam env)
 * Then, install the library dependencies:
 
 ```sh
-git clone https://github.com/wasp-platform/wasp.git
+git clone --recurse-submodules https://github.com/wasp-platform/wasp.git
 cd wasp
 opam install . ./encoding/encoding.opam --deps-only
 ```
