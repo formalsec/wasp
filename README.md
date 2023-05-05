@@ -24,8 +24,8 @@ eval $(opam env)
 
 ```sh
 git clone https://github.com/wasp-platform/wasp.git
-cd wasp/wasp
-opam install . --deps-only
+cd wasp
+opam install . ./encoding/encoding.opam --deps-only
 ```
 
 * Build and test:
