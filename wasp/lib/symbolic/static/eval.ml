@@ -201,7 +201,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
       | None ->
           assert (E.check c.encoder None);
           let binds =
-            E.value_binds c.encoder (Varmap.binds v)
+            E.value_binds c.encoder ~symbols:(Varmap.binds c.varmap)
           in
           let store = Concolic.Store.create binds in
           store_r := Some store;
