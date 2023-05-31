@@ -272,7 +272,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     debug "-- Switching to concolic mode...";
     debug
       ("-- path_condition = "
-      ^ Encoding.Expression.pp_to_string (E.get_assertions c.encoder));
+      ^ Encoding.Expression.to_string (E.get_assertions c.encoder));
     let conc_c = to_concolic c in
     let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
     Concolic.Eval.BFS.s_invoke conc_c test_suite
@@ -992,10 +992,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     Result.ok
                       (Continuation [ { c with sym_code = (vs', es') } ])
                 | value ->
-                    failwith ("Free with invalid argument" ^ pp_to_string value)
+                    failwith ("Free with invalid argument" ^ to_string value)
                 )
             | PrintStack, vs ->
-                let vs' = List.map (fun v -> pp_to_string v) vs in
+                let vs' = List.map (fun v -> to_string v) vs in
                 debug
                   ("Stack @ "
                   ^ Source.string_of_pos e.at.left
@@ -1010,7 +1010,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 print_endline
                   (Printf.sprintf "%d" e.at.left.line
                   ^ " pc: "
-                  ^ Encoding.Expression.pp_to_string (E.get_assertions encoder)
+                  ^ Encoding.Expression.to_string (E.get_assertions encoder)
                   );
                 let es' = List.tl es in
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
@@ -1018,7 +1018,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 let es' = List.tl es in
                 print_endline
                   (Printf.sprintf "%d" e.at.left.line
-                  ^ ":val: " ^ pp_to_string v);
+                  ^ ":val: " ^ to_string v);
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | _ ->
                 print_endline

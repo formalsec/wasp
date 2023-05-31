@@ -563,7 +563,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               debug
                 (Interpreter.Source.string_of_pos e.at.left
                 ^ ":PC: "
-                ^ Expression.(pp_to_string pc));
+                ^ Expression.to_string pc);
               (vs', [], mem, pc, bp)
           | PrintMemory, vs' ->
               debug ("Mem:\n" ^ Heap.to_string mem);
