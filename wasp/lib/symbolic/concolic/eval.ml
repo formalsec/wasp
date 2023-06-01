@@ -445,6 +445,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               (vs', [], mem, pc, bp)
           | SymAssert, (I32 i, ex) :: vs' ->
               let formulas = Expression.add_constraint ~neg:true ex pc in
+              Common.serialise_query [ formulas ];
               if not (Batch.check_sat solver [ formulas ]) then
                 (vs', [], mem, pc, bp)
               else
@@ -830,6 +831,7 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     if L.is_empty pcs then None
     else
       let pc, node = L.pop pcs in
+      Common.serialise_query [ pc ];
       if not (Batch.check_sat solver [ pc ]) then find_sat_pc pcs
       else Some (pc, Execution_tree.find node)
 
@@ -837,6 +839,7 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     if L.is_empty cps then None
     else
       let cp = L.pop cps in
+      Common.serialise_query [ !cp.pc ];
       if not (Batch.check_sat solver [ !cp.pc ]) then find_sat_cp cps
       else Some (!cp.pc, Some cp)
 
@@ -857,7 +860,8 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
       | vs, { it = Interrupt i; at } :: _ ->
           write_test_case ~witness:true (Store.to_json store);
           Some (string_of_interruption i, at)
-      | vs, { it = Restart pc; _ } :: es when Batch.check_sat solver [ pc ] ->
+      | vs, { it = Restart pc; _ } :: es
+        when (Common.serialise_query [ pc ]; Batch.check_sat solver [ pc ]) ->
           let tree', _ = Execution_tree.move_true !(c.tree) in
           c.tree := tree';
           loop (update c (vs, es) pc (Store.get_key_types store))

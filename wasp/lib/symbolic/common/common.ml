@@ -37,16 +37,25 @@ let count (init : int) : unit -> int =
   next
 
 let test_case_cntr = count 0
+let query_cntr = count 0
 
 let write_test_case ?(witness = false) test_data : unit =
   let out_dir = Filename.concat !Interpreter.Flags.output "test_suite" in
-  if not (test_data = "[]") then
-    let i = test_case_cntr () in
+  let i = test_case_cntr () in
+  let filename =
+    if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
+    else Printf.sprintf "%s/test_%05d.json" out_dir i
+  in
+  Interpreter.Io.save_file filename test_data
+
+let serialise_query formulas : unit =
+  if List.length formulas > 0 then
+    let outdir = Filename.concat !Interpreter.Flags.output "queries" in
+    Interpreter.Io.safe_mkdir outdir;
     let filename =
-      if witness then Printf.sprintf "%s/witness_%05d.json" out_dir i
-      else Printf.sprintf "%s/test_%05d.json" out_dir i
+      Filename.concat outdir (Printf.sprintf "query-%05d.smt2" (query_cntr ()))
     in
-    Interpreter.Io.save_file filename test_data
+    Interpreter.Io.save_file filename (Encoding.Expression.to_smt formulas)
 
 let numeric_error at = function
   | Evaluations.UnsupportedOp m -> m ^ ": unsupported operation"
