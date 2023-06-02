@@ -14,7 +14,7 @@
   #     $ nix flake lock --update-input <input> ... --commit-lockfile
   #
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
     # Convenience functions for writing flakes
     flake-utils.url = "github:numtide/flake-utils";
     # Precisely filter files copied to the nix store
@@ -35,9 +35,6 @@
         my_python3_packages = p: [
           # wasp-c
           p.pycparser
-          # data wrangling
-          p.pandas
-          p.numpy
         ];
         my_python3 = pkgs.python310.withPackages my_python3_packages;
 
@@ -77,21 +74,15 @@
             strictDeps = true;
 
             nativeBuildInputs = [
-              (pkgs.z3_4_11.override {
-                ocamlBindings = true;
-                ocaml = ocamlPackages.ocaml;
-                findlib = ocamlPackages.findlib;
-                zarith = ocamlPackages.zarith;
-              })
+              pkgs.z3
             ];
 
             buildInputs = [
-              (ocamlPackages.z3.override {
-                z3 = pkgs.z3_4_11;
-              })
               ocamlPackages.batteries
               ocamlPackages.base
+              ocamlPackages.core
               ocamlPackages.ppx_inline_test
+              ocamlPackages.z3
             ];
 
             preBuild = ''
@@ -116,7 +107,6 @@
             # Development tools
             packages = with pkgs; [
               # Source file formatting
-              nixpkgs-fmt
               ocamlformat
               # For `dune build --watch ...`
               fswatch
@@ -130,7 +120,6 @@
               ocamlPackages.utop
               # wasp and wasp-c stuff
               gnumake
-              # TODO: Do I need it? python27Full
               my_python3
               libcxx
               gmp
