@@ -15,8 +15,9 @@ module type MemoryBackend = sig
 
   exception Bounds
 
-  val store_byte : t -> address -> Expression.t -> unit
-  val load_byte : t -> address -> Expression.t
+  val init : unit -> t
+  val store : t -> address -> Expression.t -> unit
+  val load : t -> address -> Expression.t
   val from_heap : Concolic.Heap.t -> t
   val clone : t -> t * t
   val to_string : t -> string
@@ -65,7 +66,7 @@ end
 
 
 module SMem (MB : MemoryBackend) : SymbolicMemory = struct
-  type t = MB.t
+  type t = {blocks: MB.t; fixed: (address, Expression.t) Hashtbl.t}
 
   exception Bounds = MB.Bounds
 
@@ -111,13 +112,18 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     loop Int64.(add (effective_address a o) (of_int (n - 1))) n [] *)
 
   (* Public functions *)
-  let from_heap (h : Concolic.Heap.t) : t =
-    let backend = MB.from_heap h in
-    backend
+  let from_heap (map : Concolic.Heap.t) : t =
+    let concolic_seq = Concolic.Heap.to_seq map in
+    let concolic_to_symbolic (k, (_, s)) = (k, s) in
+    let fixed = Hashtbl.of_seq (Seq.map concolic_to_symbolic concolic_seq) in
+    { blocks = MB.init (); fixed }
 
   let clone (m : t) : t * t =
-    let backend1, backend2 = MB.clone m in
-    (backend1, backend2)
+    let blocks1, blocks2 = MB.clone m.blocks in
+    let fixed1 = m.fixed in
+    let fixed2 = Hashtbl.copy m.fixed in
+    ( { blocks = blocks1; fixed = fixed1 },
+      { blocks = blocks2; fixed = fixed2 } )
 
   let check_access (m : t) (sym_ptr : Expression.t) (ptr : Num.t) (o : offset) : bug option =
     let base_ptr = concretize_base_ptr sym_ptr in
@@ -136,7 +142,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
 
   let load_string (mem : t) (a : address) : string =
     let rec loop a acc =
-      let sb = MB.load_byte mem a in
+      let sb = MB.load mem.blocks a in
       let b =
         match sb with
         | Extract (Val (Num (I64 b)), 1, 0) -> Int64.to_int b
@@ -159,11 +165,11 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     ((t * Expression.t list) list, bug) result =
     failwith "not implemented"
 
-  let to_string (m : t) : string = MB.to_string m
+  let to_string (m : t) : string = MB.to_string m.blocks
 
   let to_heap (m : t) (expr_to_value : Expression.t -> Num.t) :
       Concolic.Heap.t * (int32, int32) Hashtbl.t =
-    (MB.to_heap m expr_to_value, Hashtbl.create 128) (* LEGACY HASHTBL RETURN, WAS OLD CHUNKTABLE*)
+    (MB.to_heap m.blocks expr_to_value, Hashtbl.create 128) (* LEGACY HASHTBL RETURN, WAS OLD CHUNKTABLE*)
 
   (*TODO : change int32 to address (int64)*)
   let alloc (check_concr : Expression.t option -> bool) (expr_to_value : Expression.t -> Num.t)

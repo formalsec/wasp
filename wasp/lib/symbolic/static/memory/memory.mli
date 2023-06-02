@@ -8,23 +8,6 @@ type size = int32
 type address = int64
 type offset = int32
 
-module type MemoryBackend = sig
-  type t
-
-  exception Bounds
-
-  val store_byte : t -> address -> Expression.t -> unit
-  val load_byte : t -> address -> Expression.t
-  val from_heap : Concolic.Heap.t -> t
-  val clone : t -> t * t
-  val to_string : t -> string
-  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
-end
-
-module LazyMemory : MemoryBackend
-module MapMemory : MemoryBackend
-module TreeMemory : MemoryBackend
-
 module type SymbolicMemory = sig
   type t
 
