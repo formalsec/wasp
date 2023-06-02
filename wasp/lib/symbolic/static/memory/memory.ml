@@ -414,9 +414,9 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
         in
         storen mem.backend a o sz value;
         let ptr_cond =
-          Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+          [Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr))]
         in
-        let res = (mem, ptr_cond) :: []
+        let res = [(mem, ptr_cond)]
         in
         Result.ok (res)
 

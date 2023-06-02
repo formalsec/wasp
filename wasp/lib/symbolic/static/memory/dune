@@ -1,0 +1,3 @@
+(library
+ (name memory)
+ (libraries interpreter common encoding concolic))
