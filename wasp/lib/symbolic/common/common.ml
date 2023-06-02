@@ -1,5 +1,6 @@
 module Counter = Counter
 module RandArray = RandArray
+module HotCold = HotCold
 module Chunktable = Chunktable
 module Evaluations = Evaluations
 module Globals = Globals

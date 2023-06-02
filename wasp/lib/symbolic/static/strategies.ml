@@ -80,6 +80,7 @@ end
 module DFS = TreeStrategy (Stack)
 module BFS = TreeStrategy (Queue)
 module RS = TreeStrategy (RandArray)
+module HCS = TreeStrategy (HotCold)
 
 module BFS_L (I : Interpreter) = struct
   let max_configs = 32
@@ -280,6 +281,7 @@ module Helper (I : Interpreter) = struct
   module BFS_L_I = BFS_L (I)
   module Half_BFS_I = Half_BFS (I)
   module RS_I = RS (I)
+  module HCS_I = HCS (I)
   module Hybrid_I = Hybrid (I)
   module HybridP_I = HybridP (I)
 
@@ -296,6 +298,7 @@ module Helper (I : Interpreter) = struct
       | "breadth-l" -> BFS_L_I.eval
       | "half-breadth" -> Half_BFS_I.eval
       | "random" -> RS_I.eval
+      | "hotcold" -> HCS_I.eval
       | "hybrid" -> Hybrid_I.eval
       | "hybridp" -> HybridP_I.eval
       | _ -> failwith "unreachable"
