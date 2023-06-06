@@ -104,25 +104,8 @@ let instr_str e =
   | Symbolic _ -> "symbolic"
   | _ -> "not support"
 
-module type Encoder = sig
-  type t
 
-  val create : unit -> t
-  val clone : t -> t
-  val add : t -> expr -> unit
-  val get_assertions : t -> expr
-  val check : t -> expr option -> bool
-  val fork : t -> expr -> bool * bool
-
-  val value_binds :
-    ?symbols:Encoding.Symbol.t list ->
-    t ->
-    (Encoding.Symbol.t * Encoding.Value.t) list
-
-  val string_binds : t -> (string * string * string) list
-end
-
-module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
+module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
   Interpreter = struct
   type sym_config = {
     sym_frame : sym_frame;
@@ -1083,15 +1066,15 @@ module EncodingSelector (SM : Memory.SymbolicMemory) = struct
     | _ -> failwith "Invalid encoding option"
 end
 
-module MapMem_EncondingSelector = EncodingSelector (Memory.MapSMem)
-module LazyMem_EncondingSelector = EncodingSelector (Memory.LazySMem)
-module TreeMem_EncondingSelector = EncodingSelector (Memory.TreeSMem)
+module MapMem_EncodingSelector = EncodingSelector (Memory.MapSMem)
+module LazyMem_EncodingSelector = EncodingSelector (Memory.LazySMem)
+module TreeMem_EncodingSelector = EncodingSelector (Memory.TreeSMem)
 
 let parse_memory_and_encoding () =
   match !Interpreter.Flags.memory with
-  | "map" -> MapMem_EncondingSelector.parse_encoding ()
-  | "lazy" -> LazyMem_EncondingSelector.parse_encoding ()
-  | "tree" -> TreeMem_EncondingSelector.parse_encoding ()
+  | "map" -> MapMem_EncodingSelector.parse_encoding ()
+  | "lazy" -> LazyMem_EncodingSelector.parse_encoding ()
+  | "tree" -> TreeMem_EncodingSelector.parse_encoding ()
   | _ -> failwith "Invalid memory backend"
 
 let func_to_globs (func : func_inst) : expr Globals.t =
