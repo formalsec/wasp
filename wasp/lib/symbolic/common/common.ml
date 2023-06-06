@@ -14,6 +14,25 @@ exception Trap = Trap.Error
 exception Crash = Crash.Error
 exception Exhaustion = Exhaustion.Error
 
+module type Encoder = sig
+  type t
+
+  val create : unit -> t
+  val clone : t -> t
+  val add : t -> Encoding.Expression.t -> unit
+  val get_assertions : t -> Encoding.Expression.t
+  val check : t -> Encoding.Expression.t option -> bool
+  val fork : t -> Encoding.Expression.t -> bool * bool
+
+  val value_binds :
+    ?symbols:Encoding.Symbol.t list ->
+    t ->
+    (Encoding.Symbol.t * Encoding.Value.t) list
+
+  val string_binds : t -> (string * string * string) list
+end
+
+
 module type WorkList = sig
   type 'a t
 
