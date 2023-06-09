@@ -7,6 +7,7 @@ open Strategies
 open Interpreter.Types
 open Interpreter.Instance
 open Interpreter.Ast
+open Memory
 
 (* TODO/FIXME: there's a lot of code at the top that
    needs to be extracted to a common module with concolic.ml *)
@@ -176,21 +177,6 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
       encoder = E.create ();
     }
 
-  let expr_to_value (ex : expr) (c : sym_config) (v : Varmap.varmap) : Encoding.Num.t =
-    let store_r = ref None in
-    let store =
-      match !store_r with
-      | Some store -> store
-      | None ->
-          assert (E.check c.encoder None);
-          let binds =
-            E.value_binds c.encoder ~symbols:(Varmap.binds c.varmap)
-          in
-          let store = Concolic.Store.create binds in
-          store_r := Some store;
-          store
-    in
-    Concolic.Store.eval store ex
 
   let to_concolic (c : sym_config) : Concolic.Eval.config =
     let open Concolic.Eval in
@@ -566,16 +552,13 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
                 | Global.Type ->
                     Crash.error e.at "type mismatch at global write")
             | Load { offset; ty; sz; _ }, sym_ptr :: vs' -> (
-                let expr_to_value (ex : expr) =
-                  expr_to_value ex c varmap
-                in
                 let res =
                   match sz with
                   | None ->
-                      SM.load_value expr_to_value mem sym_ptr offset
+                      SM.load_value c.encoder varmap mem sym_ptr offset
                         (Common.Evaluations.to_num_type ty)
                   | Some (sz, _) ->
-                      SM.load_packed expr_to_value sz mem sym_ptr offset
+                      SM.load_packed c.encoder varmap sz mem sym_ptr offset
                         (Common.Evaluations.to_num_type ty)
                 in
                 let config_load (config : sym_config) (res : SM.t * t * t list) (cl : bool)=
@@ -593,23 +576,14 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
                     let l = List.map (fun trio -> config_load c trio cl) mem_res in
                     Result.ok (Continuation l)
                 | Error b ->
-                    let bug_type =
-                      match b with
-                      | Common.Bug.Overflow -> "Out of Bounds access"
-                      | Common.Bug.UAF -> "Use After Free"
-                      | Common.Bug.InvalidFree ->
-                          failwith "unreachable, check_access can't return this"
-                    in
+                    let bug_type = Common.Bug.string_of_bug b in
                     Result.error (bug_type, e.at))
             | Store { offset; sz; _ }, ex :: sym_ptr :: vs' -> (
-                let expr_to_value (ex : expr) =
-                  expr_to_value ex c varmap
-                in
                 let res =
                   match sz with
-                  | None -> SM.store_value expr_to_value mem sym_ptr offset ex
+                  | None -> SM.store_value c.encoder varmap mem sym_ptr offset ex
                   | Some sz ->
-                      SM.store_packed expr_to_value sz mem sym_ptr offset ex
+                      SM.store_packed c.encoder varmap sz mem sym_ptr offset ex
                 in
                 let config_store (config : sym_config) (res : SM.t * t list) (cl : bool)=
                   let cf = if cl then clone_no_mem config else c in
@@ -626,13 +600,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
                     let l = List.map (fun pair -> config_store c pair cl) mem_res in
                     Result.ok (Continuation l)
                 | Error b ->
-                    let bug_type =
-                      match b with
-                      | Common.Bug.Overflow -> "Out of Bounds access"
-                      | Common.Bug.UAF -> "Use After Free"
-                      | Common.Bug.InvalidFree ->
-                          failwith "unreachable, check_access can't return this"
-                    in
+                    let bug_type = Common.Bug.string_of_bug b in
                     Result.error (bug_type, e.at))
             | Const v, vs ->
                 let es' = List.tl es in
@@ -862,13 +830,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
                          };
                        ]))
             | Alloc, size :: base :: vs' -> (
-                let check_concr (size_cond : t option) : bool =
-                  E.check encoder size_cond
-                in
-                let expr_to_value (ex : expr) =
-                  expr_to_value ex c varmap
-                in
-                let res = SM.alloc check_concr expr_to_value mem base size
+                let res = SM.alloc c.encoder varmap mem base size
                 in
                 let config_alloc (config : sym_config) (res : SM.t * int32 * t list) (cl : bool)=
                   let cf = if cl then clone_no_mem config else c in
@@ -890,13 +852,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
                         Result.ok
                         (Continuation [ { c with sym_code = (vs', List.tl es) } ])
                     | Error b ->
-                        let bug_type =
-                          match b with
-                          | Common.Bug.Overflow -> "Out of Bounds access"
-                          | Common.Bug.UAF -> "Use After Free"
-                          | Common.Bug.InvalidFree ->
-                              failwith "unreachable, check_access can't return this"
-                          in
+                        let bug_type = Common.Bug.string_of_bug b in
                           Result.error (bug_type, e.at))
                 | value ->
                     failwith ("Free with invalid argument" ^ pp_to_string value))
@@ -1069,6 +1025,8 @@ end
 module MapMem_EncodingSelector = EncodingSelector (Memory.MapSMem)
 module LazyMem_EncodingSelector = EncodingSelector (Memory.LazySMem)
 module TreeMem_EncodingSelector = EncodingSelector (Memory.TreeSMem)
+
+module OpListMem_EncodingSelector = EncodingSelector (Memory.OpListSMem)
 
 let parse_memory_and_encoding () =
   match !Interpreter.Flags.memory with

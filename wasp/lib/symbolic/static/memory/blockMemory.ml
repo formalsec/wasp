@@ -10,45 +10,33 @@ type size = int32
 type address = int64
 type offset = int32
 
-module type MemoryBackend = sig
-  type t
-
-  exception Bounds
-
-  val init : unit -> t
-  val store : t -> address -> Expression.t -> unit
-  val load : t -> address -> Expression.t
-  val from_heap : Concolic.Heap.t -> t
-  val clone : t -> t * t
-  val to_string : t -> string
-  val to_heap : t -> (Expression.t -> Num.t) -> Concolic.Heap.t
-  val alloc : t -> size -> unit
-end
-
-
 module type SymbolicMemory = sig
   type t
-
+  type e
   exception Bounds
 
   val from_heap : Concolic.Heap.t -> t
+
   val clone : t -> t * t
+
   val load_value : 
-    (Expression.t -> Num.t) -> t -> Expression.t -> 
-      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result 
+    e -> Varmap.t -> t -> Expression.t -> offset -> num_type -> 
+    ((t * Expression.t * Expression.t list) list, bug) result
 
   val load_packed :
-    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> 
-      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
-
+    e -> Varmap.t -> pack_size -> t -> Expression.t -> 
+    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
 
   val load_string : t -> address -> string
+
   val store_value : 
-    (Expression.t -> Num.t) -> t -> Expression.t -> offset -> Expression.t -> 
+    e -> Varmap.t -> t -> Expression.t -> offset -> Expression.t -> 
         ((t * Expression.t list) list, bug) result
+
   val store_packed : 
-    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
+    e -> Varmap.t -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
         ((t * Expression.t list) list, bug) result
+
   val to_string : t -> string
 
   val to_heap :
@@ -56,18 +44,20 @@ module type SymbolicMemory = sig
 
   (*TODO : change int32 to address (int64)*)
   val alloc : 
-    (Expression.t option -> bool) -> (Expression.t -> Num.t) ->
-    t -> Expression.t -> Expression.t -> (t * int32 * Expression.t list) list 
+    e -> Varmap.t -> t -> Expression.t -> Expression.t -> 
+      (t * int32 * Expression.t list) list 
 
   val free : t -> int32 -> (unit, bug) result
+
   val check_access : t -> Expression.t -> Num.t -> offset -> bug option
+
   val check_bound : t -> int32 -> bool
 end
 
 
-module SMem (MB : MemoryBackend) : SymbolicMemory = struct
+module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory = struct
   type t = {blocks: MB.t; fixed: (address, Expression.t) Hashtbl.t}
-
+  type e = E.t
   exception Bounds = MB.Bounds
 
   (* helper functions *)
@@ -130,37 +120,51 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     ignore base_ptr;
     failwith "not implemented"
 
-  let load_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
+  let load_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
-    failwith "not implemented"
+    let ptr_b, ptr_o =
+      match sym_ptr with
+      | SymPtr (base, offset) -> base, offset
+      | _ -> failwith "Unreachable"
+    in
+    let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o in
+    if not (E.check encoder (Some bounds_exp)) then
+      let v = MB.load mem.blocks ptr_b ptr_o o ty in
+      let ptr_cond = [] in
+      let res = [ (mem, v, ptr_cond) ]
+      in
+      Result.ok (res)
+    else Result.error (OOB)
 
-  let load_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
+
+  let load_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
     failwith "not implemented"
 
   let load_string (mem : t) (a : address) : string =
-    let rec loop a acc =
-      let sb = MB.load mem.blocks a in
-      let b =
-        match sb with
-        | Extract (Val (Num (I64 b)), 1, 0) -> Int64.to_int b
-        | _ ->
-            failwith
-              ("Symmem.load_string failed to load a char"
-             ^ "\nThe value loaded was: " ^ Expression.to_string sb)
-      in
-      if b = 0 then acc else loop (Int64.add a 1L) (acc ^ Char.(escaped (chr b)))
-    in
-    loop a ""
-
-  let store_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
-    (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
-    ((t * Expression.t list) list, bug) result =
     failwith "not implemented"
 
-  let store_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
+  let store_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
+    (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
+    ((t * Expression.t list) list, bug) result =
+    let ptr_b, ptr_o =
+      match sym_ptr with
+      | SymPtr (base, offset) -> base, offset
+      | _ -> failwith "Unreachable"
+    in
+    let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o in
+    if not (E.check encoder (Some bounds_exp)) then
+      let pc = E.get_assertions encoder in
+      (MB.store mem.blocks ptr_b ptr_o o value pc; (* Should send path condition for merging *)
+      let ptr_cond = [] in
+      let res = [ (mem, ptr_cond) ]
+      in
+      Result.ok (res))
+    else Result.error (Overflow)
+
+  let store_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
     ((t * Expression.t list) list, bug) result =
     failwith "not implemented"
@@ -172,15 +176,26 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     (MB.to_heap m.blocks expr_to_value, Hashtbl.create 128) (* LEGACY HASHTBL RETURN, WAS OLD CHUNKTABLE*)
 
   (*TODO : change int32 to address (int64)*)
-  let alloc (check_concr : Expression.t option -> bool) (expr_to_value : Expression.t -> Num.t)
+  let alloc (encoder : E.t) (varmap : Varmap.t)
     (m : t) (sym_b : Expression.t) (sym_s : Expression.t) : 
     (t * int32 * Expression.t list) list =
-    failwith "not implemented"
+    match (sym_s, sym_b) with
+    |  _, Val (Num (I32 base)) -> 
+        MB.alloc m.blocks base sym_s;
+        (m, base, []) :: []
+    | _, _ ->  failwith "Unreachable"
 
-  let check_bound (m : t) (b : int32) : bool = 
-    failwith "not implemented"
+
+  let check_bound (m : t) (b : int32) : bool = MB.check_bound m.blocks b
 
   let free (m : t) (b : int32) : (unit, bug) result = 
-    failwith "not implemented"
+    if not (check_bound m b) then (
+      Result.error(InvalidFree)
+    )
+    else (
+      Result.ok (MB.free m.blocks b)
+    )
 
 end
+
+module OpListSMem : SymbolicMemory = SMem (Oplist.OpList) (Encoding.Incremental)

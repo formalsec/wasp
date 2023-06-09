@@ -4,14 +4,15 @@ open Expression
 open Types
 
 
-module OpList (E : Common.Encoder) : Block.M = struct
+module OpList : Block.M = struct
   type address = int
 
   type op = Expression.t * Expression.t * Expression.t list (* path condition *)
-  type t = { map : (address, Expression.t * op list) Hashtbl.t; mutable next : int }
-  type e = E.t
+  type t = (address, Expression.t * op list) Hashtbl.t
 
-  let init () : t = { map = Hashtbl.create Interpreter.Flags.hashtbl_default_size; next = 0 }
+  exception Bounds
+
+  let init () : t = Hashtbl.create Interpreter.Flags.hashtbl_default_size
 
   let to_string (h : t) : string =
     Hashtbl.fold
@@ -29,29 +30,20 @@ module OpList (E : Common.Encoder) : Block.M = struct
                ^ Expression.to_string v)
              ops)
       ^ "]" ^ ")")
-    h.map ""
+    h ""
 
 
-  let store (h : t) (addr : Expression.t) (idx : Expression.t) (v : Expression.t) (pc : Expression.t list) =
-    let lbl = 
-      match addr with 
-      | Val (Int i) -> i 
-      | _ -> failwith "OpList: Block address not an integer"
-    in
-    let arr' = Hashtbl.find_opt h.map lbl in                
+  let store (h : t) (addr : int32) (idx : Expression.t) (o : int32) (v : Expression.t) (pc : Expression.t list) =
+    let arr' = Hashtbl.find_opt h (Int32.to_int addr) in 
+    let offset = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in               
     let f ((sz, oplist) : Expression.t * op list) : unit =
-      Hashtbl.replace h.map lbl (sz, (idx, v, pc) :: oplist)
+      Hashtbl.replace h (Int32.to_int addr) (sz, (offset, v, pc) :: oplist)
     in
     Option.fold ~none:() ~some:f arr'
 
 
-  let load (h : t) (addr : Expression.t) (idx : Expression.t) (ty : num_type) : Expression.t =
-    let lbl = 
-      match addr with 
-      | Val (Int i) -> i 
-      | _ -> failwith "OpList: Block address not an integer"
-    in
-    let arr' = Hashtbl.find h.map lbl in
+  let load (h : t) (addr : int32) (idx : Expression.t) (o : int32) (ty : num_type) : Expression.t =
+    let arr' = Hashtbl.find h (Int32.to_int addr) in
     let _, ops = arr' in
     let (op : relop), def =
       match ty with
@@ -60,9 +52,10 @@ module OpList (E : Common.Encoder) : Block.M = struct
       | `F32Type -> F32 F32.Eq, Val (Num (F32 0l))
       | `F64Type -> F64 F64.Eq, Val (Num (F64 0L))
     in
+    let offset = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in 
     List.fold_left
-      (fun ac (i, v, _) -> (* build ITE auxiliary function *)
-        Expression.Triop (Bool B.ITE, Expression.Relop (op, idx, i), v, ac))
+      (fun ac (i, v, _) -> 
+        Expression.Triop (Bool B.ITE, Expression.Relop (op, offset, i), v, ac))
       def (List.rev ops)
 
 
@@ -71,8 +64,8 @@ module OpList (E : Common.Encoder) : Block.M = struct
 
 
   let clone (h : t) : t * t = 
-    let copy = Hashtbl.copy h.map in
-    ( h, { map = copy; next = h.next } )
+    let copy = Hashtbl.copy h in
+    ( h, copy )
 
 
   let to_heap (h : t) (expr_to_value : Expression.t -> Num.t) :
@@ -80,39 +73,30 @@ module OpList (E : Common.Encoder) : Block.M = struct
     failwith "not implemented"
 
 
-  let alloc (h : t) (sz : Expression.t) : unit =
-    let next = h.next in
-    Hashtbl.add h.map next (sz, []);
-    h.next <- h.next + 1
+  let alloc (h : t) (b : int32) (sz : Expression.t) : unit =
+    Hashtbl.replace h (Int32.to_int b) (sz, [])
 
 
-  let free (h : t) (addr : Expression.t) : unit =
-    let lbl = 
-        match addr with 
-        | Val (Int i) -> i 
-        | _ -> failwith "OpList: Block address not an integer"
-    in
-    Hashtbl.remove h.map lbl
+  let free (h : t) (addr : int32) : unit =
+    Hashtbl.remove h (Int32.to_int addr)
 
 
-  let is_within (sz : Expression.t) (index : Expression.t) (encoder : E.t) : bool = 
+  let check_bound (h : t) (addr : int32) : bool =
+    Hashtbl.mem h (Int32.to_int addr)
+
+  let is_within (sz : Expression.t) (index : Expression.t) : Expression.t = 
     let e1 = Expression.Relop (I64 I64.LtS, index, Val (Num (I64 0L))) in
     let e2 = Expression.Relop (I64 I64.GeS, index, sz) in
-    let e3 = Expression.Binop (I64 I64.Or, e1, e2) in
-
-    not (E.check encoder (Some e3))
+    Expression.Binop (I64 I64.Or, e1, e2)
 
 
-  let in_bounds (h : t) (addr : Expression.t) (idx : Expression.t) (encoder : E.t) : bool =
-    match addr with  
-    | Val Int l -> 
-      (match Hashtbl.find_opt h.map l with 
-      | Some (sz, _)  -> 
-          (match sz with
-          | Val (Num (I64 _))
-          | SymPtr _ -> is_within sz idx encoder
-          | _ -> failwith ("InternalError: HeapOpList.in_bounds, size not an integer or SymPtr"))
-      | _ -> failwith ("InternalError: HeapOpList.in_bounds, accessed OpList is not in the heap"))
-    | _ -> failwith ("InternalError: HeapOpList.in_bounds, addr must be an integer")
+  let in_bounds (h : t) (addr : int32) (idx : Expression.t) : Expression.t =
+    (match Hashtbl.find_opt h (Int32.to_int addr) with 
+    | Some (sz, _)  -> 
+        (match sz with
+        | Val (Num (I64 _))
+        | SymPtr _ -> is_within sz idx
+        | _ -> failwith ("InternalError: HeapOpList.in_bounds, size not an integer or SymPtr"))
+    | _ -> failwith ("InternalError: HeapOpList.in_bounds, accessed OpList is not in the heap"))
 
 end

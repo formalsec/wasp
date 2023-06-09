@@ -180,27 +180,31 @@ end
 
 module type SymbolicMemory = sig
   type t
-
+  type e
   exception Bounds
 
   val from_heap : Concolic.Heap.t -> t
+
   val clone : t -> t * t
+
   val load_value : 
-    (Expression.t -> Num.t) -> t -> Expression.t -> 
-      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result 
+    e -> Varmap.t -> t -> Expression.t -> offset -> num_type -> 
+    ((t * Expression.t * Expression.t list) list, bug) result
 
   val load_packed :
-    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> 
-      offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
-
+    e -> Varmap.t -> pack_size -> t -> Expression.t -> 
+    offset -> num_type -> ((t * Expression.t * Expression.t list) list, bug) result
 
   val load_string : t -> address -> string
+
   val store_value : 
-    (Expression.t -> Num.t) -> t -> Expression.t -> offset -> Expression.t -> 
+    e -> Varmap.t -> t -> Expression.t -> offset -> Expression.t -> 
         ((t * Expression.t list) list, bug) result
+
   val store_packed : 
-    (Expression.t -> Num.t) -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
+    e -> Varmap.t -> pack_size -> t -> Expression.t -> offset -> Expression.t -> 
         ((t * Expression.t list) list, bug) result
+
   val to_string : t -> string
 
   val to_heap :
@@ -208,33 +212,52 @@ module type SymbolicMemory = sig
 
   (*TODO : change int32 to address (int64)*)
   val alloc : 
-    (Expression.t option -> bool) -> (Expression.t -> Num.t) ->
-    t -> Expression.t -> Expression.t -> (t * int32 * Expression.t list) list 
+    e -> Varmap.t -> t -> Expression.t -> Expression.t -> 
+      (t * int32 * Expression.t list) list 
 
   val free : t -> int32 -> (unit, bug) result
+
   val check_access : t -> Expression.t -> Num.t -> offset -> bug option
+
   val check_bound : t -> int32 -> bool
 end
 
-module SMem (MB : MemoryBackend) : SymbolicMemory = struct
+module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
   type b = MB.t
   type t = { backend : b; chunk_table : Chunktable.t }
-
+  type e = E.t
   exception Bounds = MB.Bounds
-
+  
   (* helper functions *)
   let effective_address (a : address) (o : offset) : address =
     let ea = Int64.(add a (of_int32 o)) in
     if Interpreter.I64.lt_u ea a then raise MB.Bounds;
     ea
+  
+  
+  let expr_to_value (ex : expr) (encoder : E.t) (v : Varmap.t) : Encoding.Num.t =
+    let store_r = ref None in
+    let store =
+      match !store_r with
+      | Some store -> store
+      | None ->
+          assert (E.check encoder None);
+          let binds =
+            E.value_binds encoder ~symbols:(Varmap.binds v)
+          in
+          let store = Concolic.Store.create binds in
+          store_r := Some store;
+          store
+    in
+    Concolic.Store.eval store ex
 
-  let concr_ptr (sym_ptr : Expression.t ) 
-    (expr_to_value : (Expression.t -> Num.t)) = 
+
+  let concr_ptr (sym_ptr : Expression.t ) (encoder : E.t) (v : Varmap.t) = 
     let sym_ptr = simplify sym_ptr in
     let ptr =
       match concretize_ptr sym_ptr with
       | Some ptr -> ptr
-      | None -> expr_to_value sym_ptr
+      | None -> expr_to_value sym_ptr encoder v
     in
     let open Interpreter in
     (I64_convert.extend_i32_u
@@ -281,11 +304,11 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     Option.bind base_ptr (fun bp -> 
       Chunktable.check_access m.chunk_table bp ptr o)
 
-  let load_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
+  let load_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
     
-    let a, ptr = concr_ptr sym_ptr expr_to_value
+    let a, ptr = concr_ptr sym_ptr encoder varmap
     in
     match
       check_access mem sym_ptr ptr o
@@ -328,10 +351,10 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       in
       Result.ok (res)
 
-  let load_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
+  let load_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
-    let a, ptr = concr_ptr sym_ptr expr_to_value
+    let a, ptr = concr_ptr sym_ptr encoder varmap
     in
     match
       check_access mem sym_ptr ptr o
@@ -383,10 +406,10 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
     in
     loop a ""
 
-  let store_value (expr_to_value : Expression.t -> Num.t) (mem : t) 
+  let store_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
     ((t * Expression.t list) list, bug) result =
-    let a, ptr = concr_ptr sym_ptr expr_to_value
+    let a, ptr = concr_ptr sym_ptr encoder varmap
     in
     match
       check_access mem sym_ptr ptr o
@@ -420,10 +443,10 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
         in
         Result.ok (res)
 
-  let store_packed (expr_to_value : Expression.t -> Num.t) (sz : pack_size) (mem : t) 
+  let store_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
     ((t * Expression.t list) list, bug) result =
-    let a, ptr = concr_ptr sym_ptr expr_to_value
+    let a, ptr = concr_ptr sym_ptr encoder varmap
     in
     match
       check_access mem sym_ptr ptr o
@@ -450,8 +473,12 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
       Concolic.Heap.t * (int32, int32) Hashtbl.t =
     (MB.to_heap m.backend expr_to_value, m.chunk_table)
 
+
+  let check_concr (encoder : E.t) (size_cond : Expression.t option) : bool =
+    E.check encoder size_cond
+  
   (*TODO : change int32 to address (int64)*)
-  let alloc (check_concr : Expression.t option -> bool) (expr_to_value : Expression.t -> Num.t)
+  let alloc (encoder : E.t) (varmap : Varmap.t)
     (m : t) (sym_b : Expression.t) (sym_s : Expression.t) : 
     (t * int32 * Expression.t list) list =
     let helper (c_size : int32 option) : 
@@ -461,7 +488,7 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
           (function c_size -> Relop (I32 I32.Eq, sym_s, Val (Num (I32 c_size))))
           c_size
       in
-      match check_concr size_cond with
+      match check_concr encoder size_cond with
       | false -> None
       | true ->
           let b = expr_to_value sym_b in
@@ -510,6 +537,11 @@ module SMem (MB : MemoryBackend) : SymbolicMemory = struct
 
 end
 
-module LazySMem : SymbolicMemory = SMem (LazyMemory)
-module MapSMem : SymbolicMemory = SMem (MapMemory)
-module TreeSMem : SymbolicMemory = SMem (TreeMemory)
+(* TODO: Support both batch and incremental encoding *)
+module LazySMem : SymbolicMemory = SMem (LazyMemory) (Encoding.Incremental)
+module MapSMem : SymbolicMemory = SMem (MapMemory) (Encoding.Incremental)
+module TreeSMem : SymbolicMemory = SMem (TreeMemory) (Encoding.Incremental)
+
+module OpListSMem : SymbolicMemory = BlockMemory.OpListSMem
+
+module Varmap = Varmap
