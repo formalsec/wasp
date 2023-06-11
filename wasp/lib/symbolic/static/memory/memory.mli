@@ -52,10 +52,13 @@ module type SymbolicMemory = sig
   val check_bound : t -> int32 -> bool
 end
 
-module LazySMem : SymbolicMemory
-module MapSMem : SymbolicMemory
-module TreeSMem : SymbolicMemory
+module type FSMem = functor (E : Common.Encoder) -> SymbolicMemory with type e = E.t
 
-module OpListSMem : SymbolicMemory
+
+module LazySMem : FSMem
+module MapSMem : FSMem
+module TreeSMem : FSMem
+
+module OpListSMem : FSMem
 
 module Varmap = Varmap

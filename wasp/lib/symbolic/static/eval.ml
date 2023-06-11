@@ -106,7 +106,7 @@ let instr_str e =
   | _ -> "not support"
 
 
-module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
+module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with type e = E.t) :
   Interpreter = struct
   type sym_config = {
     sym_frame : sym_frame;
@@ -1010,30 +1010,31 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Common.Encoder) :
             | Func.HostFunc (t, f) -> failwith "HostFunc error"))
 end
 
-module EncodingSelector (SM : Memory.SymbolicMemory) = struct
-  module SI_SM = SymbolicInterpreter (SM)
-  module BatchHelper = Strategies.Helper (SI_SM (Encoding.Batch))
-  module IncrementalHelper = Strategies.Helper (SI_SM (Encoding.Incremental))
+module MemorySelector (E : Common.Encoder) = struct
+  module SI_E = SymbolicInterpreter (E)
+  module MapHelper = Strategies.Helper (SI_E (Memory.MapSMem (E)))
+  module LazyHelper = Strategies.Helper (SI_E (Memory.LazySMem (E)))
+  module TreeHelper = Strategies.Helper (SI_E (Memory.TreeSMem (E)))
+  module OpListHelper = Strategies.Helper (SI_E (Memory.OpListSMem (E)))
 
-  let parse_encoding () =
-    match !Interpreter.Flags.encoding with
-    | "batch" -> BatchHelper.helper
-    | "incremental" -> IncrementalHelper.helper
-    | _ -> failwith "Invalid encoding option"
+
+  let parse_memory () =
+    match !Interpreter.Flags.memory with
+    | "map" -> MapHelper.helper
+    | "lazy" -> LazyHelper.helper
+    | "tree" -> TreeHelper.helper
+    | "oplist" -> OpListHelper.helper
+    | _ -> failwith "Invalid memory backend"
 end
 
-module MapMem_EncodingSelector = EncodingSelector (Memory.MapSMem)
-module LazyMem_EncodingSelector = EncodingSelector (Memory.LazySMem)
-module TreeMem_EncodingSelector = EncodingSelector (Memory.TreeSMem)
+module BatchMemorySelector = MemorySelector (Encoding.Batch)
+module IncMemorySelector = MemorySelector (Encoding.Incremental)
 
-module OpListMem_EncodingSelector = EncodingSelector (Memory.OpListSMem)
-
-let parse_memory_and_encoding () =
-  match !Interpreter.Flags.memory with
-  | "map" -> MapMem_EncodingSelector.parse_encoding ()
-  | "lazy" -> LazyMem_EncodingSelector.parse_encoding ()
-  | "tree" -> TreeMem_EncodingSelector.parse_encoding ()
-  | _ -> failwith "Invalid memory backend"
+let parse_encoding_and_memory () =
+    match !Interpreter.Flags.encoding with
+    | "batch" -> BatchMemorySelector.parse_memory()
+    | "incremental" -> IncMemorySelector.parse_memory()
+    | _ -> failwith "Invalid encoding option"
 
 let func_to_globs (func : func_inst) : expr Globals.t =
   match Interpreter.Func.get_inst func with
@@ -1061,7 +1062,7 @@ let invoke (func : func_inst) (vs : expr list) (mem0 : Concolic.Heap.t) =
   in
   (* extract globals to symbolic config *)
   let globs = func_to_globs func in
-  let helper = parse_memory_and_encoding () in
+  let helper = parse_encoding_and_memory () in
 
   Interpreter.Io.safe_mkdir !Interpreter.Flags.output;
   let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in

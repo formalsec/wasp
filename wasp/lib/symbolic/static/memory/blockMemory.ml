@@ -55,7 +55,7 @@ module type SymbolicMemory = sig
 end
 
 
-module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory = struct
+module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E.t = struct
   type t = {blocks: MB.t; fixed: (address, Expression.t) Hashtbl.t}
   type e = E.t
   exception Bounds = MB.Bounds
@@ -156,7 +156,8 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory = struct
     in
     let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o in
     if not (E.check encoder (Some bounds_exp)) then
-      let pc = E.get_assertions encoder in
+      (* let pc = E.get_assertions encoder in *)
+      let pc = [] in
       (MB.store mem.blocks ptr_b ptr_o o value pc; (* Should send path condition for merging *)
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ]
@@ -198,4 +199,4 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory = struct
 
 end
 
-module OpListSMem : SymbolicMemory = SMem (Oplist.OpList) (Encoding.Incremental)
+module OpListSMem = SMem (Oplist.OpList)

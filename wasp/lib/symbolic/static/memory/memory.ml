@@ -222,7 +222,7 @@ module type SymbolicMemory = sig
   val check_bound : t -> int32 -> bool
 end
 
-module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
+module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type e = E.t = struct
   type b = MB.t
   type t = { backend : b; chunk_table : Chunktable.t }
   type e = E.t
@@ -345,9 +345,9 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
             | _ -> Cvtop (F64 F64.ReinterpretInt, expr))
       in
       let ptr_cond =
-        Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+        [ Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) ]
       in
-      let res = (mem, expr, ptr_cond) :: []
+      let res = [ (mem, expr, ptr_cond) ]
       in
       Result.ok (res)
 
@@ -385,9 +385,9 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
           | _ -> failwith "load_packed only exists for i32 and i64"
         in
         let ptr_cond =
-          Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+          [ Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) ]
         in
-        let res = (mem, expr, ptr_cond) :: []
+        let res = [ (mem, expr, ptr_cond) ]
         in
         Result.ok (res)
 
@@ -437,9 +437,9 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
         in
         storen mem.backend a o sz value;
         let ptr_cond =
-          [Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr))]
+          [ Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) ]
         in
-        let res = [(mem, ptr_cond)]
+        let res = [ (mem, ptr_cond) ]
         in
         Result.ok (res)
 
@@ -461,9 +461,9 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
         in
         storen mem.backend a o (length_pack_size sz) value;
         let ptr_cond =
-          Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) :: []
+          [ Relop (I32 Encoding.Types.I32.Eq, sym_ptr, Val (Num ptr)) ]
         in
-        let res = (mem, ptr_cond) :: []
+        let res = [ (mem, ptr_cond) ]
         in
         Result.ok (res)
 
@@ -491,7 +491,7 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
       match check_concr encoder size_cond with
       | false -> None
       | true ->
-          let b = expr_to_value sym_b in
+          let b = expr_to_value sym_b encoder varmap in
           match b with
           | I32 base ->
               let _, mc = clone m in
@@ -537,11 +537,12 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory = struct
 
 end
 
-(* TODO: Support both batch and incremental encoding *)
-module LazySMem : SymbolicMemory = SMem (LazyMemory) (Encoding.Incremental)
-module MapSMem : SymbolicMemory = SMem (MapMemory) (Encoding.Incremental)
-module TreeSMem : SymbolicMemory = SMem (TreeMemory) (Encoding.Incremental)
+module type FSMem = functor (E : Common.Encoder) -> SymbolicMemory with type e = E.t
 
-module OpListSMem : SymbolicMemory = BlockMemory.OpListSMem
+module LazySMem : FSMem = SMem (LazyMemory) 
+module MapSMem : FSMem = SMem (MapMemory)
+module TreeSMem : FSMem = SMem (TreeMemory)
+
+module OpListSMem : FSMem = BlockMemory.OpListSMem
 
 module Varmap = Varmap
