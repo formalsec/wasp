@@ -101,6 +101,9 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     in
     loop Int64.(add (effective_address a o) (of_int (n - 1))) n [] *)
 
+  let check_sat (e : E.t) (expr : Expression.t) : bool =
+    not (E.check e (Some expr))
+
   (* Public functions *)
   let from_heap (map : Concolic.Heap.t) : t =
     let concolic_seq = Concolic.Heap.to_seq map in
@@ -128,9 +131,13 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       | SymPtr (base, offset) -> base, offset
       | _ -> failwith "Unreachable"
     in
-    let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o in
-    if not (E.check encoder (Some bounds_exp)) then
-      let v = MB.load mem.blocks ptr_b ptr_o o ty in
+    let sz = Types.size_of_num_type ty in
+    let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o sz in
+    if (check_sat encoder bounds_exp) then
+      let check_sat_helper (expr : Expression.t) : bool =
+        check_sat encoder expr
+      in
+      let v = MB.load check_sat_helper mem.blocks ptr_b ptr_o o sz in
       let ptr_cond = [] in
       let res = [ (mem, v, ptr_cond) ]
       in
@@ -154,11 +161,12 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       | SymPtr (base, offset) -> base, offset
       | _ -> failwith "Unreachable"
     in
-    let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o in
+    let ty = Expression.type_of value in
+    let sz = Types.size ty in
+    let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o sz in
     if not (E.check encoder (Some bounds_exp)) then
       (* let pc = E.get_assertions encoder in *)
-      let pc = [] in
-      (MB.store mem.blocks ptr_b ptr_o o value pc; (* Should send path condition for merging *)
+      (MB.store mem.blocks ptr_b ptr_o o value sz; (* Should send path condition for merging *)
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ]
       in
