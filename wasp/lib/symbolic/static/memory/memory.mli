@@ -59,6 +59,10 @@ module LazySMem : FSMem
 module MapSMem : FSMem
 module TreeSMem : FSMem
 
+
+module ArrayConcrSMem : FSMem
+module ArrayForkSMem : FSMem
+module ArrayITESMem : FSMem
 module OpListSMem : FSMem
 
 module Varmap = Varmap

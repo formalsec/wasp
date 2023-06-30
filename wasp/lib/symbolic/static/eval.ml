@@ -1018,6 +1018,9 @@ module MemorySelector (E : Common.Encoder) = struct
   module LazyHelper = Strategies.Helper (SI_E (Memory.LazySMem (E)))
   module TreeHelper = Strategies.Helper (SI_E (Memory.TreeSMem (E)))
   module OpListHelper = Strategies.Helper (SI_E (Memory.OpListSMem (E)))
+  module ArrayConcrHelper = Strategies.Helper (SI_E (Memory.ArrayConcrSMem (E)))
+  module ArrayForkHelper = Strategies.Helper (SI_E (Memory.ArrayForkSMem (E)))
+  module ArrayITEHelper = Strategies.Helper (SI_E (Memory.ArrayITESMem (E)))
 
 
   let parse_memory () =
@@ -1026,6 +1029,9 @@ module MemorySelector (E : Common.Encoder) = struct
     | "lazy" -> LazyHelper.helper
     | "tree" -> TreeHelper.helper
     | "oplist" -> OpListHelper.helper
+    | "arrayconcr" -> ArrayConcrHelper.helper
+    | "arrayfork" -> ArrayForkHelper.helper
+    | "arrayite" -> ArrayITEHelper.helper
     | _ -> failwith "Invalid memory backend"
 end
 

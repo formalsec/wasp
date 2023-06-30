@@ -349,6 +349,11 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
       in
       let res = [ (mem, expr, ptr_cond) ]
       in
+      
+      Printf.printf "LOAD: idx: %s + %s " (Int64.to_string a) (Int32.to_string o);
+      Printf.printf "v: %s\n"  (Expression.to_string expr);
+      (* Printf.printf "\n\n%s\n\n" (MB.to_string mem.backend); *)
+
       Result.ok (res)
 
   let load_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
@@ -389,6 +394,10 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
         in
         let res = [ (mem, expr, ptr_cond) ]
         in
+
+        Printf.printf "LOAD PACK %d: idx: %s + %s " (packed_size sz) (Int64.to_string a) (Int32.to_string o);
+        Printf.printf "v: %s\n"  (Expression.to_string expr);
+
         Result.ok (res)
 
   let load_string (mem : t) (a : address) : string =
@@ -441,6 +450,7 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
         in
         let res = [ (mem, ptr_cond) ]
         in
+        Printf.printf "STORE: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value);
         Result.ok (res)
 
   let store_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
@@ -465,6 +475,7 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
         in
         let res = [ (mem, ptr_cond) ]
         in
+        Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value);
         Result.ok (res)
 
   let to_string (m : t) : string = MB.to_string m.backend
@@ -543,6 +554,9 @@ module LazySMem : FSMem = SMem (LazyMemory)
 module MapSMem : FSMem = SMem (MapMemory)
 module TreeSMem : FSMem = SMem (TreeMemory)
 
+module ArrayConcrSMem : FSMem = BlockMemory.ArrayConcrSMem
+module ArrayForkSMem : FSMem = BlockMemory.ArrayForkSMem
+module ArrayITESMem : FSMem = BlockMemory.ArrayITESMem
 module OpListSMem : FSMem = BlockMemory.OpListSMem
 
 module Varmap = Varmap
