@@ -65,28 +65,28 @@ module OpList : Block.M = struct
     [ (h, []) ]
 
 
-  let rec load_byte (check_sat_helper : Expression.t -> bool) (ops : op list) (idx : Expression.t) : 
-    Expression.t =
+  let  load_bytes (ops : op list) (sz : int) (v : Expression.t): 
+    Expression.t list =
+    let rec loop ops n acc =
+      if n == sz then acc
+      else
+        match ops with
+        | [] -> Expression.Extract (Val (Num (I32 0l)), 1, 0) :: acc
+        | (offset, v) :: op_list' -> loop op_list' (n + 1) (v :: acc)
+    in
+    loop ops 1 [v]
+  
+  
+  let rec load_n (check_sat_helper : Expression.t -> bool) (ops : op list) (idx : Expression.t) (sz : int) :
+    Expression.t list =
     match ops with
-    | [] -> Expression.Extract (Val (Num (I32 0l)), 1, 0)
+    | [] -> [ Val (Num (I32 0l)) ]
     | (offset, v) :: op_list' ->
         let expr = Expression.Relop (I32 I32.Eq, idx, offset) in
         (* Printf.printf "\n%s\n" (Expression.to_string expr); *)
         if not (check_sat_helper expr) then
-            v
-        else load_byte check_sat_helper op_list' idx
-    
-  
-  let load_n (check_sat_helper : Expression.t -> bool) (ops : op list) (idx : Expression.t) (n : int) :
-      Expression.t list =
-    let rec loop n acc =
-      if n = 0 then acc
-      else
-        let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 (Int32.of_int (n-1))))) in
-        let se = load_byte check_sat_helper ops idx' in
-        loop (n - 1) (se :: acc)
-    in
-    loop n []
+             load_bytes op_list' sz v
+        else load_n check_sat_helper op_list' idx sz
 
 
   let load (check_sat_helper : Expression.t -> bool) (h : t) 
@@ -95,7 +95,8 @@ module OpList : Block.M = struct
     (* Printf.printf "\n\n%s\n\n" (to_string h); *)
     let arr' = Hashtbl.find h addr in
     let _, ops = arr' in
-    let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
+    let aux = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
+    let idx' = Expression.Binop (I32 I32.Add, aux, Val (Num (I32 (Int32.of_int (sz-1))))) in
     let exprs = load_n check_sat_helper ops idx' sz in
     let expr = 
       if (not is_packed) then
@@ -112,12 +113,12 @@ module OpList : Block.M = struct
         List.(fold_left (fun acc e -> e ++ acc) (hd exprs) (tl exprs))
     in
     (* simplify concats *)
-    (* Printf.printf "\n\n%s\n\n" (Expression.to_string expr); *)
+    Printf.printf "\n\n%s\n\n" (Expression.to_string expr);
     let expr = Expression.simplify expr in
     (* remove extract *)
     let v = Expression.simplify ~extract:true expr in
-    (* Printf.printf "\n\n%s\n\n" (Expression.to_string expr);
-    Printf.printf "\n\n%s\n\n" (Expression.to_string v); *)
+    Printf.printf "\n\n%s\n\n" (Expression.to_string expr);
+    Printf.printf "\n\n%s\n\n" (Expression.to_string v);
     [ h, v, [] ]
       
 
