@@ -7,7 +7,7 @@ open Types
 module OpList : Block.M = struct
   type address = int32
 
-  type op = Expression.t * Expression.t * int (* offset * value * size *)
+  type op = Expression.t * Expression.t (* offset * value *)
   type t = (address, Expression.t * op list) Hashtbl.t (* address, block_size * operations *)
 
   exception Bounds
@@ -24,53 +24,100 @@ module OpList : Block.M = struct
       ^ ", " ^ "["
       ^ String.concat ", "
           (List.map
-             (fun (i, v, s) ->
+             (fun (i, v) ->
                Expression.to_string i
                ^ " "
-               ^ Expression.to_string v
-               ^ " "
-               ^ Int.to_string s)
+               ^ Expression.to_string v)
              ops)
       ^ "]" ^ ")")
     h ""
 
 
+  let store_byte (h : t) (addr : address) (idx : Expression.t) (v : Expression.t) : unit =
+    let arr' = Hashtbl.find_opt h addr in
+    let f ((block_sz, oplist) : Expression.t * op list) : unit =
+      Hashtbl.replace h addr (block_sz, (idx, v) :: oplist)
+    in
+    Option.fold ~none:() ~some:f arr'
+
+
+  let store_n (h : t) (addr : address) (idx : Expression.t) (n : int) 
+      (v : Expression.t) : unit =
+    let rec loop mem a i n x =
+      if n > i then (
+        let x' = 
+          match x with 
+          | Extract (_, _, _) -> x 
+          | _ -> Expression.Extract (x, i + 1, i) 
+        in
+        let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 (Int32.of_int i)))) in
+        store_byte mem a idx' x';
+        loop mem a (i + 1) n x)
+    in
+    loop h addr 0 n v
+
+
   let store (h : t) (addr : address) (idx : Expression.t) 
             (o : int32) (v : Expression.t)  (sz : int) :
             (t * Expression.t list) list =
-    let arr' = Hashtbl.find_opt h addr in
     let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
-    let f ((block_sz, oplist) : Expression.t * op list) : unit =
-      Hashtbl.replace h addr (block_sz, (idx', v, sz) :: oplist)
-    in
-    Option.fold ~none:() ~some:f arr';
+    store_n h addr idx' sz v;
     [ (h, []) ]
 
 
-  let rec load_op (check_sat_helper : Expression.t -> bool) (op_list : op list) (idx : Expression.t) (size : int) : Expression.t =
-    match op_list with
-    | [] -> Expression.Extract (Val (Num (I32 0l)), size, 0)
-    | (offset, v, size') :: op_list' ->
+  let rec load_byte (check_sat_helper : Expression.t -> bool) (ops : op list) (idx : Expression.t) : 
+    Expression.t =
+    match ops with
+    | [] -> Expression.Extract (Val (Num (I32 0l)), 1, 0)
+    | (offset, v) :: op_list' ->
         let expr = Expression.Relop (I32 I32.Eq, idx, offset) in
         (* Printf.printf "\n%s\n" (Expression.to_string expr); *)
         if not (check_sat_helper expr) then
-          (Printf.printf "%d %d\n" (size') (size);
-          if (size' >= size) then (
-            Expression.Extract (v, size, 0))
-          else failwith "unaligned read")
-        else load_op check_sat_helper op_list' idx size
+            v
+        else load_byte check_sat_helper op_list' idx
+    
+  
+  let load_n (check_sat_helper : Expression.t -> bool) (ops : op list) (idx : Expression.t) (n : int) :
+      Expression.t list =
+    let rec loop n acc =
+      if n = 0 then acc
+      else
+        let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 (Int32.of_int (n-1))))) in
+        let se = load_byte check_sat_helper ops idx' in
+        loop (n - 1) (se :: acc)
+    in
+    loop n []
 
 
   let load (check_sat_helper : Expression.t -> bool) (h : t) 
     (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) (is_packed : bool): 
     (t * Expression.t * Expression.t list) list =
+    (* Printf.printf "\n\n%s\n\n" (to_string h); *)
     let arr' = Hashtbl.find h addr in
     let _, ops = arr' in
     let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
-    let expr = load_op check_sat_helper ops idx' sz in
-    let v = Expression.simplify ~extract:true expr in
+    let exprs = load_n check_sat_helper ops idx' sz in
+    let expr = 
+      if (not is_packed) then
+        List.(
+          fold_left
+            (fun acc e -> Expression.Concat (e, acc))
+            (hd exprs) (tl exprs))
+      else
+        let rec loop acc i =
+          if i >= Types.size_of_num_type ty then acc
+          else loop (acc @ [ Extract (Val (Num (I32 0l)), 1, 0) ]) (i + 1)
+        in
+        let exprs = loop exprs (List.length exprs) in
+        List.(fold_left (fun acc e -> e ++ acc) (hd exprs) (tl exprs))
+    in
+    (* simplify concats *)
     (* Printf.printf "\n\n%s\n\n" (Expression.to_string expr); *)
-    Printf.printf "\n\n%s\n\n" (Expression.to_string v);
+    let expr = Expression.simplify expr in
+    (* remove extract *)
+    let v = Expression.simplify ~extract:true expr in
+    (* Printf.printf "\n\n%s\n\n" (Expression.to_string expr);
+    Printf.printf "\n\n%s\n\n" (Expression.to_string v); *)
     [ h, v, [] ]
       
 
