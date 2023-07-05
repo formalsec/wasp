@@ -122,6 +122,7 @@ module OpList : Block.M = struct
       let idx' = Expression.simplify idx' in
       let exprs = load_n check_sat_helper ops idx' sz in
       let v = concat_exprs exprs ty sz is_packed in
+      Hashtbl.replace h.cache (addr, aux) (sz, v);
       [ h, v, [] ]
       
 
