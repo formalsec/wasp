@@ -7,7 +7,6 @@ open Strategies
 open Interpreter.Types
 open Interpreter.Instance
 open Interpreter.Ast
-
 module Boolean = Encoding.Boolean
 
 (* TODO/FIXME: there's a lot of code at the top that
@@ -274,7 +273,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     Concolic.Eval.head := Concolic.Execution_tree.Leaf;
     debug "-- Switching to concolic mode...";
     debug
-     ("-- path_condition = " ^ Encoding.Expression.to_string
+      ("-- path_condition = " ^ Encoding.Expression.to_string
      @@ E.get_assertions c.encoder);
     let conc_c = to_concolic c in
     let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
@@ -1000,7 +999,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     Result.ok
                       (Continuation [ { c with sym_code = (vs', es') } ])
                 | value ->
-                   failwith ("Free with invalid argument" ^ to_string value))
+                    failwith ("Free with invalid argument" ^ to_string value))
             | PrintStack, vs ->
                 let vs' = List.map to_string vs in
                 debug
@@ -1023,7 +1022,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | PrintValue, v :: vs' ->
                 let es' = List.tl es in
                 print_endline
-                (Printf.sprintf "%d" e.at.left.line ^ ":val: " ^ to_string v);
+                  (Printf.sprintf "%d" e.at.left.line ^ ":val: " ^ to_string v);
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | _ ->
                 print_endline
