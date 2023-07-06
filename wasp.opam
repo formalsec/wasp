@@ -5,7 +5,7 @@ description:
   "WASP is a symbolic execution engine for testing and validating Wasm modules."
 maintainer: ["WASP Platform"]
 authors: ["WASP Platform"]
-license: "LICENSE"
+license: "Apache-2.0"
 homepage: "https://github.com/wasp-platform/wasp"
 bug-reports: "https://github.com/wasp-platform/wasp/issues"
 depends: [
@@ -13,6 +13,7 @@ depends: [
   "base"
   "batteries"
   "ocamlformat"
+  "encoding"
   "odoc" {with-doc}
 ]
 build: [
@@ -30,3 +31,6 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/wasp-platform/wasp.git"
+pin-depends: [
+  [ "encoding.dev" "git+https://github.com/wasp-platform/encoding" ]
+]
