@@ -225,7 +225,7 @@ def main(root_dir, argv=None):
         log.info("Starting WASP...")
         res = analyser.run(wasm_harness, args.entry_func, args.output_dir,
                            timeout=args.timeout)
-        if args.verbose and res.stdout and res.stderr:
+        if args.verbose:
             log.debug("Exporting stdout and stdin...")
             with open(wasm_harness + ".out", "w") as out, \
                     open(wasm_harness + ".err", "w") as err:
