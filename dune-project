@@ -11,10 +11,10 @@
 
 (maintainers "WASP Platform")
 
-(license LICENSE)
+(license "Apache-2.0")
 
 (package
  (name wasp)
  (synopsis "WebAssembly Symbolic Processor (WASP)")
  (description "WASP is a symbolic execution engine for testing and validating Wasm modules.")
- (depends base batteries ocamlformat))
+ (depends base batteries ocamlformat encoding))

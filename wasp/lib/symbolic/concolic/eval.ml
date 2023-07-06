@@ -8,6 +8,8 @@ open Interpreter.Ast
 open Interpreter.Source
 open Interpreter.Instance
 
+module Expr = Expression
+
 let memory_error at = function
   | Heap.InvalidAddress a ->
       Int64.to_string a ^ ":address not found in hashtable"
@@ -18,8 +20,8 @@ let memory_error at = function
   | exn -> raise exn
 
 type policy = Random | Depth | Breadth
-type interruption = Limit | Failure of Expression.t | Bug of Bug.bug
-type value = Num.t * Expression.t
+type interruption = Limit | Failure of Expr.t | Bug of Bug.bug
+type value = Num.t * Expr.t
 type 'a stack = 'a list
 type frame = { inst : module_inst; locals : value ref list }
 
@@ -35,7 +37,7 @@ and sym_admin_instr' =
   | Label of int * instr list * code
   | Frame of int * frame * code
   | Interrupt of interruption
-  | Restart of Expression.t
+  | Restart of Expr.t
 
 type config = {
   frame : frame;
@@ -44,7 +46,7 @@ type config = {
   mem : Heap.t;
   store : Store.t;
   heap : Chunktable.t;
-  pc : Expression.t;
+  pc : Expr.t;
   bp : bp list;
   tree : tree ref;
   budget : int;
@@ -52,7 +54,7 @@ type config = {
 }
 
 and tree = config ref Execution_tree.t ref
-and bp = Branchpoint of Expression.t * tree | Checkpoint of config ref
+and bp = Branchpoint of Expr.t * tree | Checkpoint of config ref
 
 let frame inst locals = { inst; locals }
 
@@ -164,7 +166,7 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then Some (Expression.add_constraint ~neg:bval c pc) else None
+  if to_branch then Some (Expr.add_constraint ~neg:bval c pc) else None
 
 module type Checkpoint = sig
   val is_checkpoint : config -> bool
@@ -194,7 +196,7 @@ module DepthCheckpoint : Checkpoint = struct
   let count = Counter.create ()
 
   let is_checkpoint (c : config) : bool =
-    let size_pc = Expression.length c.pc in
+    let size_pc = Expr.length c.pc in
     Execution_tree.can_branch !(c.tree)
     && size_pc mod 10 = 0
     && Counter.get_and_inc count size_pc < 5
@@ -205,6 +207,12 @@ module type Stepper = sig
 end
 
 module ConcolicStepper (C : Checkpoint) : Stepper = struct
+  let to_int32 (e : Expr.t) : Expr.t =
+    match e with
+    | Val _ -> e
+    | Cvtop (I32 I32.ToBool, e') -> e'
+    | _ -> Cvtop (I32 I32.OfBool, e)
+
   let rec step (c : config) : config =
     let {
       frame;
@@ -252,7 +260,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                   [ Plain (Block (ts, es2)) @@ e.at ] )
               in
               let mem', bp =
-                let pc' = Expression.add_constraint ~neg:b ex pc in
+                let pc' = Expr.add_constraint ~neg:b ex pc in
                 if not (C.is_checkpoint c) then (mem, bp)
                 else
                   let mem, c' = clone c in
@@ -267,7 +275,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                   ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
                   (branch_on_cond b ex pc tree)
               in
-              let pc' = Expression.add_constraint ~neg:(not b) ex pc in
+              let pc' = Expr.add_constraint ~neg:(not b) ex pc in
               (vs', (if b then es1' else es2'), mem', pc', bp')
           | Br x, vs -> ([], [ Breaking (x.it, vs) @@ e.at ], mem, pc, bp)
           | BrIf x, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
@@ -276,7 +284,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           | BrIf x, (I32 i, ex) :: vs' ->
               let b, es1', es2' = (i <> 0l, [ Plain (Br x) @@ e.at ], []) in
               let mem', bp =
-                let pc' = Expression.add_constraint ~neg:b ex pc in
+                let pc' = Expr.add_constraint ~neg:b ex pc in
                 if not (C.is_checkpoint c) then (mem, bp)
                 else
                   let mem, c' = clone c in
@@ -291,7 +299,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                   ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
                   (branch_on_cond b ex pc tree)
               in
-              let pc' = Expression.add_constraint ~neg:(not b) ex pc in
+              let pc' = Expr.add_constraint ~neg:(not b) ex pc in
               (vs', (if b then es1' else es2'), mem', pc', bp')
           | BrTable (xs, x), (I32 i, _) :: vs'
             when Interpreter.I32.ge_u i (Interpreter.Lib.List32.length xs) ->
@@ -322,7 +330,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           | Select, (I32 i, ve) :: v2 :: v1 :: vs' ->
               let b, vs1, vs2 = (i <> 0l, v1 :: vs', v2 :: vs') in
               let mem', bp =
-                let pc' = Expression.add_constraint ~neg:b ve pc in
+                let pc' = Expr.add_constraint ~neg:b ve pc in
                 if not (C.is_checkpoint c) then (mem, bp)
                 else
                   let mem, c' = clone c in
@@ -337,7 +345,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                   ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
                   (branch_on_cond b ve pc tree)
               in
-              let pc' = Expression.add_constraint ~neg:(not b) ve pc in
+              let pc' = Expr.add_constraint ~neg:(not b) ve pc in
               ((if b then vs1 else vs2), [], mem', pc', bp')
           | LocalGet x, vs -> (!(local frame x) :: vs, [], mem, pc, bp)
           | LocalSet x, (v, ex) :: vs' ->
@@ -413,12 +421,16 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               let v' = Evaluations.of_value v.it in
               ((v', Val (Num v')) :: vs, [], mem, pc, bp)
           | Test testop, v :: vs' -> (
-              try (eval_testop v testop :: vs', [], mem, pc, bp)
+              try
+                let n, e = eval_testop v testop in
+                ((n, to_int32 e) :: vs', [], mem, pc, bp)
               with exn ->
                 (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp)
               )
           | Compare relop, v2 :: v1 :: vs' -> (
-              try (eval_relop v1 v2 relop :: vs', [], mem, pc, bp)
+              try
+                let n, e = eval_relop v1 v2 relop in
+                ((n, to_int32 e) :: vs', [], mem, pc, bp)
               with exn ->
                 (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp)
               )
@@ -444,16 +456,15 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           | SymAssert, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
               (vs', [], mem, pc, bp)
           | SymAssert, (I32 i, ex) :: vs' ->
-              let formulas = Expression.add_constraint ~neg:true ex pc in
+              let formulas = Expr.add_constraint ~neg:true ex pc in
               Common.serialise_query [ formulas ];
               if not (Batch.check_sat solver [ formulas ]) then
                 (vs', [], mem, pc, bp)
-              else
-                let binds =
-                  Batch.value_binds solver ~symbols:(Store.get_key_types store)
-                in
-                Store.update store binds;
-                (vs', [ Interrupt (Failure pc) @@ e.at ], mem, pc, bp)
+              else (
+                Batch.value_binds solver ~symbols:(Store.get_key_types store)
+                |> Option.iter (fun m ->
+                       Store.update store (Model.get_bindings m));
+                (vs', [ Interrupt (Failure pc) @@ e.at ], mem, pc, bp))
           | SymAssume, (I32 i, ex) :: vs' when is_concrete (simplify ex) ->
               let unsat = Boolean.mk_val false in
               if i = 0l then (vs', [ Restart unsat @@ e.at ], mem, pc, bp)
@@ -461,7 +472,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           | SymAssume, (I32 i, ex) :: vs' ->
               if i = 0l then
                 ( vs',
-                  [ Restart (Expression.add_constraint ex pc) @@ e.at ],
+                  [ Restart (Expr.add_constraint ex pc) @@ e.at ],
                   mem,
                   pc,
                   bp )
@@ -469,14 +480,14 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                 debug ">>> Assume passed. Continuing execution...";
                 let tree', _ = Execution_tree.move_true !tree in
                 tree := tree';
-                (vs', [], mem, Expression.add_constraint ex pc, bp))
+                (vs', [], mem, Expr.add_constraint ex pc, bp))
           | Symbolic (ty, b), (I32 i, _) :: vs' ->
               let base = Interpreter.I64_convert.extend_i32_u i in
               let symbol = if i = 0l then "x" else Heap.load_string mem base in
               let x = Store.next store symbol in
               let ty' = Evaluations.to_num_type ty in
               let v = Store.get store x ty' b in
-              ((v, Expression.mk_symbol_s ty' x) :: vs', [], mem, pc, bp)
+              ((v, Expr.mk_symbol_s ty' x) :: vs', [], mem, pc, bp)
           | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
               let sv2' = mk_relop sv2 (Num.type_of v2) in
               let v2' =
@@ -510,46 +521,46 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbol_s `I32Type x) :: vs', [], mem, pc, bp)
+              ((v, Expr.mk_symbol_s `I32Type x) :: vs', [], mem, pc, bp)
           | GetSymInt64 x, vs' ->
               let v =
                 try Store.find store x
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbol_s `I64Type x) :: vs', [], mem, pc, bp)
+              ((v, Expr.mk_symbol_s `I64Type x) :: vs', [], mem, pc, bp)
           | GetSymFloat32 x, vs' ->
               let v =
                 try Store.find store x
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbol_s `F32Type x) :: vs', [], mem, pc, bp)
+              ((v, Expr.mk_symbol_s `F32Type x) :: vs', [], mem, pc, bp)
           | GetSymFloat64 x, vs' ->
               let v =
                 try Store.find store x
                 with Not_found ->
                   Crash.error e.at "Symbolic variable was not in store."
               in
-              ((v, Expression.mk_symbol_s `F64Type x) :: vs', [], mem, pc, bp)
+              ((v, Expr.mk_symbol_s `F64Type x) :: vs', [], mem, pc, bp)
           | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs'
             ->
               let r : Num.t = I32 (if c = 0l then r2 else r1) in
-              let s_c' = to_relop (simplify s_c) in
+              let s_c' = to_bool (simplify s_c) in
               let v, pc' =
                 match s_c' with
                 | None -> ((r, if c = 0l then s_r2 else s_r1), pc)
                 | Some s ->
                     let x = Store.next store "__ternary" in
                     Store.add store x r;
-                    let s_x = Expression.mk_symbol_s `I32Type x in
+                    let s_x = Expr.mk_symbol_s `I32Type x in
                     let t_eq = Relop (I32 I32.Eq, s_x, s_r1) in
                     let t_imp = Binop (I32 I32.Or, negate_relop s, t_eq) in
                     let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
                     let f_imp = Binop (I32 I32.Or, s, f_eq) in
                     let cond = Binop (I32 I32.And, t_imp, f_imp) in
                     ( (r, s_x),
-                      Expression.add_constraint
+                      Expr.add_constraint
                         (Relop (I32 I32.Ne, cond, Val (Num (I32 0l))))
                         pc )
               in
@@ -558,13 +569,13 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               debug
                 (Interpreter.Source.string_of_pos e.at.left
                 ^ ":VS:\n"
-                ^ Expression.string_of_values vs');
+                ^ Expr.string_of_values vs');
               (vs', [], mem, pc, bp)
           | PrintPC, vs' ->
               debug
-                (Interpreter.Source.string_of_pos e.at.left
-                ^ ":PC: "
-                ^ Expression.to_string pc);
+               (Format.sprintf "%s:PC: %s"
+                   (Interpreter.Source.string_of_pos e.at.left)
+                   (Expr.to_string pc));
               (vs', [], mem, pc, bp)
           | PrintMemory, vs' ->
               debug ("Mem:\n" ^ Heap.to_string mem);
@@ -574,7 +585,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               (* Btree.print_b_tree mem; *)
               (vs', [], mem, pc, bp)
           | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
-              let res : Num.t * Expression.t =
+              let res : Num.t * Expr.t =
                 match (ex1, ex2) with
                 | Symbol s1, Symbol s2 ->
                     if Symbol.equal s1 s2 then (I32 1l, Integer.mk_eq ex1 ex2)
@@ -682,7 +693,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           let symbolic_arg t =
             let x = Store.next store "arg" in
             let v = Store.get store x t false in
-            (v, Expression.mk_symbol_s t x)
+            (v, Expr.mk_symbol_s t x)
           in
           let (Interpreter.Types.FuncType (ins, out)) =
             Interpreter.Func.type_of func
@@ -763,7 +774,8 @@ let rec update_admin_instr f e =
   { it; at = e.at }
 
 let update c (vs, es) pc symbols =
-  let binds = Batch.value_binds solver ~symbols in
+  let model = Batch.value_binds solver ~symbols in
+  let binds = Option.fold model ~none:[] ~some:Model.get_bindings in
   Store.update c.store binds;
   Heap.update c.mem c.store;
   let f store (_, expr) = (Store.eval store expr, expr) in
@@ -774,7 +786,8 @@ let update c (vs, es) pc symbols =
   { c with code; pc }
 
 let reset c glob code mem =
-  let binds = Batch.value_binds solver ~symbols:(Store.get_key_types c.store) in
+  let model = Batch.value_binds solver ~symbols:(Store.get_key_types c.store) in
+  let binds = Option.fold model ~none:[] ~some:Model.get_bindings in
   Store.reset c.store;
   Store.init c.store binds;
   let glob = Globals.copy glob in
@@ -792,7 +805,8 @@ let reset c glob code mem =
   }
 
 let s_reset (c : config) : config =
-  let binds = Batch.value_binds solver ~symbols:(Store.get_key_types c.store) in
+  let model = Batch.value_binds solver ~symbols:(Store.get_key_types c.store) in
+  let binds = Option.fold model ~none:[] ~some:Model.get_bindings in
   Store.update c.store binds;
   Heap.update c.mem c.store;
   let f store (_, expr) = (Store.eval store expr, expr) in
@@ -872,7 +886,7 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
           | Some (pc', None) -> loop (reset c glob0 code0 mem0)
           | Some (pc', Some cp) ->
               let _, c' = clone !cp in
-              loop (update c' c'.code c'.pc (Expression.get_symbols [ pc' ])))
+              loop (update c' c'.code c'.pc (Expr.get_symbols [ pc' ])))
     in
     loop c
 
@@ -938,7 +952,7 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     error
 
   let p_invoke (c : config) (test_suite : string) :
-      (Expression.t, string * region) result =
+      (Expr.t, string * region) result =
     let rec eval (c : config) : config =
       match c.code with
       | vs, [] -> c

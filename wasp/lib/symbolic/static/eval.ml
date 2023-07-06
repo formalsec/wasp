@@ -8,6 +8,8 @@ open Interpreter.Types
 open Interpreter.Instance
 open Interpreter.Ast
 
+module Boolean = Encoding.Boolean
+
 (* TODO/FIXME: there's a lot of code at the top that
    needs to be extracted to a common module with concolic.ml *)
 
@@ -115,9 +117,7 @@ module type Encoder = sig
   val fork : t -> expr -> bool * bool
 
   val value_binds :
-    ?symbols:Encoding.Symbol.t list ->
-    t ->
-    (Encoding.Symbol.t * Encoding.Value.t) list
+    ?symbols:Encoding.Symbol.t list -> t -> Encoding.Model.t option
 
   val string_binds : t -> (string * string * string) list
 end
@@ -186,7 +186,10 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     let open Concolic.Eval in
     let store =
       assert (E.check c.encoder None);
-      let binds = E.value_binds c.encoder ~symbols:(Varmap.binds c.varmap) in
+      let model = E.value_binds c.encoder ~symbols:(Varmap.binds c.varmap) in
+      let binds =
+        Option.fold model ~none:[] ~some:Encoding.Model.get_bindings
+      in
       Varmap.to_store c.varmap binds
     in
     let expr_to_value (ex : expr) : Encoding.Num.t =
@@ -271,8 +274,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
     Concolic.Eval.head := Concolic.Execution_tree.Leaf;
     debug "-- Switching to concolic mode...";
     debug
-      ("-- path_condition = "
-      ^ Encoding.Expression.to_string (E.get_assertions c.encoder));
+     ("-- path_condition = " ^ Encoding.Expression.to_string
+     @@ E.get_assertions c.encoder);
     let conc_c = to_concolic c in
     let test_suite = Filename.concat !Interpreter.Flags.output "test_suite" in
     Concolic.Eval.BFS.s_invoke conc_c test_suite
@@ -314,10 +317,11 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
           | Some size_cond -> E.add c.encoder size_cond
           | None -> ());
           assert (E.check c.encoder None);
-          let binds =
+          let logic_env =
             E.value_binds c.encoder ~symbols:(Varmap.binds c.varmap)
+            |> Option.fold ~none:[] ~some:Encoding.Model.get_bindings
+            |> Concolic.Store.create
           in
-          let logic_env = Concolic.Store.create binds in
 
           let open Interpreter.Source in
           let c_size = Concolic.Store.eval logic_env s_size in
@@ -401,8 +405,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                       (Continuation
                          [ { c with sym_code = (v1 :: vs', List.tl es) } ])
                 | ex ->
-                    let co = Option.get (to_relop ex) in
-                    let negated_co = negate_relop co in
+                    let co = Option.get (to_bool ex) in
+                    let negated_co = Boolean.mk_not co in
                     let es' = List.tl es in
 
                     let sat_then, sat_else = E.fork encoder co in
@@ -467,8 +471,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                            };
                          ])
                 | ex ->
-                    let co = Option.get (to_relop ex) in
-                    let negated_co = negate_relop co in
+                    let co = Option.get (to_bool ex) in
+                    let negated_co = Boolean.mk_not co in
 
                     let sat_then, sat_else = E.fork encoder co in
 
@@ -539,8 +543,8 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                            };
                          ])
                 | ex ->
-                    let co = Option.get (to_relop ex) in
-                    let negated_co = negate_relop co in
+                    let co = Option.get (to_bool ex) in
+                    let negated_co = Boolean.mk_not co in
                     let es' = List.tl es in
 
                     let sat_then, sat_else = E.fork encoder co in
@@ -630,10 +634,12 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | Some ptr -> ptr
                   | None ->
                       assert (E.check encoder None);
-                      let binds =
+                      let logic_env =
                         E.value_binds encoder ~symbols:(Varmap.binds varmap)
+                        |> Option.fold ~none:[]
+                             ~some:Encoding.Model.get_bindings
+                        |> Concolic.Store.create
                       in
-                      let logic_env = Concolic.Store.create binds in
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
                       let ty = Encoding.Num.type_of ptr in
@@ -689,10 +695,12 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                   | Some ptr -> ptr
                   | None ->
                       assert (E.check encoder None);
-                      let binds =
+                      let logic_env =
                         E.value_binds encoder ~symbols:(Varmap.binds varmap)
+                        |> Option.fold ~none:[]
+                             ~some:Encoding.Model.get_bindings
+                        |> Concolic.Store.create
                       in
-                      let logic_env = Concolic.Store.create binds in
 
                       let ptr = Concolic.Store.eval logic_env sym_ptr in
                       let ty = Encoding.Num.type_of ptr in
@@ -900,7 +908,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
             | SymAssert, v :: vs' ->
                 let v = simplify v in
                 debug ("Asserting: " ^ to_string (simplify v));
-                let constr = negate_relop (Option.get (to_relop v)) in
+                let constr = Boolean.mk_not (Option.get (to_bool v)) in
                 let sat = E.check encoder (Some constr) in
                 if sat then (
                   E.add encoder constr;
@@ -924,7 +932,7 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     Result.ok
                       (Continuation [ { c with sym_code = (vs, List.tl es) } ])
                 | ex ->
-                    let co = Option.get (to_relop ex) in
+                    let co = Option.get (to_bool ex) in
                     E.add encoder co;
                     if E.check encoder None then
                       let c_true = { c with sym_code = (vs', List.tl es) } in
@@ -992,10 +1000,9 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                     Result.ok
                       (Continuation [ { c with sym_code = (vs', es') } ])
                 | value ->
-                    failwith ("Free with invalid argument" ^ to_string value)
-                )
+                   failwith ("Free with invalid argument" ^ to_string value))
             | PrintStack, vs ->
-                let vs' = List.map (fun v -> to_string v) vs in
+                let vs' = List.map to_string vs in
                 debug
                   ("Stack @ "
                   ^ Source.string_of_pos e.at.left
@@ -1010,15 +1017,13 @@ module SymbolicInterpreter (SM : Memory.SymbolicMemory) (E : Encoder) :
                 print_endline
                   (Printf.sprintf "%d" e.at.left.line
                   ^ " pc: "
-                  ^ Encoding.Expression.to_string (E.get_assertions encoder)
-                  );
+                  ^ to_string (E.get_assertions encoder));
                 let es' = List.tl es in
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | PrintValue, v :: vs' ->
                 let es' = List.tl es in
                 print_endline
-                  (Printf.sprintf "%d" e.at.left.line
-                  ^ ":val: " ^ to_string v);
+                (Printf.sprintf "%d" e.at.left.line ^ ":val: " ^ to_string v);
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
             | _ ->
                 print_endline
