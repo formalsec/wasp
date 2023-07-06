@@ -350,8 +350,8 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
       let res = [ (mem, expr, ptr_cond) ]
       in
       
-      Printf.printf "LOAD: idx: %s + %s " (Int64.to_string a) (Int32.to_string o);
-      Printf.printf "v: %s\n"  (Expression.to_string expr);
+      (* Printf.printf "LOAD: idx: %s + %s " (Int64.to_string a) (Int32.to_string o);
+      Printf.printf "v: %s\n"  (Expression.to_string expr); *)
       (* Printf.printf "\n\n%s\n\n" (MB.to_string mem.backend); *)
 
       Result.ok (res)
@@ -395,8 +395,8 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
         let res = [ (mem, expr, ptr_cond) ]
         in
 
-        Printf.printf "LOAD PACK %d: idx: %s + %s " (packed_size sz) (Int64.to_string a) (Int32.to_string o);
-        Printf.printf "v: %s\n"  (Expression.to_string expr);
+        (* Printf.printf "LOAD PACK %d: idx: %s + %s " (packed_size sz) (Int64.to_string a) (Int32.to_string o);
+        Printf.printf "v: %s\n"  (Expression.to_string expr); *)
 
         Result.ok (res)
 
@@ -450,7 +450,7 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
         in
         let res = [ (mem, ptr_cond) ]
         in
-        Printf.printf "STORE: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value);
+        (* Printf.printf "STORE: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
         Result.ok (res)
 
   let store_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
@@ -475,7 +475,7 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
         in
         let res = [ (mem, ptr_cond) ]
         in
-        Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value);
+        (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
         Result.ok (res)
 
   let to_string (m : t) : string = MB.to_string m.backend
@@ -502,30 +502,34 @@ module SMem (MB : MemoryBackend) (E : Common.Encoder) : SymbolicMemory with type
       match check_concr encoder size_cond with
       | false -> None
       | true ->
-          let b = expr_to_value sym_b encoder varmap in
+          let binds =
+            E.value_binds encoder ~symbols:(Varmap.binds varmap)
+          in
+          let logic_env = Concolic.Store.create binds in
+         
+          let b = Concolic.Store.eval logic_env sym_b in
+          let c_size = Concolic.Store.eval logic_env sym_s in
           match b with
           | I32 base ->
               let _, mc = clone m in
               let size = 
                 match c_size with
-                | Some size -> size
-                | _ -> failwith "unreachable"
+                | I32 size -> size
+                | _ -> failwith "Alloc non I32 size"
               in
               Chunktable.replace mc.chunk_table base size;
               let base_cond = Relop (I32 I32.Eq, sym_b, Val (Num (b))) 
               in
-              let size_cond = 
-                (match size_cond with
-                | Some size_cond -> size_cond
-                | None -> failwith "unreachable") in
-              Some (mc, base, size_cond :: base_cond :: [])
+              (match size_cond with
+                | Some size_cond -> Some (mc, base, [ size_cond; base_cond ])
+                | None -> Some (mc, base, [ base_cond ]))
           | _ -> failwith "Alloc non I32 base"
     in
     match (sym_s, sym_b) with
     (* concrete alloc *)
     |  Val (Num (I32 sz)),  Val (Num (I32 base)) -> 
         Chunktable.replace m.chunk_table base sz;
-        (m, base, []) :: []
+        [ (m, base, []) ]
     (* sym alloc *)
     | _, _ ->  
       let fixed_attempts =

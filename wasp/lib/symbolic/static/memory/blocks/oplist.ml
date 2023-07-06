@@ -172,8 +172,9 @@ module OpList : Block.M = struct
         (match block_sz with
         | Val (Num (I64 block_sz')) -> is_within (Val (Num (I32 (Int64.to_int32 block_sz')))) idx o sz
         | Val (Num (I32 _))
-        | SymPtr _ -> is_within block_sz idx o sz
-        | _ -> failwith ("InternalError: OpList.in_bounds, size not an integer or SymPtr"))
+        | _ -> is_within block_sz idx o sz)
+        (* | _ -> Printf.printf "\n\n%s\n\n" (Expression.to_string block_sz);
+          failwith ("InternalError: OpList.in_bounds, size not an integer or SymPtr")) *)
     | _ -> failwith ("InternalError: OpList.in_bounds, accessed OpList is not in the heap"))
 
 end
