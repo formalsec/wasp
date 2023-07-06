@@ -552,7 +552,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                 | Global.Type ->
                     Crash.error e.at "type mismatch at global write")
             | Load { offset; ty; sz; _ }, sym_ptr :: vs' -> (
-                Printf.printf "%d " e.at.left.line;
+                (* Printf.printf "%d " e.at.left.line; *)
                 let res =
                   match sz with
                   | None ->
@@ -580,7 +580,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                     let bug_type = Common.Bug.string_of_bug b in
                     Result.error (bug_type, e.at))
             | Store { offset; sz; _ }, ex :: sym_ptr :: vs' -> (
-                Printf.printf "%d " e.at.left.line;
+                (* Printf.printf "%d " e.at.left.line; *)
                 let res =
                   match sz with
                   | None -> SM.store_value c.encoder varmap mem sym_ptr offset ex
