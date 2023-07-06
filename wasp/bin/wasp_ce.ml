@@ -1,7 +1,7 @@
 open Interpreter
 
 let name = "WebAssembly Concolic Executor"
-let version = "v0.2.3"
+let version = "v0.2.4_pined_encoding"
 
 let configure () =
   Import.register (Utf8.decode "spectest") Spectest.lookup;
