@@ -50,11 +50,10 @@ let to_list (h : t) : (address * store) list =
   Hashtbl.fold (fun a s acc -> (a, s) :: acc) h.map []
 
 let to_string (mem : t) : string =
-  let lst = List.sort (fun (a, _) (b, _) -> compare a b) (to_list mem) in
+  let lst = List.sort (fun (a, _) (b, _) -> Int64.compare a b) (to_list mem) in
   List.fold_right
     (fun (a, (v, e)) b ->
-      "(" ^ Int64.to_string a ^ "->" ^ "(" ^ string_of_int v ^ ", "
-      ^ Expression.to_string e ^ ")" ^ ")\n" ^ b)
+      Format.sprintf "(%Ld -> (%d, %s))" a v (Expression.to_string e) ^ b)
     lst ""
 
 let store_byte (h : t) (a : address) (b : store) : unit =

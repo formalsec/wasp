@@ -74,7 +74,7 @@ module LazyMemory : MemoryBackend = struct
     (* TODO: need to go all the way up the chain *)
     let lst =
       List.sort
-        (fun (a, _) (b, _) -> compare a b)
+        (fun (a, _) (b, _) -> Int64.compare a b)
         (List.of_seq (Hashtbl.to_seq lmem.map))
     in
     List.fold_right
@@ -109,7 +109,7 @@ module MapMemory : MemoryBackend = struct
   let to_string (map : t) : string =
     let lst =
       List.sort
-        (fun (a, _) (b, _) -> compare a b)
+        (fun (a, _) (b, _) -> Int64.compare a b)
         (List.of_seq (Hashtbl.to_seq map))
     in
     List.fold_right
