@@ -147,6 +147,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     ((t * Expression.t * Expression.t list) list, bug) result =
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Load from memory *)
+      if MB.check_bound mem.blocks ptr_b then
         let sz = Types.size_of_num_type ty in
         (* Printf.printf "LOAD: idx: %s + %s " (Int32.to_string ptr_b) (Int32.to_string o); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
@@ -161,6 +162,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res')
         else Result.error (OOB)
+      else Result.error (UAF)
     | _ -> (* Load from fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
@@ -213,21 +215,23 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     ((t * Expression.t * Expression.t list) list, bug) result =
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Load from memory *)
-        let sz = length_pack_size sz in
-        (* Printf.printf "LOAD PACK %d: idx: %s + %s " (sz) (Int32.to_string ptr_b) (Int32.to_string o); *)
-        let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
-        if (check_sat encoder bounds_exp) then
-          let check_sat_helper (expr : Expression.t) : bool =
-            check_sat encoder expr
-          in
-          let res = MB.load check_sat_helper mem.blocks ptr_b ptr_o o sz ty true in
-          let res' = List.map (fun (mb, v, c) -> 
-            (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
-            (let fixed' = Hashtbl.copy mem.fixed in
-            ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
-          Result.ok (res')
-         
-        else Result.error (OOB)
+        if MB.check_bound mem.blocks ptr_b then
+          let sz = length_pack_size sz in
+          (* Printf.printf "LOAD PACK %d: idx: %s + %s " (sz) (Int32.to_string ptr_b) (Int32.to_string o); *)
+          let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
+          if (check_sat encoder bounds_exp) then
+            let check_sat_helper (expr : Expression.t) : bool =
+              check_sat encoder expr
+            in
+            let res = MB.load check_sat_helper mem.blocks ptr_b ptr_o o sz ty true in
+            let res' = List.map (fun (mb, v, c) -> 
+              (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
+              (let fixed' = Hashtbl.copy mem.fixed in
+              ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
+            Result.ok (res')
+          
+          else Result.error (OOB)
+        else Result.error (UAF)
     | _ -> (* Load from fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
@@ -296,6 +300,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     ((t * Expression.t list) list, bug) result = 
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
+      if MB.check_bound mem.blocks ptr_b then
         let ty = Expression.type_of value in
         let sz = Types.size ty in
         (* Printf.printf "STORE: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
@@ -308,6 +313,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             ( {blocks = mb; fixed = fixed'}, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res'))
         else Result.error (Overflow)
+      else Result.error (UAF)
     | _ -> (* Store to fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
@@ -323,6 +329,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     ((t * Expression.t list) list, bug) result =
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
+      if MB.check_bound mem.blocks ptr_b then
         let sz = length_pack_size sz in
         (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
@@ -334,6 +341,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             ( {blocks = mb; fixed = fixed'}, c))) res in (* CLEAN UNSAT CONDS *)
           Result.ok (res'))
         else Result.error (Overflow)
+      else Result.error (UAF)
     | _ -> (* Store to fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
