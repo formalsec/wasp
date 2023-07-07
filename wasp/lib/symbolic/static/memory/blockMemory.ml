@@ -361,16 +361,25 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let alloc (encoder : E.t) (varmap : Varmap.t)
     (m : t) (sym_b : Expression.t) (sym_s : Expression.t) : 
     (t * int32 * Expression.t list) list =
-    match (sym_s, sym_b) with
-    |  _, Val (Num (I32 base)) -> 
-        let res = MB.alloc m.blocks base sym_s in
-        if List.length res = 1 then
-          [ (m, base, [])]
-        else
-        List.map (fun (mb, a, c) -> 
-          (let fixed' = Hashtbl.copy m.fixed in
-          ( {blocks = mb; fixed = fixed'}, a, c))) res
-    | _, _ ->  failwith "Unreachable"
+    let base = 
+      (match (sym_b) with
+      |  Val (Num (I32 base)) -> base
+      | _ ->  
+        let binds =
+          E.value_binds encoder ~symbols:(Varmap.binds varmap)
+        in
+        let logic_env = Concolic.Store.create binds in
+        let b = Concolic.Store.eval logic_env sym_b in
+        match b with | I32 b' -> b' | _ -> failwith "alloc with non I32 base")
+      in
+
+      let res = MB.alloc m.blocks base sym_s in
+      if List.length res = 1 then
+        [ (m, base, [])]
+      else
+      List.map (fun (mb, a, c) -> 
+        (let fixed' = Hashtbl.copy m.fixed in
+        ( {blocks = mb; fixed = fixed'}, a, c))) res
 
 
   let check_bound (m : t) (b : int32) : bool = MB.check_bound m.blocks b
