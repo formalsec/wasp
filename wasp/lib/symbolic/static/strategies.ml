@@ -122,12 +122,15 @@ module BFS_L2 (I : Interpreter) = struct
     let ended = ref false in
     let err = ref None in
     while Option.is_none !err && not (Stack.is_empty w') && not !ended do
+      let l = Stack.length w' in
       let c = Stack.pop w' in
       match I.step c with
       | Result.Ok step_res -> (
           match step_res with
           | I.Continuation cs' -> 
-              Stack.add_seq w' (List.to_seq cs')
+              if l + List.length cs' <= max_configs then
+                Stack.add_seq w' (List.to_seq cs')
+              else (Stack.push c w'; ended := true)
           | I.End e -> pcs := e :: !pcs; ended := true)
       | Result.Error step_err -> pcs := default :: !pcs; err := Some step_err
     done;
