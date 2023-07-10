@@ -107,6 +107,56 @@ module BFS_L (I : Interpreter) = struct
     !err
 end
 
+
+module BFS_L2 (I : Interpreter) = struct
+  let max_configs = 32
+
+  let eval (c : I.sym_config) (pcs : Expression.t list ref) :
+      (string * Interpreter.Source.region) option =
+    
+    (* do DFS on first path *)
+    let w' = Stack.create () in
+    Stack.push c w';
+
+    let err = ref None in
+    while Option.is_none !err && not (Stack.is_empty w') do
+      let c = Stack.pop w' in
+      match I.step c with
+      | Result.Ok step_res -> (
+          match step_res with
+          | I.Continuation cs' -> 
+            if (List.length cs') > 1 then
+              Stack.add_seq w' (List.to_seq cs')
+          | I.End e -> pcs := e :: !pcs)
+      | Result.Error step_err -> err := Some step_err
+    done;
+    
+    match err with
+    | {contents = Some _ }  -> !err
+    | _ ->
+      (* Follow with BFS-L *)
+      let w = Queue.of_seq (Stack.to_seq w') in
+
+      let err = ref None in
+      while Option.is_none !err && not (Queue.is_empty w) do
+        let l = Queue.length w in
+        let c = Queue.pop w in
+        match I.step c with
+        | Result.Ok step_res -> (
+            match step_res with
+            | I.Continuation cs' ->
+                if (List.length cs') > 1 then
+                if l + List.length cs' <= max_configs then
+                  Queue.add_seq w (List.to_seq cs')
+                else Queue.push c w
+            | I.End e -> pcs := e :: !pcs)
+        | Result.Error step_err -> err := Some step_err
+      done;
+
+      !err
+end
+
+
 module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
@@ -278,6 +328,7 @@ module Helper (I : Interpreter) = struct
   module DFS_I = DFS (I)
   module BFS_I = BFS (I)
   module BFS_L_I = BFS_L (I)
+  module BFS_L2_I = BFS_L2 (I)
   module Half_BFS_I = Half_BFS (I)
   module RS_I = RS (I)
   module Hybrid_I = Hybrid (I)
@@ -294,6 +345,7 @@ module Helper (I : Interpreter) = struct
       | "depth" -> DFS_I.eval
       | "breadth" -> BFS_I.eval
       | "breadth-l" -> BFS_L_I.eval
+      | "breadth-l2" -> BFS_L2_I.eval
       | "half-breadth" -> Half_BFS_I.eval
       | "random" -> RS_I.eval
       | "hybrid" -> Hybrid_I.eval

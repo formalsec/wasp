@@ -99,25 +99,6 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let length_pack_size (sz : pack_size) : int =
     match sz with Pack8 -> 1 | Pack16 -> 2 | Pack32 -> 4
 
-  (*let storen (mem : MB.t) (a : address) (o : offset) (n : int)
-      (value : Expression.t) : unit =
-    let rec loop mem a i n x =
-      if n > i then (
-        MB.store_byte mem a (Expression.Extract (x, i + 1, i));
-        loop mem (Int64.add a 1L) (i + 1) n x)
-    in
-    loop mem (effective_address a o) 0 n value *)
-
-  (* let loadn (mem : t) (a : address) (n : int) :
-    Expression.t list =
-    let rec loop a n acc =
-      if n = 1 then acc
-      else
-        let se = Hashtbl.find mem.fixed a in
-        loop (Int64.sub a 1L) (n - 1) (se :: acc)
-    in
-    loop Int64.(add a (of_int (n - 1))) n [] *)
-
 
   let check_sat (e : E.t) (expr : Expression.t) : bool =
     not (E.check e (Some expr))
@@ -315,9 +296,9 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
       if MB.check_bound mem.blocks ptr_b then
         let sz = length_pack_size sz in
-        Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value);
+        (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
-        Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder));
+        (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
           (let res = MB.store mem.blocks ptr_b ptr_o o value sz in
           let res' = List.map (fun (mb, c) -> 
@@ -329,7 +310,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     | _ -> (* Store to fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
-      Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value);
+      (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
       Hashtbl.replace mem.fixed ea value;
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ] in
