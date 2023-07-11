@@ -74,30 +74,37 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             Expression.simplify ~extract:true expr')
           | _ -> v)
         in
+        (* Printf.printf "\nbefore reint: %s" (Expression.to_string expr); *)
         (match ty with
         | `I32Type -> (
             match expr with
             | Val (Num (I64 n)) -> Val (Num (I32 (Int64.to_int32 n)))
+            | Relop _ -> expr 
             | _ ->
                 match Expression.type_of expr with
                 | `F32Type -> Cvtop (I32 I32.ReinterpretFloat, expr)
                 | `F64Type -> Extract (Cvtop (I64 I64.ReinterpretFloat, expr), 4, 0)
                 | _ -> expr)
         | `I64Type -> (
-            match Expression.type_of expr with
-            | `F32Type | `F64Type -> Cvtop (I64 I64.ReinterpretFloat, expr)
-            | _ -> expr)
+            match expr with 
+            | Relop _ -> expr
+            | _ ->
+                match Expression.type_of expr with
+                | `F32Type | `F64Type -> Cvtop (I64 I64.ReinterpretFloat, expr)
+                | _ -> expr)
         | `F32Type -> (
             match expr with
             | Val (Num (I64 v)) -> Val (Num (F32 (Int64.to_int32 v)))
             | Val (Num (I32 v)) -> Val (Num (F32 v))
             | Cvtop (I32 I32.ReinterpretFloat, v) -> v
+            | Relop _ -> expr
             | _ -> expr)
         | `F64Type -> (
             match expr with
             | Val (Num (I64 v)) -> Val (Num (F64 v))
             | Val (Num (I32 v)) -> Val (Num (F64 (Int64.of_int32 v)))
             | Cvtop (I64 I64.ReinterpretFloat, v) -> v
+            | Relop _ -> expr
             | _ ->  expr))
     | None -> Val (Num (I32 0l))
 
