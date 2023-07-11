@@ -333,6 +333,7 @@ module Helper (I : Interpreter) = struct
   module BFS_I = BFS (I)
   module BFS_L_I = BFS_L (I)
   module BFS_L2_I = BFS_L2 (I)
+  module ProgressBFS = ProgressBFS (I)
   module Half_BFS_I = Half_BFS (I)
   module RS_I = RS (I)
   module Hybrid_I = Hybrid (I)
@@ -350,6 +351,7 @@ module Helper (I : Interpreter) = struct
       | "breadth" -> BFS_I.eval
       | "breadth-l" -> BFS_L_I.eval
       | "breadth-l2" -> BFS_L2_I.eval
+      | "progress-bfs" -> ProgressBFS.eval
       | "half-breadth" -> Half_BFS_I.eval
       | "random" -> RS_I.eval
       | "hybrid" -> Hybrid_I.eval
