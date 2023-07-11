@@ -114,9 +114,8 @@ module BFS_L2 (I : Interpreter) = struct
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
     
-    (* because if first path is error it is not counted *)
-    let default = (Encoding.Expression.Val (Encoding.Value.Num (Encoding.Types.I32 0l))) in
     (* do DFS on first path *)
+    let w  = Queue.create () in
     let w' = Stack.create () in
     Stack.push c w';
     let ended = ref false in
@@ -128,18 +127,21 @@ module BFS_L2 (I : Interpreter) = struct
       | Result.Ok step_res -> (
           match step_res with
           | I.Continuation cs' -> 
-              if l + List.length cs' <= max_configs then
+              if List.length cs' == 1 then
                 Stack.add_seq w' (List.to_seq cs')
-              else (Stack.push c w'; ended := true)
+              else
+                if l + List.length cs' <= max_configs then (
+                  let cs'' = List.rev cs' in
+                  Stack.push (List.hd cs'') w' ;
+                  Queue.add_seq w (List.to_seq (List.tl cs'')))
+                else (Queue.push c w; ended := true)
           | I.End e -> pcs := e :: !pcs; ended := true)
-      | Result.Error step_err -> pcs := default :: !pcs; err := Some step_err
+      | Result.Error step_err -> err := Some step_err
     done;
     match !err with
     | Some _  -> !err
     | None ->
       (* Follow with BFS-L *)
-      let w = Queue.of_seq (Stack.to_seq w') in
-
       let err = ref None in
       while Option.is_none !err && not (Queue.is_empty w) do
         let l = Queue.length w in
