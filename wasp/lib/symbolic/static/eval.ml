@@ -456,7 +456,8 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                     let es' = List.tl es in
                     Result.ok
                       (Continuation [ { c with sym_code = (vs', es') } ])
-                | Val (Num (I32 _)) ->
+                | Val (Num (I32 _)) 
+                | SymPtr _ ->
                     (* if it is not 0 *)
                     Result.ok
                       (Continuation
@@ -470,7 +471,6 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
                     let es' = List.tl es in
-
                     let sat_then, sat_else = E.fork encoder co in
 
                     let l =
@@ -848,7 +848,8 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                 Result.ok (Continuation l))
             | Free, ptr :: vs' -> (
                 match simplify ptr with
-                | SymPtr (base, Val (Num (I32 0l))) -> (
+                | SymPtr (base, Val (Num (I32 0l))) 
+                | Val (Num I32 base) -> (
                     match SM.free mem base with
                     | Ok mem_res ->                     
                         Result.ok
@@ -857,7 +858,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                         let bug_type = Common.Bug.string_of_bug b in
                           Result.error (bug_type, e.at))
                 | value ->
-                    failwith ("Free with invalid argument" ^ pp_to_string value))
+                    failwith ("Free with invalid argument " ^ pp_to_string value))
             | PrintStack, vs ->
                 let vs' = List.map (fun v -> pp_to_string v) vs in
                 debug
@@ -884,6 +885,21 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                   (Printf.sprintf "%d" e.at.left.line
                   ^ ":val: " ^ pp_to_string v);
                 Result.ok (Continuation [ { c with sym_code = (vs, es') } ])
+            | IsSymbolic, Val (Num (I32 n)) :: ptr :: vs' -> (
+                let load_res = SM.load_value c.encoder varmap mem ptr 0l `I32Type in
+                match load_res with
+                | Ok mem_res -> 
+                    (match mem_res with
+                    | (_, v, _) :: l -> 
+                          let res : Encoding.Num.t = 
+                            I32 (match v with Val _ | SymPtr (_, Val _) -> 0l | _ -> 1l) in
+                          let es' = List.tl es in
+                          Result.ok (Continuation [ { c with sym_code = (Val (Num res) :: vs', es')} ])
+                    | _ -> failwith "unreachable")
+                | Error b ->
+                    let bug_type = Common.Bug.string_of_bug b in
+                    Result.error (bug_type, e.at))
+
             | _ ->
                 print_endline
                   (string_of_region e.at ^ ":Not implemented " ^ instr_str e');
