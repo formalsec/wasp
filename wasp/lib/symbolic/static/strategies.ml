@@ -197,7 +197,7 @@ end
 module ProgressBFS (I : Interpreter) = struct
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
       (string * Interpreter.Source.region) option =
-    let max_configs = ref 2 in
+    let max_configs = ref 8 in
     let hot = Queue.create () in
     Queue.push c hot;
     let cold = Queue.create () in
