@@ -92,7 +92,7 @@ module OpList : Block.M = struct
   let rec load_n (check_sat_helper : Expression.t -> bool) (ops : op list) (idx : Expression.t) (sz : int) :
     Expression.t list =
     match ops with
-    | [] -> [ Val (Num (I32 0l)) ]
+    | [] -> [ Extract (Val (Num (I32 0l)), sz, 0) ]
     | (offset, v) :: op_list' ->
         let expr = Expression.Relop (I32 I32.Eq, idx, offset) in
         (* Printf.printf "\n%s\n" (Expression.to_string expr); *)
@@ -108,14 +108,14 @@ module OpList : Block.M = struct
     let aux = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
     let aux = Expression.simplify aux in
     let v = match Hashtbl.find_opt h.cache (addr, aux) with
-    | Some (sz', v) -> if sz' == sz then Some v else None
+    | Some (sz', v) -> if sz' == sz then Some v else Some (Extract (v, sz, 0))
     | None -> None 
     in
     match v with
     (* In cache *)
     | Some v -> (*Printf.printf "\nCache!\n";*) [ h, v, [] ]
     (* Not in cache *)
-    | None ->
+    | None -> (*Printf.printf "\nNOT CACHE!\n";*)
       let arr' = Hashtbl.find h.mem addr in
       let _, ops = arr' in
       let idx' = Expression.Binop (I32 I32.Add, aux, Val (Num (I32 (Int32.of_int (sz-1))))) in
