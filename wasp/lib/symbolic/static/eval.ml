@@ -175,7 +175,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
       sym_mem = SM.from_heap sym_m;
       (* models default recursion limit in a system *)
       sym_budget = 100000;
-      loop_budget = 2000000;
+      loop_budget = 10000;
       varmap = Varmap.create ();
       sym_globals = globs;
       encoder = E.create ();
