@@ -113,6 +113,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
     sym_code : sym_code;
     sym_mem : SM.t;
     sym_budget : int; (* to model stack overflow *)
+    loop_budget : int;
     varmap : Varmap.t;
     sym_globals : expr Globals.t;
     encoder : E.t;
@@ -145,11 +146,12 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
     let sym_code = (vs, List.map clone_admin_instr es) in
     let sm, sym_mem = SM.clone c.sym_mem in
     let sym_budget = c.sym_budget in
+    let loop_budget = c.loop_budget in
     let varmap = Varmap.copy c.varmap in
     let sym_globals = Globals.copy c.sym_globals in
     let encoder = E.clone c.encoder in
     ( { c with sym_mem = sm },
-      { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
+      { sym_frame; sym_code; sym_mem; sym_budget; loop_budget; varmap; sym_globals; encoder }
     )
 
   let clone_no_mem (c : sym_config) : sym_config =
@@ -158,10 +160,11 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
     let sym_code = (vs, List.map clone_admin_instr es) in
     let sym_mem = c.sym_mem in
     let sym_budget = c.sym_budget in
+    let loop_budget = c.loop_budget in
     let varmap = Varmap.copy c.varmap in
     let sym_globals = Globals.copy c.sym_globals in
     let encoder = E.clone c.encoder in
-    { sym_frame; sym_code; sym_mem; sym_budget; varmap; sym_globals; encoder }
+    { sym_frame; sym_code; sym_mem; sym_budget; loop_budget; varmap; sym_globals; encoder }
 
   let sym_config (inst : module_inst) (vs : expr stack)
       (es : sym_admin_instr stack) (sym_m : Concolic.Heap.t)
@@ -172,6 +175,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
       sym_mem = SM.from_heap sym_m;
       (* models default recursion limit in a system *)
       sym_budget = 100000;
+      loop_budget = 2000000;
       varmap = Varmap.create ();
       sym_globals = globs;
       encoder = E.create ();
@@ -363,12 +367,15 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                   (Continuation
                      [ { c with sym_code = (vs, es0 :: List.tl es) } ])
             | Loop (ts, es'), vs ->
-                let es0 =
-                  SLabel (0, [ e' @@ e.at ], ([], List.map plain es')) @@ e.at
-                in
-                Result.ok
-                  (Continuation
-                     [ { c with sym_code = (vs, es0 :: List.tl es) } ])
+                if c.loop_budget = 0 then Result.ok (Continuation [])
+                else (
+                  let aux = c.loop_budget - 1 in
+                  let es0 =
+                    SLabel (0, [ e' @@ e.at ], ([], List.map plain es')) @@ e.at
+                  in
+                  Result.ok
+                    (Continuation
+                      [ { c with sym_code = (vs, es0 :: List.tl es); loop_budget = aux } ]))
             | If (ts, es1, es2), ex :: vs' -> (
                 let es' = List.tl es in
                 match simplify ex with
@@ -471,6 +478,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
                     let es' = List.tl es in
+                    (* Printf.printf "\n\n%s\n\n%d\n\n" (to_string ex) (e.at.left.line); *)
                     let sat_then, sat_else = E.fork encoder co in
 
                     let l =
@@ -991,6 +999,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                    sym_code = code';
                    sym_mem = c.sym_mem;
                    sym_budget = c.sym_budget - 1;
+                   loop_budget = c.loop_budget;
                    varmap = c.varmap;
                    sym_globals = c.sym_globals;
                    encoder = c.encoder;
