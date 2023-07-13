@@ -177,7 +177,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
           | Extract (_, h, l) -> se', h - l
           | Val (Num (I32 x)) -> 
               let sz' = Types.size (Expression.type_of se') in
-              Extract (Cvtop (I64 I64.ExtendSI32, se'), sz', 0), sz'
+              Extract (Val (Num (I64 (Int64.of_int32 x))), sz', 0), sz'
           | _ -> 
               let sz' = Types.size (Expression.type_of se') in
               Extract (se', sz', 0), sz')
