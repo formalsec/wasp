@@ -65,15 +65,8 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let reinterpret_value (v : expr option) (ty : num_type) : expr =
     match v with
     | Some v ->
-        let expr = 
-          (match v with
-          | Extract (e, h, l) -> (
-            (* simplify concats *)
-            let expr' = Expression.simplify v in
-            (* remove extract *)
-            Expression.simplify ~extract:true expr')
-          | _ -> v)
-        in
+        let expr = Expression.simplify v in
+        let expr = Expression.simplify ~extract:true expr in
         (* Printf.printf "\nbefore reint: %s\n\n" (Expression.to_string expr); *)
         (match ty with
         | `I32Type -> (
@@ -175,6 +168,34 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     ignore base_ptr;
     failwith "not implemented"
 
+
+  let loadv (mem : t) (ea : address) : (Expression.t * int) =
+    let se = Hashtbl.find_opt mem.fixed ea in
+    match se with
+    | Some se' ->
+        (match se' with
+          | Extract (_, h, l) -> se', h - l
+          | Val (Num (I32 x)) -> 
+              let sz' = Types.size (Expression.type_of se') in
+              Extract (Cvtop (I64 I64.ExtendSI32, se'), sz', 0), sz'
+          | _ -> 
+              let sz' = Types.size (Expression.type_of se') in
+              Extract (se', sz', 0), sz')
+    | None -> Extract (Val (Num (I32 (0l))), 1, 0), 1
+
+
+  let loadn (mem : t) (ea : address) (sz : int) : Expression.t =
+    let rec loop a n acc =
+      if n = 0 then acc
+      else 
+        let se, sz' = loadv mem a in
+        loop (Int64.add a (Int64.of_int sz')) (n - sz') (Concat (se, acc))
+    in
+    let se, sz' = loadv mem ea in
+    (* Printf.printf "\n\n%d %d\n\n" (sz) (sz'); *)
+    loop (Int64.add ea (Int64.of_int sz')) (sz - sz') se
+
+
   let load_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
@@ -201,20 +222,12 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       let ea = effective_address a o in
       (* Printf.printf "LOAD: idx: %s + %s " (Int64.to_string a) (Int32.to_string o); *)
       (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" (Int64.to_string x) (Expression.to_string y)) mem.fixed; *)
-      let v = Hashtbl.find_opt mem.fixed ea in
+      
       let sz = Types.size_of_num_type ty in
-      let v = 
-        match v with 
-        | Some v' -> 
-            let sz' = Types.size (Expression.type_of v') in
-            if sz <= sz' then v
-            else
-              let ea' = Int64.add ea (Int64.of_int sz) in
-              (match Hashtbl.find_opt mem.fixed ea' with
-              | Some v2 -> Some (Expression.Concat (v', v2))
-              | None    -> Some (Expression.Concat (v', Val (Num (I32 (0l))))))           
-        | None -> v
-      in
+
+      let v = Some (loadn mem ea sz) in
+
+      (* let v = Some( Expression.simplify ~extract:true v) in *)
 
       let v = reinterpret_value v ty in
       (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
@@ -251,20 +264,8 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       let sz = length_pack_size sz in
       (* Printf.printf "LOAD PACK %d: idx: %s + %s " (sz) (Int64.to_string a) (Int32.to_string o); *)
       (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" (Int64.to_string x) (Expression.to_string y)) mem.fixed; *)
-      
-      let v = Hashtbl.find_opt mem.fixed ea in
-      let v = 
-        match v with 
-        | Some v' -> 
-            let sz' = Types.size (Expression.type_of v') in
-            if sz <= sz' then v
-            else
-              let ea' = Int64.add ea (Int64.of_int sz) in
-              (match Hashtbl.find_opt mem.fixed ea' with
-              | Some v2 -> Some (Expression.Concat (v', v2))
-              | None    -> Some (Expression.Concat (v', Val (Num (I32 (0l))))))           
-        | None -> v
-      in
+      let v = Expression.simplify (loadn mem ea sz) in
+      let v = Some( Expression.simplify ~extract:true v) in
       let v = reinterpret_value v ty in
       (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
       let ptr_cond = [] in
