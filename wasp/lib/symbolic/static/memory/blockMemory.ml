@@ -182,7 +182,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
           | _ -> 
               let sz' = Types.size (Expression.type_of se') in
               Extract (se', sz', 0), sz')
-    | None -> Extract (Val (Num (I32 (0l))), 1, 0), 1
+    | None -> Extract (Val (Num (I64 (0L))), 1, 0), 1
 
 
   let loadn (mem : t) (ea : address) (sz : int) : Expression.t =
