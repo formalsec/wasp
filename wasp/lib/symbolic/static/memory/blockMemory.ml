@@ -177,6 +177,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
           | Extract (_, h, l) -> se', h - l
           | Val (Num (I32 x)) -> 
               let sz' = Types.size (Expression.type_of se') in
+              (* Extract (Cvtop (I64 I64.ExtendSI32, se'), sz', 0), sz' *)
               Extract (Val (Num (I64 (Int64.of_int32 x))), sz', 0), sz'
           | _ -> 
               let sz' = Types.size (Expression.type_of se') in
@@ -186,12 +187,15 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
 
   let loadn (mem : t) (ea : address) (sz : int) : Expression.t =
     let rec loop a n acc =
-      if n = 0 then acc
+      (* if n < 0 then Printf.printf "AAAAAAA\n"; flush_all (); *)
+      if n <= 0 then acc
       else 
         let se, sz' = loadv mem a in
         loop (Int64.add a (Int64.of_int sz')) (n - sz') (Concat (se, acc))
     in
+
     let se, sz' = loadv mem ea in
+    (* Printf.printf "\n%d\n%d" (sz) (sz'); flush_all (); *)
     (* Printf.printf "\n\n%d %d\n\n" (sz) (sz'); *)
     loop (Int64.add ea (Int64.of_int sz')) (sz - sz') se
 
