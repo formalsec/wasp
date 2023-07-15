@@ -186,6 +186,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         | Val (Num (I64 x)) -> expr
         | Val (Num (F32 x)) -> Extract (Val (Num (I64 (Int64.of_int32 x))), h, l)
         | Val (Num (F64 x)) -> Extract (Val (Num (I64 x)), h, l)
+        | Relop _ -> expr
         | _ -> 
             (* Printf.printf "\n%s\n" (Expression.to_string v); *)
             match Expression.type_of v with
@@ -341,7 +342,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     let sz = length_pack_size sz in
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
-      if MB.check_bound mem.blocks ptr_b then 
+      if MB.check_bound mem.blocks ptr_b then (
         (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
@@ -351,7 +352,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* CLEAN UNSAT CONDS *)
           Result.ok (res'))
-        else Result.error (Overflow)
+        else Result.error (Overflow))
       else Result.error (UAF)
     | _ -> (* Store to fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
