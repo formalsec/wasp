@@ -197,7 +197,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
 
   let loadn (mem : t) (ea : address) (n : int) : Expression.t =
     let rec loop a i n acc =
-      if n <= i then acc
+      if n <= i && i >= 4 then acc
       else
         let se = cvt_to_i64 (loadv mem a) n in
         loop (Int64.add a 1L) (i+1) n (Concat (se, acc))
@@ -338,10 +338,10 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let store_packed (encoder : E.t) (varmap : Varmap.t) (sz : pack_size) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
     ((t * Expression.t list) list, bug) result =
+    let sz = length_pack_size sz in
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
-      if MB.check_bound mem.blocks ptr_b then
-        let sz = length_pack_size sz in
+      if MB.check_bound mem.blocks ptr_b then 
         (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
@@ -357,7 +357,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
       (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
-      Hashtbl.replace mem.fixed ea value;
+      storen mem ea sz value;
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ] in
       Result.ok (res)
