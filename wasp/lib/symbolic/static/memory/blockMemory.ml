@@ -62,50 +62,52 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
 
   (* helper functions *)
 
-  let reinterpret_value (v : expr option) (ty : num_type) : expr =
-    match v with
-    | Some v ->
-        let expr = Expression.simplify v in
-        let expr = Expression.simplify ~extract:true expr in
-        (* Printf.printf "\nbefore reint: %s\n\n" (Expression.to_string expr); *)
-        (match ty with
-        | `I32Type -> (
-            match expr with
-            | Val (Num (I64 n)) -> Val (Num (I32 (Int64.to_int32 n)))
-            | Relop _ -> expr 
-            | _ ->
-                match Expression.type_of expr with
-                | `F32Type -> Cvtop (I32 I32.ReinterpretFloat, expr)
-                | `F64Type -> Extract (Cvtop (I64 I64.ReinterpretFloat, expr), 4, 0)
-                | _ -> expr)
-        | `I64Type -> (
-            match expr with 
-            | Relop _ -> expr
-            | _ ->
-                match Expression.type_of expr with
-                | `F32Type | `F64Type -> Cvtop (I64 I64.ReinterpretFloat, expr)
-                | _ -> expr)
-        | `F32Type -> (
-            match expr with
-            | Val (Num (I64 v)) -> Val (Num (F32 (Int64.to_int32 v)))
-            | Val (Num (I32 v)) -> Val (Num (F32 v))
-            | Cvtop (I32 I32.ReinterpretFloat, v) -> v
-            | _ -> 
-                match Expression.type_of expr with
-                | `I32Type -> Cvtop (F32 F32.ReinterpretInt, expr)
-                | `I64Type -> Cvtop (F32 F32.ReinterpretInt, (Cvtop (I32 I32.WrapI64, expr)))
-                | _ -> expr)
-        | `F64Type -> (
-            match expr with
-            | Val (Num (I64 v)) -> Val (Num (F64 v))
-            | Val (Num (I32 v)) -> Val (Num (F64 (Int64.of_int32 v)))
-            | Cvtop (I64 I64.ReinterpretFloat, v) -> v
-            | _ ->  
-                match Expression.type_of expr with
-                | `I32Type -> Cvtop (F64 F64.ReinterpretInt, (Cvtop (I64 I64.ExtendSI32, expr)))
-                | `I64Type -> Cvtop (F64 F64.ReinterpretInt, expr)
-                | _ -> expr))
-    | None -> Val (Num (I32 0l))
+  let reinterpret_value (v : expr) (ty : num_type) : expr =
+    (* Printf.printf "\nbefore reint: %s\n\n" (Expression.to_string v); *)
+
+    let expr = Expression.simplify v in
+    (* Printf.printf "\nbefore reint: %s\n\n" (Expression.to_string expr); *)
+
+    let expr = Expression.simplify ~extract:true expr in
+    (* Printf.printf "\nbefore reint: %s\n\n" (Expression.to_string expr); *)
+    (match ty with
+    | `I32Type -> (
+        match expr with
+        | Val (Num (I64 n)) -> Val (Num (I32 (Int64.to_int32 n)))
+        | Relop _ -> expr 
+        | _ ->
+            match Expression.type_of expr with
+            | `F32Type -> Cvtop (I32 I32.ReinterpretFloat, expr)
+            | `F64Type -> Extract (Cvtop (I64 I64.ReinterpretFloat, expr), 4, 0)
+            | _ -> expr)
+    | `I64Type -> (
+        match expr with 
+        | Relop _ -> expr
+        | _ ->
+            match Expression.type_of expr with
+            | `F32Type | `F64Type -> Cvtop (I64 I64.ReinterpretFloat, expr)
+            | _ -> expr)
+    | `F32Type -> (
+        match expr with
+        | Val (Num (I64 v)) -> Val (Num (F32 (Int64.to_int32 v)))
+        | Val (Num (I32 v)) -> Val (Num (F32 v))
+        | Cvtop (I32 I32.ReinterpretFloat, v) -> v
+        | _ -> 
+            match Expression.type_of expr with
+            | `I32Type -> Cvtop (F32 F32.ReinterpretInt, expr)
+            | `I64Type -> Cvtop (F32 F32.ReinterpretInt, (Cvtop (I32 I32.WrapI64, expr)))
+            | _ -> expr)
+    | `F64Type -> (
+        match expr with
+        | Val (Num (I64 v)) -> Val (Num (F64 v))
+        | Val (Num (I32 v)) -> Val (Num (F64 (Int64.of_int32 v)))
+        | Cvtop (I64 I64.ReinterpretFloat, v) -> v
+        | _ ->  
+            match Expression.type_of expr with
+            | `I32Type -> Cvtop (F64 F64.ReinterpretInt, (Cvtop (I64 I64.ExtendSI32, expr)))
+            | `I64Type -> Cvtop (F64 F64.ReinterpretInt, expr)
+            | _ -> expr))
+
 
   let effective_address (a : address) (o : offset) : address =
     let ea = Int64.(add a (of_int32 o)) in
@@ -169,35 +171,49 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     failwith "not implemented"
 
 
-  let loadv (mem : t) (ea : address) : (Expression.t * int) =
+  let loadv (mem : t) (ea : address) : Expression.t =
     let se = Hashtbl.find_opt mem.fixed ea in
     match se with
-    | Some se' ->
-        (match se' with
-          | Extract (_, h, l) -> se', h - l
-          | Val (Num (I32 x)) -> 
-              let sz' = Types.size (Expression.type_of se') in
-              (* Extract (Cvtop (I64 I64.ExtendSI32, se'), sz', 0), sz' *)
-              Extract (Val (Num (I64 (Int64.of_int32 x))), sz', 0), sz'
-          | _ -> 
-              let sz' = Types.size (Expression.type_of se') in
-              Extract (se', sz', 0), sz')
-    | None -> Extract (Val (Num (I64 (0L))), 1, 0), 1
+    | Some se' -> se'
+    | None -> Extract (Val (Num (I64 (0L))), 1, 0)
 
 
-  let loadn (mem : t) (ea : address) (sz : int) : Expression.t =
-    let rec loop a n acc =
-      (* if n < 0 then Printf.printf "AAAAAAA\n"; flush_all (); *)
-      if n <= 0 then acc
-      else 
-        let se, sz' = loadv mem a in
-        loop (Int64.add a (Int64.of_int sz')) (n - sz') (Concat (se, acc))
+  let cvt_to_i64 (expr : Expression.t) (sz : int): Expression.t =
+    match expr with
+    | Extract (v, h, l) -> (
+        match v with
+        | Val (Num (I32 x)) -> Extract (Val (Num (I64 (Int64.of_int32 x))), h, l)
+        | Val (Num (I64 x)) -> expr
+        | Val (Num (F32 x)) -> Extract (Val (Num (I64 (Int64.of_int32 x))), h, l)
+        | Val (Num (F64 x)) -> Extract (Val (Num (I64 x)), h, l)
+        | _ -> 
+            (* Printf.printf "\n%s\n" (Expression.to_string v); *)
+            match Expression.type_of v with
+            | `F64Type -> if sz < 8 then Extract (Cvtop (I64 I64.ReinterpretFloat, v), h, l) else expr
+            | _ -> expr)
+    | _ -> failwith "unreachable"
+
+
+
+  let loadn (mem : t) (ea : address) (n : int) : Expression.t =
+    let rec loop a i n acc =
+      if n <= i then acc
+      else
+        let se = cvt_to_i64 (loadv mem a) n in
+        loop (Int64.add a 1L) (i+1) n (Concat (se, acc))
     in
+    let se = cvt_to_i64 (loadv mem ea) n in
+    loop (Int64.add ea 1L) 1 n se
 
-    let se, sz' = loadv mem ea in
-    (* Printf.printf "\n%d\n%d" (sz) (sz'); flush_all (); *)
-    (* Printf.printf "\n\n%d %d\n\n" (sz) (sz'); *)
-    loop (Int64.add ea (Int64.of_int sz')) (sz - sz') se
+
+
+  let storen (mem : t) (ea : address) (n : int) (value : Expression.t) : unit =
+    let rec loop mem a i n x =
+      if n > i then (
+        Hashtbl.replace mem.fixed a (Expression.Extract (x, i + 1, i));
+        loop mem (Int64.add a 1L) (i + 1) n x)
+    in
+    loop mem ea 0 n value
 
 
   let load_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
@@ -229,7 +245,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       
       let sz = Types.size_of_num_type ty in
 
-      let v = Some (loadn mem ea sz) in
+      let v = loadn mem ea sz in
 
       (* let v = Some( Expression.simplify ~extract:true v) in *)
 
@@ -268,8 +284,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       let sz = length_pack_size sz in
       (* Printf.printf "LOAD PACK %d: idx: %s + %s " (sz) (Int64.to_string a) (Int32.to_string o); *)
       (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" (Int64.to_string x) (Expression.to_string y)) mem.fixed; *)
-      let v = Expression.simplify (loadn mem ea sz) in
-      let v = Some( Expression.simplify ~extract:true v) in
+      let v = loadn mem ea sz in
       let v = reinterpret_value v ty in
       (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
       let ptr_cond = [] in
@@ -294,11 +309,11 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let store_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
     ((t * Expression.t list) list, bug) result = 
+    let ty = Expression.type_of value in
+    let sz = Types.size ty in
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
-      if MB.check_bound mem.blocks ptr_b then
-        let ty = Expression.type_of value in
-        let sz = Types.size ty in
+      if MB.check_bound mem.blocks ptr_b then (
         (* Printf.printf "STORE: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
@@ -308,13 +323,13 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res'))
-        else Result.error (Overflow)
+        else Result.error (Overflow))
       else Result.error (UAF)
     | _ -> (* Store to fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
       (* Printf.printf "STORE: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
-      Hashtbl.replace mem.fixed ea value;
+      storen mem ea sz value;
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ] in
       Result.ok (res)
