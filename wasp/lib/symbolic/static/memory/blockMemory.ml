@@ -115,28 +115,21 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     ea
 
   
-  let expr_to_value (ex : expr) (encoder : E.t) (v : Varmap.t) : Encoding.Num.t =
-    let store_r = ref None in
-    let store =
-      match !store_r with
-      | Some store -> store
-      | None ->
-          assert (E.check encoder None);
-          let binds =
-            E.value_binds encoder ~symbols:(Varmap.binds v)
-          in
-          let store = Concolic.Store.create binds in
-          store_r := Some store;
-          store
+  let expr_to_value (ex : expr) (encoder : E.t) (v : Varmap.t) (c : expr option) : Encoding.Num.t =
+    assert (E.check encoder c);
+    let binds =
+      E.value_binds encoder ~symbols:(Varmap.binds v)
+    in
+    let store = Concolic.Store.create binds
     in
     Concolic.Store.eval store ex
-
+  
   let concr_ptr (sym_ptr : Expression.t ) (encoder : E.t) (v : Varmap.t) = 
     let sym_ptr = simplify sym_ptr in
     let ptr =
       match concretize_ptr sym_ptr with
       | Some ptr -> ptr
-      | None -> expr_to_value sym_ptr encoder v
+      | None -> expr_to_value sym_ptr encoder v None
     in
     let open Interpreter in
     (I64_convert.extend_i32_u
@@ -188,7 +181,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         | Val (Num (F64 x)) -> Extract (Val (Num (I64 x)), h, l)
         | Relop _ -> expr
         | _ -> 
-            (* Printf.printf "\n%s\n" (Expression.to_string v); *)
+            (* Printf.printf "\n%s\n" (Expression.to_string expr); *)
             match Expression.type_of v with
             | `F64Type -> if sz < 8 then Extract (Cvtop (I64 I64.ReinterpretFloat, v), h, l) else expr
             | _ -> expr)
@@ -211,7 +204,12 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let storen (mem : t) (ea : address) (n : int) (value : Expression.t) : unit =
     let rec loop mem a i n x =
       if n > i then (
-        Hashtbl.replace mem.fixed a (Expression.Extract (x, i + 1, i));
+        let expr = 
+          match x with
+          | Expression.Extract _ -> x
+          | _ -> Expression.Extract (x, i + 1, i)
+        in
+        Hashtbl.replace mem.fixed a expr;
         loop mem (Int64.add a 1L) (i + 1) n x)
     in
     loop mem ea 0 n value
@@ -230,9 +228,12 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
           let check_sat_helper (expr : Expression.t) : bool =
             check_sat encoder expr
           in
-          let res = MB.load check_sat_helper mem.blocks ptr_b ptr_o o sz ty false in
+          let expr_to_value_helper (ex : Expression.t) (c : expr) : Encoding.Num.t =
+            expr_to_value ex encoder varmap (Some c)
+          in
+          let res = MB.load expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o sz ty false in
           let res' = List.map (fun (mb, v, c) -> 
-            (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
+            (* Printf.printf "v: %s %s\n"  (Expression.to_string v) (Types.string_of_type (Expression.type_of v)); *)
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res')
@@ -251,7 +252,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       (* let v = Some( Expression.simplify ~extract:true v) in *)
 
       let v = reinterpret_value v ty in
-      (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
+      (* Printf.printf "v: %s %s\n"  (Expression.to_string v) (Types.string_of_type (Expression.type_of v)); *)
       let ptr_cond = [] in
       let res = [ (mem, v, ptr_cond) ] in
       Result.ok (res)
@@ -270,7 +271,10 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             let check_sat_helper (expr : Expression.t) : bool =
               check_sat encoder expr
             in
-            let res = MB.load check_sat_helper mem.blocks ptr_b ptr_o o sz ty true in
+            let expr_to_value_helper (ex : Expression.t) (c : expr) : Encoding.Num.t =
+              expr_to_value ex encoder varmap (Some c)
+            in
+            let res = MB.load expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o sz ty true in
             let res' = List.map (fun (mb, v, c) -> 
               (* Printf.printf "v: %s\n"  (Expression.to_string (Expression.simplify v)); *)
               (let fixed' = Hashtbl.copy mem.fixed in
@@ -319,7 +323,10 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
-          (let res = MB.store mem.blocks ptr_b ptr_o o value sz in
+          let expr_to_value_helper (ex : Expression.t) (c : expr) : Encoding.Num.t =
+            expr_to_value ex encoder varmap (Some c)
+          in
+          (let res = MB.store expr_to_value_helper mem.blocks ptr_b ptr_o o value sz in
           let res' = List.map (fun (mb, c) -> 
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
@@ -347,7 +354,10 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
-          (let res = MB.store mem.blocks ptr_b ptr_o o value sz in
+          let expr_to_value_helper (ex : Expression.t) (c : expr) : Encoding.Num.t =
+            expr_to_value ex encoder varmap (Some c)
+          in
+          (let res = MB.store expr_to_value_helper mem.blocks ptr_b ptr_o o value sz in
           let res' = List.map (fun (mb, c) -> 
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* CLEAN UNSAT CONDS *)
@@ -373,25 +383,28 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let alloc (encoder : E.t) (varmap : Varmap.t)
     (m : t) (sym_b : Expression.t) (sym_s : Expression.t) : 
     (t * int32 * Expression.t list) list =
+    let binds =
+      E.value_binds encoder ~symbols:(Varmap.binds varmap)
+    in
     let base = 
       (match (sym_b) with
       |  Val (Num (I32 base)) -> base
       | _ ->  
-        let binds =
-          E.value_binds encoder ~symbols:(Varmap.binds varmap)
-        in
+
         let logic_env = Concolic.Store.create binds in
         let b = Concolic.Store.eval logic_env sym_b in
         match b with | I32 b' -> b' | _ -> failwith "alloc with non I32 base")
-      in
-
-      let res = MB.alloc m.blocks base sym_s in
-      if List.length res = 1 then
-        [ (m, base, [])]
-      else
-      List.map (fun (mb, a, c) -> 
-        (let fixed' = Hashtbl.copy m.fixed in
-        ( {blocks = mb; fixed = fixed'}, a, c))) res
+    in
+    let check_sat_helper (expr : Expression.t option) : bool =
+      E.check encoder (expr)
+    in
+    let res = MB.alloc check_sat_helper m.blocks base sym_s binds in
+    if List.length res = 1 then
+      [ (m, base, [])]
+    else
+    List.map (fun (mb, a, c) -> 
+      (let fixed' = Hashtbl.copy m.fixed in
+      ( {blocks = mb; fixed = fixed'}, a, c))) res
 
 
   let check_bound (m : t) (b : int32) : bool = MB.check_bound m.blocks b

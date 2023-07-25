@@ -6,7 +6,7 @@ open Operators
 
 module ArrayFork : Block.M = struct
   type address = int32
-
+  type expr = Expression.t
   type  bt = Expression.t array
   type   t = (address, bt) Hashtbl.t
 
@@ -45,10 +45,20 @@ module ArrayFork : Block.M = struct
     loop h addr 0 n v
   
 
-  let store (h : t) (addr : address) (idx : Expression.t) 
-            (o : int32) (v : Expression.t)  (sz : int) : 
-            (t * Expression.t list) list =
+  let filter_indexes (block : Expression.t list) (o : int) : Expression.t list =
+    let rec loop o i l : Expression.t list =
+      if i >= o then l
+      else 
+        loop o (i+1) (List.tl l)
+    in
+    loop o 0 block
+
+
+  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
+    (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
+    (t * Expression.t list) list =
     let block = Hashtbl.find h addr in
+    let idx = Expression.simplify idx in
     match idx with
     (* Store in concrete index *)
     | Val (Num (I32 idx')) -> 
@@ -56,11 +66,13 @@ module ArrayFork : Block.M = struct
       [ ( h, [] ) ]
     (* Store in symbolic index *)
     | _ ->
-      let blockList = Array.to_list block in
+      let o' = (Int32.to_int o) in
+      (* indexes are filtered to account for offset added to idx *)
+      let blockList = filter_indexes (Array.to_list block) o' in
       let temp = List.mapi (fun idx' _ ->
         let newHeap = Hashtbl.copy h in
-        let _ = store_n newHeap addr (Int32.to_int o) idx' sz v in
-        let cond = Expression.Relop (I32 I32.Eq, idx, (Val (Num (I32 (Int32.of_int idx'))))) in
+        let _ = store_n newHeap addr o' idx' sz v in
+        let cond = Expression.Relop (I32 I32.Eq, idx, (Val (Num (I32 (Int32.of_int (idx')))))) in
         (newHeap, [cond] )
       ) blockList in
       temp
@@ -86,21 +98,33 @@ module ArrayFork : Block.M = struct
     loop a n []
     
     
-  let load (check_sat_helper : Expression.t -> bool) (h : t) (addr : address) 
-    (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) (is_packed : bool) : 
+  let load (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool) 
+    (h : t) (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) 
+    (is_packed : bool) : 
     (t * Expression.t * Expression.t list) list =
     ignore check_sat_helper;
+    let idx = Expression.simplify idx in
     let idx', conds = 
       match idx with
       (* Load in concrete index *)
       | Val (Num (I32 idx')) -> idx', []
-      (* Load in symbolic index, randomly concretizes *)
+      (* Load in symbolic index, concretizes *)
       | _ ->
         let block = Hashtbl.find h addr in
         let block_sz = Array.length block in
-        let idx' = Int32.of_int (Random.int block_sz) in
-        let cond = 
-          Relop (I32 I32.Eq, idx, Val (Num (I32 (idx')))) in
+        let o' = Val (Num (I32 o)) in
+        let index = Expression.Binop (I32 I32.Add, idx, o') in
+        let c = 
+          Relop (I32 I32.LtS, index, Val (Num (I32 (Int32.of_int block_sz)))) in
+        (* Get from path condition, if not there concretize and add to it *)
+        let idx' = 
+          match (expr_to_value idx c) with
+          | I32 n -> n
+          | I64 n -> Int64.to_int32 n
+          | _     -> assert false
+        in
+        let cond =
+          Relop (I32 I32.Eq, idx, Val (Num (I32 idx'))) in
         ( idx', [ cond ] )
     in
     let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
@@ -123,7 +147,9 @@ module ArrayFork : Block.M = struct
     failwith "not implemented"
 
 
-  let alloc (h : t) (b : address) (sz : Expression.t) : (t * int32 * Expression.t list) list =
+  let alloc (check_sat_helper : Expression.t option -> bool) (h : t) 
+            (b : address) (sz : Expression.t) (binds : (Symbol.t * Value.t) list) : 
+            (t * int32 * Expression.t list) list =
     match sz with
     (* concrete alloc *)
     |  Val (Num (I32 sz)) -> 
@@ -131,7 +157,37 @@ module ArrayFork : Block.M = struct
       [ (h, b, []) ]
     (* sym alloc *)
     | _ ->  
-      [ (h, b, []) ] (* SYM ALLOCS *)
+      let helper (c_size : int32 option) : 
+      (t * int32 * Expression.t list) option =
+      let size_cond =
+        Option.map
+          (function c_size -> Relop (I32 I32.Eq, sz, Val (Num (I32 c_size))))
+          c_size
+      in
+      match check_sat_helper size_cond with
+      | false -> None
+      | true ->
+          let logic_env = Concolic.Store.create binds in
+          let c_size = Concolic.Store.eval logic_env sz in
+          let _, mc = clone h in
+          let size = 
+            match c_size with
+            | I32 size -> size
+            | _ -> failwith "Alloc non I32 size"
+          in
+          Hashtbl.replace mc b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
+          (match size_cond with
+            | Some size_cond -> Some (mc, b, [ size_cond ])
+            | None -> Some (mc, b, []))
+
+      in
+      let fixed_attempts =
+        List.filter_map helper
+          (List.map Option.some
+              (List.map Int32.of_int !Interpreter.Flags.fixed_numbers))
+      in
+      if List.length fixed_attempts > 0 then fixed_attempts
+      else [ Option.get (helper None) ]
 
 
 

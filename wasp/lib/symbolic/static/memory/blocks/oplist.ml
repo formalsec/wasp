@@ -6,7 +6,7 @@ open Operators
 
 module OpList : Block.M = struct
   type address = int32
-
+  type expr = Expression.t
 
   type cache = (address * Expression.t, int * Expression.t) Hashtbl.t (* address * offset, size * value *)
   type op = Expression.t * Expression.t (* offset * value *)
@@ -53,7 +53,7 @@ module OpList : Block.M = struct
       if n > i then (
         let x' = 
           match x with 
-          | Extract (_, _, _) -> x 
+          | Extract _ -> x 
           | _ -> Expression.Extract (x, i + 1, i) 
         in
         let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 (Int32.of_int i)))) in
@@ -63,14 +63,16 @@ module OpList : Block.M = struct
     loop h addr 0 n v
 
 
-  let store (h : t) (addr : address) (idx : Expression.t) 
-            (o : int32) (v : Expression.t)  (sz : int) :
+  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
+            (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
             (t * Expression.t list) list =
     let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
     let idx' = Expression.simplify idx' in
     (match idx' with
     (* Store in concrete index *)
-    | Val (Num (I32 n)) -> Hashtbl.replace h.cache (addr, idx') (sz, v)
+    | Val (Num (I32 n)) -> 
+      Printf.printf "\n%d %s\n" (sz) (Expression.to_string v);
+      Hashtbl.replace h.cache (addr, idx') (sz, v)
     (* Store in symbolic index *)
     | _ -> Hashtbl.clear h.cache);
     store_n h addr idx' sz v;
@@ -82,7 +84,7 @@ module OpList : Block.M = struct
     let rec loop ops n acc =
       if n == sz then acc
       else
-        match ops with
+        match ops with               (* change to I64 *)
         | [] -> Expression.Extract (Val (Num (I32 0l)), 1, 0) :: acc
         | (offset, v) :: op_list' -> loop op_list' (n + 1) (v :: acc)
     in
@@ -101,21 +103,28 @@ module OpList : Block.M = struct
         else load_n check_sat_helper op_list' idx sz
 
 
-  let load (check_sat_helper : Expression.t -> bool) (h : t) 
-    (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) (is_packed : bool): 
+  let load (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool) 
+    (h : t) (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) 
+    (is_packed : bool) : 
     (t * Expression.t * Expression.t list) list =
     (* Printf.printf "\n\n%s\n\n" (to_string h); *)
     let aux = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
     let aux = Expression.simplify aux in
     let v = match Hashtbl.find_opt h.cache (addr, aux) with
-    | Some (sz', v) -> if sz' == sz then Some v else Some (Extract (v, sz, 0))
+    | Some (sz', v) -> 
+      Printf.printf "\n %s \n" (Expression.to_string v);
+      if sz' == sz then Some v 
+      else (
+        if sz' > sz then
+          Some (Extract (v, sz, 0))
+        else None)
     | None -> None 
     in
     match v with
     (* In cache *)
-    | Some v -> (*Printf.printf "\nCache!\n";*) [ h, v, [] ]
+    | Some v -> Printf.printf "\nCache!\n"; [ h, v, [] ]
     (* Not in cache *)
-    | None -> (*Printf.printf "\nNOT CACHE!\n";*)
+    | None -> Printf.printf "\nNOT CACHE!\n";
       let arr' = Hashtbl.find h.mem addr in
       let _, ops = arr' in
       let idx' = Expression.Binop (I32 I32.Add, aux, Val (Num (I32 (Int32.of_int (sz-1))))) in
@@ -141,8 +150,9 @@ module OpList : Block.M = struct
     failwith "not implemented"
 
 
-  let alloc (h : t) (b : address) (sz : Expression.t) : (t * int32 * Expression.t list) list =
-    Hashtbl.replace h.mem b (sz, []);
+  let alloc (check_sat_helper : Expression.t option -> bool) (h : t)  
+    (b : address) (sz : Expression.t) (binds : (Symbol.t * Value.t) list): 
+    (t * int32 * Expression.t list) list =    Hashtbl.replace h.mem b (sz, []);
     [ ( h, b, [] ) ]
 
 

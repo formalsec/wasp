@@ -6,7 +6,7 @@ open Operators
 
 module ArrayConcr : Block.M = struct
   type address = int32
-
+  type expr = Expression.t
   type  bt = Expression.t array
   type   t = (address, bt) Hashtbl.t
 
@@ -44,18 +44,28 @@ module ArrayConcr : Block.M = struct
     loop h addr 0 n v
   
 
-  let store (h : t) (addr : address) (idx : Expression.t) 
-            (o : int32) (v : Expression.t)  (sz : int) : 
-            (t * Expression.t list) list =
+  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
+    (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
+    (t * Expression.t list) list =
     let idx', conds = 
       match idx with
       (* Store in concrete index *)
       | Val (Num (I32 idx')) -> idx', []
       (* Store in symbolic index, randomly concretizes *)
       | _ ->
-        let block = Hashtbl.find h addr in  (* should try getting symbol from store *)
+        let block = Hashtbl.find h addr in
         let block_sz = Array.length block in
-        let idx' = Int32.of_int (Random.int block_sz) in
+        let o' = Val (Num (I32 o)) in
+        let index = Expression.Binop (I32 I32.Add, idx, o') in
+        let c = 
+          Relop (I32 I32.LtS, index, Val (Num (I32 (Int32.of_int block_sz)))) in
+        (* Get from path condition, if not there concretize and add to it *)
+        let idx' = 
+          match (expr_to_value idx c) with
+          | I32 n -> n
+          | I64 n -> Int64.to_int32 n
+          | _     -> assert false
+        in
         let cond = 
           Relop (I32 I32.Eq, idx, Val (Num (I32 (idx')))) in
         ( idx', [ cond ] )
@@ -81,8 +91,9 @@ module ArrayConcr : Block.M = struct
     loop a n []
 
 
-  let load (check_sat_helper : Expression.t -> bool) (h : t) (addr : address) 
-    (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) (is_packed : bool) : 
+  let load (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool) 
+    (h : t) (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) 
+    (is_packed : bool) : 
     (t * Expression.t * Expression.t list) list =
     ignore check_sat_helper;
     let idx', conds = 
@@ -93,14 +104,24 @@ module ArrayConcr : Block.M = struct
       | _ ->
         let block = Hashtbl.find h addr in
         let block_sz = Array.length block in
-        let idx' = Int32.of_int (Random.int block_sz) in
+        let o' = Val (Num (I32 o)) in
+        let index = Expression.Binop (I32 I32.Add, idx, o') in
+        let c = 
+          Relop (I32 I32.LtS, index, Val (Num (I32 (Int32.of_int block_sz)))) in
+        (* Get from path condition, if not there concretize and add to it *)
+        let idx' = 
+          match (expr_to_value idx c) with
+          | I32 n -> n
+          | I64 n -> Int64.to_int32 n
+          | _     -> assert false
+        in
         let cond = 
           Relop (I32 I32.Eq, idx, Val (Num (I32 (idx')))) in
         ( idx', [ cond ] )
     in
     let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
     let v = concat_exprs exprs ty sz is_packed in
-    [ ( h, v, [] ) ]
+    [ ( h, v, conds ) ]
       
 
   let from_heap (h : Concolic.Heap.t) : t =
@@ -118,15 +139,46 @@ module ArrayConcr : Block.M = struct
     failwith "not implemented"
 
 
-  let alloc (h : t) (b : address) (sz : Expression.t) : (t * int32 * Expression.t list) list =
-    match sz with
+  let alloc (check_sat_helper : Expression.t option -> bool) (h : t) 
+    (b : address) (sz : Expression.t) (binds : (Symbol.t * Value.t) list): 
+    (t * int32 * Expression.t list) list =    match sz with
     (* concrete alloc *)
     |  Val (Num (I32 sz)) ->        (* Should init this with None instead *)
-      Hashtbl.replace h b (Array.make (Int32.to_int sz) (Extract (Val (Num (I64 0L)), 1, 0)));
+      Hashtbl.replace h b (Array.make (Int32.to_int sz) (Extract (Val (Num (I32 0l)), 1, 0)));
       [ (h, b, []) ]
     (* sym alloc *)
     | _ ->  
-      [ (h, b, []) ] (* SYM ALLOCS *)
+      let helper (c_size : int32 option) : 
+      (t * int32 * Expression.t list) option =
+      let size_cond =
+        Option.map
+          (function c_size -> Relop (I32 I32.Eq, sz, Val (Num (I32 c_size))))
+          c_size
+      in
+      match check_sat_helper size_cond with
+      | false -> None
+      | true ->
+          let logic_env = Concolic.Store.create binds in
+          let c_size = Concolic.Store.eval logic_env sz in
+          let _, mc = clone h in
+          let size = 
+            match c_size with
+            | I32 size -> size
+            | _ -> failwith "Alloc non I32 size"
+          in
+          Hashtbl.replace mc b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
+          (match size_cond with
+            | Some size_cond -> Some (mc, b, [ size_cond ])
+            | None -> Some (mc, b, []))
+
+      in
+      let fixed_attempts =
+        List.filter_map helper
+          (List.map Option.some
+              (List.map Int32.of_int !Interpreter.Flags.fixed_numbers))
+      in
+      if List.length fixed_attempts > 0 then fixed_attempts
+      else [ Option.get (helper None) ]
 
 
 
@@ -152,5 +204,5 @@ module ArrayConcr : Block.M = struct
   let in_bounds (h : t) (addr : address) (idx : Expression.t) (o : int32) (sz : int) : Expression.t =
     (match Hashtbl.find_opt h addr with
       | Some a -> is_within (Array.length a) idx o sz
-      | _ -> failwith ("InternalError: ArrayFork.in_bounds, accessed array is not in the heap"))
+      | _ -> failwith ("InternalError: ArrayConcr.in_bounds, accessed array is not in the heap"))
 end
