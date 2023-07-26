@@ -54,10 +54,10 @@ module ArrayFork : Block.M = struct
     loop o 0 block
 
 
-  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
-    (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
+  let store (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool)
+    (h : t) (addr : address) (idx : Expression.t) 
+    (o : int32) (v : Expression.t)  (sz : int) :
     (t * Expression.t list) list =
-    let block = Hashtbl.find h addr in
     let idx = Expression.simplify idx in
     match idx with
     (* Store in concrete index *)
@@ -66,6 +66,7 @@ module ArrayFork : Block.M = struct
       [ ( h, [] ) ]
     (* Store in symbolic index *)
     | _ ->
+      let block = Hashtbl.find h addr in
       let o' = (Int32.to_int o) in
       (* indexes are filtered to account for offset added to idx *)
       let blockList = filter_indexes (Array.to_list block) o' in

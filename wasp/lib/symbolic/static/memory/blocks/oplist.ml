@@ -63,9 +63,10 @@ module OpList : Block.M = struct
     loop h addr 0 n v
 
 
-  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
-            (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
-            (t * Expression.t list) list =
+  let store (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool)
+    (h : t) (addr : address) (idx : Expression.t) 
+    (o : int32) (v : Expression.t)  (sz : int) :
+    (t * Expression.t list) list =
     let idx' = Expression.Binop (I32 I32.Add, idx, Val (Num (I32 o))) in
     let idx' = Expression.simplify idx' in
     (match idx' with

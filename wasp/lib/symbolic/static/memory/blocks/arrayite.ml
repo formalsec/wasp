@@ -44,26 +44,28 @@ module ArrayITE : Block.M = struct
     loop h addr 0 n v
     
 
-  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
-    (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
+  let store (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool)
+    (h : t) (addr : address) (idx : Expression.t) 
+    (o : int32) (v : Expression.t)  (sz : int) :
     (t * Expression.t list) list =
-    let block = Hashtbl.find h addr in
+    let idx = Expression.simplify idx in
     match idx with
     (* Store in concrete index *)
     | Val (Num (I32 idx')) -> 
       store_n h addr (Int32.to_int o) (Int32.to_int idx') sz v;
       [ ( h, [] ) ]
     (* Store in symbolic index *)
-    | _ -> ignore block; failwith "not impl"
-      (* let block' = Array.mapi (fun j old_expr -> 
-        let e = BinOp(Equals,index,Val (Integer j)) in 
-        if Translator.is_sat ([e] @ path) then Expression.ITE(e, v, old_expr)
-        else old_expr) block in
-      let _ = Hashtbl.replace heap' loc block' in
-      [((heap', curr), path)] *)
-      (* List.filteri (fun index' _ ->   (* can be optimized *)
-        let e = BinOp(Equals,index,Val (Integer index')) in 
-        if Translator.is_sat ([e] @ path) then true else false) temp *)
+    | _ -> 
+      let o = Val (Num (I32 o)) in
+      let index = Expression.Binop (I32 I32.Add, idx, o) in
+      let block = Hashtbl.find h addr in
+      let block' = Array.mapi (fun j old_expr ->
+        let e = Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int j)))) in
+        if not (check_sat_helper e) then Expression.Triop (Bool B.ITE, e, v, old_expr)
+        else old_expr) block 
+      in
+      Hashtbl.replace h addr block';
+      [ ( h, [] ) ]
 
 
   let load_byte (h : t) (addr : address) (idx : int) : 
@@ -87,26 +89,34 @@ module ArrayITE : Block.M = struct
     (h : t) (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) 
     (is_packed : bool) : 
     (t * Expression.t * Expression.t list) list =
-    ignore check_sat_helper;
     (* Printf.printf "\n\n%s\n\n" (to_string h); *)
-    let idx', conds = 
-      match idx with
-      (* Load in concrete index *)
-      | Val (Num (I32 idx')) -> idx', []
-      (* Load in symbolic index, randomly concretizes *)
-      | _ ->
-        let block = Hashtbl.find h addr in
-        let block_sz = Array.length block in
-
-        let idx' = Int32.of_int (Random.int (block_sz - (Int32.to_int o))) in
-        let cond = 
-          Relop (I32 I32.Eq, idx, Val (Num (I32 (idx')))) in
-        ( idx', [ cond ] )
-    in
-    let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
-    (* pad with 0s *)
-    let v = concat_exprs exprs ty sz is_packed in
-    [ ( h, v, [] ) ]
+    let block = Hashtbl.find h addr in
+    match idx with
+    (* Load in concrete index *)
+    | Val (Num (I32 idx')) -> 
+      let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
+      let v = concat_exprs exprs ty sz is_packed in
+      [ ( h, v, [] ) ]
+    (* Load in symbolic index, randomly concretizes *)
+    | _ -> 
+      let o = Val (Num (I32 o)) in
+      let index = Expression.Binop (I32 I32.Add, idx, o) in
+      let aux = Array.of_list (List.filteri (fun index' _ ->
+                let e = Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int index')))) in
+                if check_sat_helper e then false else true)
+                (Array.to_list (Array.mapi (fun j e -> (
+                  Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int j)))), e
+                )) block )))
+      in
+      let f = fun (bop, e) l ->
+              (match e with
+              | Expression.Triop (_, a, b, _) ->
+                  let e = Expression.Binop (Bool B.And, bop, a) in 
+                  Expression.Triop (Bool B.ITE, e, b, l)
+              | _ ->  Expression.Triop (Bool B.ITE, bop, e, l))
+      in
+      let v = Array.fold_right f aux (Val (Num (I32 (0l)))) in
+      [ ( h, v, [] ) ]
 
 
   let from_heap (h : Concolic.Heap.t) : t =

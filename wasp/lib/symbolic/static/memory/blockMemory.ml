@@ -323,10 +323,13 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
+          let check_sat_helper (expr : Expression.t) : bool =
+            check_sat encoder expr
+          in
           let expr_to_value_helper (ex : Expression.t) (c : expr) : Encoding.Num.t =
             expr_to_value ex encoder varmap (Some c)
           in
-          (let res = MB.store expr_to_value_helper mem.blocks ptr_b ptr_o o value sz in
+          (let res = MB.store expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o value sz in
           let res' = List.map (fun (mb, c) -> 
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
@@ -354,10 +357,13 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
+          let check_sat_helper (expr : Expression.t) : bool =
+            check_sat encoder expr
+          in
           let expr_to_value_helper (ex : Expression.t) (c : expr) : Encoding.Num.t =
             expr_to_value ex encoder varmap (Some c)
           in
-          (let res = MB.store expr_to_value_helper mem.blocks ptr_b ptr_o o value sz in
+          (let res = MB.store expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o value sz in
           let res' = List.map (fun (mb, c) -> 
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* CLEAN UNSAT CONDS *)

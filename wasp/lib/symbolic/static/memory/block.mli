@@ -9,7 +9,7 @@ module type M = sig
     exception Bounds
 
     val init : unit -> t
-    val store : (expr -> expr -> Num.t) -> t -> int32 -> Expression.t -> int32 -> Expression.t -> int -> (t * Expression.t list) list
+    val store : (expr -> expr -> Num.t) -> (Expression.t -> bool) -> t -> int32 -> Expression.t -> int32 -> Expression.t -> int -> (t * Expression.t list) list
     val load : (expr -> expr -> Num.t) -> (Expression.t -> bool) -> t -> int32 -> Expression.t -> int32 -> int -> num_type -> bool -> (t * Expression.t * Expression.t list) list
     val from_heap : Concolic.Heap.t -> t
     val clone : t -> t * t

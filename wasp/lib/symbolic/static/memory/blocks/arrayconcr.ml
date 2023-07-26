@@ -44,9 +44,11 @@ module ArrayConcr : Block.M = struct
     loop h addr 0 n v
   
 
-  let store (expr_to_value : (expr -> expr -> Num.t)) (h : t) (addr : address) 
-    (idx : Expression.t) (o : int32) (v : Expression.t)  (sz : int) :
+  let store (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool)
+    (h : t) (addr : address) (idx : Expression.t) 
+    (o : int32) (v : Expression.t)  (sz : int) :
     (t * Expression.t list) list =
+    let idx = Expression.simplify idx in
     let idx', conds = 
       match idx with
       (* Store in concrete index *)
@@ -96,6 +98,7 @@ module ArrayConcr : Block.M = struct
     (is_packed : bool) : 
     (t * Expression.t * Expression.t list) list =
     ignore check_sat_helper;
+    let idx = Expression.simplify idx in
     let idx', conds = 
       match idx with
       (* Load in concrete index *)
@@ -106,6 +109,7 @@ module ArrayConcr : Block.M = struct
         let block_sz = Array.length block in
         let o' = Val (Num (I32 o)) in
         let index = Expression.Binop (I32 I32.Add, idx, o') in
+        let index = Expression.simplify index in
         let c = 
           Relop (I32 I32.LtS, index, Val (Num (I32 (Int32.of_int block_sz)))) in
         (* Get from path condition, if not there concretize and add to it *)
