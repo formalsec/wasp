@@ -61,7 +61,12 @@ let i32_binop op e1 e2 =
   | I32Op.DivU -> BitVector.mk_div_u e1 e2 `I32Type
   | I32Op.Xor -> BitVector.mk_xor e1 e2 `I32Type
   | I32Op.Mul -> BitVector.mk_mul e1 e2 `I32Type
-  | I32Op.Shl -> BitVector.mk_shl e1 e2 `I32Type
+  | I32Op.Shl ->
+    let open Value in (
+      match e2 with
+      | Val (Num (I32 i)) -> 
+          BitVector.mk_mul e1 (Val (Num (I32 (Int32.shift_left 2l ((Int32.to_int i) - 1))))) `I32Type
+      | _ -> BitVector.mk_shl e1 e2 `I32Type)
   | I32Op.ShrS -> BitVector.mk_shr_s e1 e2 `I32Type
   | I32Op.ShrU -> BitVector.mk_shr_u e1 e2 `I32Type
   | I32Op.RemS -> BitVector.mk_rem_s e1 e2 `I32Type
@@ -79,7 +84,12 @@ let i64_binop op e1 e2 =
   | I64Op.DivU -> BitVector.mk_div_u e1 e2 `I64Type
   | I64Op.Xor -> BitVector.mk_xor e1 e2 `I64Type
   | I64Op.Mul -> BitVector.mk_mul e1 e2 `I64Type
-  | I64Op.Shl -> BitVector.mk_shl e1 e2 `I64Type
+  | I64Op.Shl -> 
+      let open Value in (
+      match e2 with
+      | Val (Num (I64 i)) -> 
+          BitVector.mk_mul e1 (Val (Num (I64 (Int64.shift_left 2L ((Int64.to_int i) - 1))))) `I64Type
+      | _ -> BitVector.mk_shl e1 e2 `I64Type)
   | I64Op.ShrS -> BitVector.mk_shr_s e1 e2 `I64Type
   | I64Op.ShrU -> BitVector.mk_shr_u e1 e2 `I64Type
   | I64Op.RemS -> BitVector.mk_rem_s e1 e2 `I64Type

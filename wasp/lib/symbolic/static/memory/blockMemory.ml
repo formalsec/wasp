@@ -209,6 +209,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
           | Expression.Extract _ -> x
           | _ -> Expression.Extract (x, i + 1, i)
         in
+        (* Printf.printf "\n\nhaha: %s\n\n" (Expression.to_string expr); *)
         Hashtbl.replace mem.fixed a expr;
         loop mem (Int64.add a 1L) (i + 1) n x)
     in
@@ -340,7 +341,12 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
       (* Printf.printf "STORE: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
-      storen mem ea sz value;
+      let sz' = 
+        match value with
+        | Relop _ -> 4
+        | _ -> sz
+      in
+      storen mem ea sz' value;
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ] in
       Result.ok (res)
@@ -374,7 +380,12 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
       (* Printf.printf "STORE PACKED: %s + %s -> %s\n" (Int64.to_string a) (Int32.to_string o) (Expression.to_string value); *)
-      storen mem ea sz value;
+      let sz' = 
+      match value with
+      | Relop _ -> 4
+      | _ -> sz
+      in
+      storen mem ea sz' value;
       let ptr_cond = [] in
       let res = [ (mem, ptr_cond) ] in
       Result.ok (res)

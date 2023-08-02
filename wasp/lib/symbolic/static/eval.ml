@@ -471,9 +471,8 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                     let co = Option.get (to_relop ex) in
                     let negated_co = negate_relop co in
                     let es' = List.tl es in
-                    (* Printf.printf "\n\n%s\n\n%d\n\n" (to_string ex) (e.at.left.line); *)
+                    (* Printf.printf "\n\nPC: %s\n Line: %d\n\n" (to_string (E.get_assertions encoder)) (e.at.left.line); *)
                     let sat_then, sat_else = E.fork encoder co in
-
                     let l =
                       match (sat_then, sat_else) with
                       | true, true ->
@@ -757,7 +756,10 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                      ])
             | SymAssert, Val (Num (I32 0l)) :: vs' ->
                 debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
-                assert (E.check encoder None);
+
+                (* Printf.printf "\n\nPC: %s\n Line: %d\n\n" (to_string (E.get_assertions encoder)) (e.at.left.line); *)
+                
+                (* assert (E.check encoder None); *)
                 let string_binds = E.string_binds encoder in
                 let witness = Concolic.Store.strings_to_json string_binds in
                 Common.write_test_case ~witness:true witness;
@@ -774,7 +776,7 @@ module SymbolicInterpreter (E : Common.Encoder) (SM : Memory.SymbolicMemory with
                 let sat = E.check encoder (Some constr) in
                 if sat then (
                   E.add encoder constr;
-                  assert (E.check encoder None);
+                  (* assert (E.check encoder None); *)
                   let string_binds = E.string_binds encoder in
                   let witness = Concolic.Store.strings_to_json string_binds in
                   debug (string_of_pos e.at.left ^ ":Assert FAILED! Stopping...");
