@@ -206,7 +206,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       if n > i then (
         let expr = 
           match x with
-          | Expression.Extract _ -> x
+          | Expression.Extract (a, h, l) -> Expression.Extract (a, i + 1, i)
           | _ -> Expression.Extract (x, i + 1, i)
         in
         (* Printf.printf "\n\nhaha: %s\n\n" (Expression.to_string expr); *)
