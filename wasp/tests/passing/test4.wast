@@ -1,11 +1,13 @@
 ;; Must pass
 ;; Tests i32 logical operations
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_int32 "x")
-        (sym_int32 "y")
+        (i32.const 1024)    ;; x
+        (i32.symbolic)
+        (i32.const 1026)    ;; x
+        (i32.symbolic)
         (i32.lt_s)
         (if                 ;; if (x < y)
             (then
@@ -24,5 +26,6 @@
 
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")

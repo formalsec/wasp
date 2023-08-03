@@ -1,13 +1,16 @@
 ;; Must fail
 ;; Tests simple control flow
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_int32 "x")
-        (sym_int32 "y")
-        (sym_int32 "z")         ;; just to create the variable
-        (drop)
+        (i32.const 1024)                ;; x
+        (i32.symbolic)
+        (i32.const 1026)                ;; y
+        (i32.symbolic)
+        (i32.const 1028)                ;; z
+        (i32.symbolic)
+        (drop)                ;; just to create the variable
         (i32.lt_s)            ;; if x < y
         (if
             (then
@@ -34,5 +37,6 @@
         )
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")

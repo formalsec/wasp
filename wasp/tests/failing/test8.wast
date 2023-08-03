@@ -1,6 +1,6 @@
 ;; Must fail
 ;; Tests i64 arithmetic
-(module 
+(module
     (memory $0 1)
 
     (func $constraints (param i64) (result i64)
@@ -15,9 +15,11 @@
         (local.get 0))
 
     (func $main (result i32)
-        (sym_int64 "x")
+        (i32.const 1024)                ;; x
+        (i64.symbolic)
         (call $constraints)
-        (sym_int64 "y")
+        (i32.const 1026)                ;; x
+        (i64.symbolic)
         (call $constraints)
         (get_sym_int64 "y")
         (i64.mul)
@@ -43,5 +45,6 @@
         )
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")

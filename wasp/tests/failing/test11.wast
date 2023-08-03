@@ -1,22 +1,24 @@
 ;; Must fail
 ;; Tests f32 arithmetic
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_float32 "a")
+        (i32.const 1024)                ;; a
+        (f32.symbolic)
         (f32.const 0)
         (f32.gt)
         (if (result f32)            ;; if a > 0
             (then
                 (f32.const -2)      ;; x = -2
             )
-            (else   
+            (else
                 (f32.const 0)       ;; x = 0
             )
         )
 
-        (sym_float32 "b")
+        (i32.const 1026)                ;; b
+        (f32.symbolic)
         (f32.const 5)
         (f32.lt)
         (if (result f32)                        ;; if b < 5
@@ -26,7 +28,8 @@
                 (f32.lt)
                 (if (result f32)                ;; if a < 0
                     (then
-                        (sym_float32 "c")
+                        (i32.const 1028)                ;; c
+                        (f32.symbolic)
                         (f32.const 0)
                         (f32.gt)
                         (if (result f32)            ;; if a < 0 && c > 0
@@ -51,15 +54,12 @@
         )
         (f32.add)   ;; x + y + z
         (f32.const 3)
-        (f32.ne)    
+        (f32.ne)
         (sym_assert)    ;; assert x+y+z != 3
 
     )
-        
+
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "a\00b\00c\00")
 )
 (invoke "main")
-
-
-
-

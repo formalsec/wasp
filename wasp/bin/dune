@@ -1,0 +1,17 @@
+(executable
+ (name main)
+ (public_name wasm)
+ (modules main)
+ (libraries interpreter))
+
+(executable
+ (name wasp_ce)
+ (public_name wasp-ce)
+ (modules wasp_ce)
+ (libraries interpreter wasp))
+
+(executable
+ (name wasp_se)
+ (public_name wasp-se)
+ (modules wasp_se)
+ (libraries interpreter wasp))

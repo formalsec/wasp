@@ -1,19 +1,21 @@
 ;; Must pass
 ;; Tests i32 arithmetic
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_int32 "x")
-        (sym_int32 "y")
+        (i32.const 1024)    ;; x
+        (i32.symbolic)
+        (i32.const 1026)    ;; y
+        (i32.symbolic)
         (i32.gt_s)
         (if                 ;; if x > y
             (then
                 (get_sym_int32 "x")
                 (get_sym_int32 "y")
                 (i32.add)             ;; x = x+y
-                (duplicate)           ;; x here again        
-                (get_sym_int32 "y") 
+                (duplicate)           ;; x here again
+                (get_sym_int32 "y")
                 (i32.sub)             ;; y = x-y
                 (i32.sub)             ;; x = x-y
                 (get_sym_int32 "x")   ;; este x(antigo) equivale ao novo y
@@ -24,5 +26,6 @@
         )
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "x\00y\00z\00")
 )
 (invoke "main")

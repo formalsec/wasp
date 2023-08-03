@@ -1,0 +1,8 @@
+{
+  "tool" : "wasp-ce",
+  "policy" : "breadth",
+  "type_checker" : false,
+  "timeout" : 895,
+  "debug" : true,
+  "additional_args" : []
+}

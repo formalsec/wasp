@@ -1,22 +1,24 @@
 ;; Must fail
 ;; Tests f64 arithmetic
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_float64 "a")
+        (i32.const 1024)                ;; a
+        (f64.symbolic)
         (f64.const 0)
         (f64.gt)
         (if (result f64)            ;; if a > 0
             (then
                 (f64.const -2)      ;; x = -2
             )
-            (else   
+            (else
                 (f64.const 0)       ;; x = 0
             )
         )
 
-        (sym_float64 "b")
+        (i32.const 1026)                ;; b
+        (f64.symbolic)
         (f64.const 5)
         (f64.lt)
         (if (result f64)                        ;; if b < 5
@@ -26,7 +28,8 @@
                 (f64.lt)
                 (if (result f64)                ;; if a < 0
                     (then
-                        (sym_float64 "c")
+                        (i32.const 1028)                ;; c
+                        (f64.symbolic)
                         (f64.const 0)
                         (f64.gt)
                         (if (result f64)            ;; if a < 0 && c > 0
@@ -51,15 +54,12 @@
         )
         (f64.add)   ;; x + y + z
         (f64.const 3)
-        (f64.ne)    
+        (f64.ne)
         (sym_assert)    ;; assert x+y+z != 3
 
     )
-        
+
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "a\00b\00c\00")
 )
 (invoke "main")
-
-
-
-

@@ -1,11 +1,13 @@
 ;; Must fail
 ;; Tests i32 arithmetic
-(module 
+(module
     (memory $0 1)
 
     (func $main
-        (sym_int32 "a")
-        (sym_int32 "b")
+        (i32.const 1024)                ;; a
+        (i32.symbolic)
+        (i32.const 1026)                ;; a
+        (i32.symbolic)
         (drop)
         (i32.const 0)
         (i32.ne)
@@ -22,7 +24,7 @@
                 		(i32.const 2)
                 		(i32.mul) 			;;x = (a+b) * 2
                 		(i32.const 4)		;;y = 4
-                		(i32.sub)			;;x-y 
+                		(i32.sub)			;;x-y
                 	)
                 	(else
                 		(i32.const 3)
@@ -39,5 +41,6 @@
         (sym_assert)
     )
     (export "main" (func $main))
+    (data $0 (i32.const 1024) "a\00b\00c\00")
 )
 (invoke "main")

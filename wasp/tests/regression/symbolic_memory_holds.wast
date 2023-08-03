@@ -1,4 +1,4 @@
-;; Loads symbolic memory in various iterations 
+;; Loads symbolic memory in various iterations
 (module
   (type $0 (func))
   (func $test_symbolic_memory (type $0)
@@ -14,7 +14,7 @@
         (i32.symbolic)
         (i32.const 0)
         (i32.eq)
-        (if 
+        (if
           (then
             (call $test_symbolic_memory)
             (i32.const 1032)
