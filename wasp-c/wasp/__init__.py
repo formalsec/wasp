@@ -73,7 +73,7 @@ def preprocess_file(src_file, dst_file, includes, rm_boolops, instrument=False):
         pre.process_file(src_file, dst_file, includes, not rm_boolops)
     except pre.ParsingError as e:
         log.error("ParsingError: " + e.message)
-        return 1
+        return 0
     log.debug(f"Created \"{dst_file}\".")
     return 0
 
