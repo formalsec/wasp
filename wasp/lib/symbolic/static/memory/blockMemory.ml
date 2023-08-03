@@ -183,7 +183,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
         | _ -> 
             (* Printf.printf "\n%s\n" (Expression.to_string expr); *)
             match Expression.type_of v with
-            | `F64Type -> if sz < 8 then Extract (Cvtop (I64 I64.ReinterpretFloat, v), h, l) else expr
+            | `F64Type -> if sz <= 8 then Extract (Cvtop (I64 I64.ReinterpretFloat, v), h, l) else expr
             | _ -> expr)
     | _ -> failwith "unreachable"
 
@@ -191,7 +191,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
 
   let loadn (mem : t) (ea : address) (n : int) : Expression.t =
     let rec loop a i n acc =
-      if n <= i && i >= 4 then acc
+      if n <= i then acc
       else
         let se = cvt_to_i64 (loadv mem a) n in
         loop (Int64.add a 1L) (i+1) n (Concat (se, acc))
@@ -219,10 +219,10 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let load_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (ty : num_type) :
     ((t * Expression.t * Expression.t list) list, bug) result =
+    let sz = Types.size_of_num_type ty in
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Load from memory *)
-      if MB.check_bound mem.blocks ptr_b then
-        let sz = Types.size_of_num_type ty in
+      if MB.check_bound mem.blocks ptr_b then (
         (* Printf.printf "LOAD: idx: %s + %s " (Int32.to_string ptr_b) (Int32.to_string o); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
         if (check_sat encoder bounds_exp) then
@@ -238,20 +238,15 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res')
-        else Result.error (OOB)
+        else Result.error (OOB))
       else Result.error (UAF)
     | _ -> (* Load from fixed *)
       let a, _ = concr_ptr sym_ptr encoder varmap in
       let ea = effective_address a o in
       (* Printf.printf "LOAD: idx: %s + %s " (Int64.to_string a) (Int32.to_string o); *)
       (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" (Int64.to_string x) (Expression.to_string y)) mem.fixed; *)
-      
-      let sz = Types.size_of_num_type ty in
-
       let v = loadn mem ea sz in
-
       (* let v = Some( Expression.simplify ~extract:true v) in *)
-
       let v = reinterpret_value v ty in
       (* Printf.printf "v: %s %s\n"  (Expression.to_string v) (Types.string_of_type (Expression.type_of v)); *)
       let ptr_cond = [] in
@@ -291,6 +286,14 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
       (* Printf.printf "LOAD PACK %d: idx: %s + %s " (sz) (Int64.to_string a) (Int32.to_string o); *)
       (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" (Int64.to_string x) (Expression.to_string y)) mem.fixed; *)
       let v = loadn mem ea sz in
+      (* pad with 0s *)
+      let v =
+        let rec loop acc i =
+          if i >= Types.size_of_num_type ty then acc
+          else loop ((Extract (Val (Num (I64 0L)), 1, 0)) ++ acc) (i + 1)
+        in
+        loop v sz
+      in
       let v = reinterpret_value v ty in
       (* Printf.printf "v: %s\n"  (Expression.to_string v); *)
       let ptr_cond = [] in
