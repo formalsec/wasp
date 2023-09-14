@@ -123,8 +123,14 @@ let compile_file (file : Fpath.t) ~(includes : string list) =
 let run_file file output =
   Log.debug "      running2 ...@.";
   (* Set flags in the reference interpreter *)
-  Interpreter.Flags.trace := true;
   Interpreter.Flags.output := Fpath.to_string output;
+  Interpreter.Flags.unchecked := true;
+  Interpreter.Flags.timeout := 895;
+  Interpreter.Flags.encoding := "incremental";
+  Interpreter.Flags.trace := true;
+  (* memory flag: oplist|arrayconcr|arrayfork|arrayite *)
+  Interpreter.Flags.memory := "oplist";
+  Interpreter.Flags.policy := "progress-bfs";
   (* Create command sequence for reference interpreter *)
   let cmds =
     [ Format.sprintf "(input \"%s\")" (Fpath.to_string file)
