@@ -4,7 +4,7 @@ OPT=opt
 LLC=llc
 
 LIBC_DIR ?= bin/
-LIBC_INC ?= lib
+LIBC_INC ?= libc
 
 OPT_LVL ?= -O0
 OTHER_CODE ?=

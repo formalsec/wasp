@@ -1,0 +1,11 @@
+(executable
+ (package waspc)
+ (public_name waspc)
+ (name main)
+ (libraries
+  wasp
+  waspc
+  re2
+  bos
+  pyml
+  cmdliner))

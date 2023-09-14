@@ -1,7 +1,6 @@
 #ifndef STDLIB_H
 #define STDLIB_H
 
-
 #include "assert.h"
 #include <sys/types.h>
 
@@ -21,9 +20,15 @@ char *getenv(const char *name);
 int setenv(const char *name, const char *value, int overwrite);
 int unsetenv(const char *name);
 
-long int strtol(const char *nptr, char **endptr, int base);
-unsigned long int strtoul(const char *nptr, char **endptr, int base);
+int atoi(const char *nptr);
 
-void qsort(void* base,size_t nmemb,size_t size,int (*compar)(const void*,const void*));
+double strtod(const char *str, char **endptr);
+long int strtol(const char *nptr, char **endptr, int base);
+long long int strtoll(const char *nptr, char **endptr, int base);
+unsigned long int strtoul(const char *nptr, char **endptr, int base);
+unsigned long long int strtoull(const char *nptr, char **endptr, int base);
+
+void qsort(void *base, size_t nmemb, size_t size,
+           int (*compar)(const void *, const void *));
 
 #endif
