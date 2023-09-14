@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR=$(dirname $0)
+MODULE_DIR=$(dirname $SCRIPT_DIR)
+
+export LD_PATH=${SCRIPT_DIR}
+export PYTHONPATH=${MODULE_DIR}/waspc/py
+
+waspc $@

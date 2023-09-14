@@ -2,14 +2,14 @@
 #include <stdio.h>
 
 void exit(int e) { __WASP_assume(0); }
-void __assert_fail(const char *id, const char *file, 
+void __assert_fail(const char *id, const char *file,
 		unsigned int i, const char *func) {
 	__WASP_assert(0);
 }
 
 _Bool __VERIFIER_nondet_bool() {
 	_Bool var = __WASP_symb_int(NULL);
-	__WASP_assume(__logor(var == 0, var == 1));
+	__WASP_assume(or_(var == 0, var == 1));
 	return var;
 }
 

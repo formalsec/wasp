@@ -1,1 +1,1 @@
-export PATH="$PWD"/wasp:"$PWD"/wasp-c/bin:"$PATH"
+export PATH="$PWD"/bin
