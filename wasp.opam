@@ -10,10 +10,7 @@ homepage: "https://github.com/wasp-platform/wasp"
 bug-reports: "https://github.com/wasp-platform/wasp/issues"
 depends: [
   "dune" {>= "3.0"}
-  "ocaml" {>= "4.14.0"}
-  "base" {= "v0.15.1"}
-  "core" {= "v0.15.1"}
-  "core_unix" {= "v0.15.1"}
+  "base"
   "batteries"
   "ocamlformat"
   "odoc" {with-doc}

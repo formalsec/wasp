@@ -34,7 +34,7 @@ def split(f, lst):
             acc1.append(elem)
     return (acc0, acc1)
 
-def instrument(data : str, includes : list[str]) -> str:
+def instrument(data, includes):
     visitor = BinopVisitor()
 
     tmp_file = tempfile.mktemp(suffix=".c")

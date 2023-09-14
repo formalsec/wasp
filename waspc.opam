@@ -4,7 +4,7 @@ synopsis: ""
 description: ""
 maintainer: ["WASP Platform"]
 authors: ["WASP Platform"]
-license: "LICENSE"
+license: "Apache-2.0"
 homepage: "https://github.com/wasp-platform/wasp"
 bug-reports: "https://github.com/wasp-platform/wasp/issues"
 depends: [
