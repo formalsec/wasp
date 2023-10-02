@@ -109,7 +109,7 @@ module ArrayFork : Block.M = struct
       match idx with
       (* Load in concrete index *)
       | Val (Num (I32 idx')) -> idx', []
-      (* Load in symbolic index, concretizes *)
+      (* Load in symbolic index, concretizes. SOULD BRANCH*)
       | _ ->
         let block = Hashtbl.find h addr in
         let block_sz = Array.length block in
@@ -170,16 +170,19 @@ module ArrayFork : Block.M = struct
       | true ->
           let logic_env = Concolic.Store.create binds in
           let c_size = Concolic.Store.eval logic_env sz in
-          let _, mc = clone h in
+          let c, mc = clone h in
           let size = 
             match c_size with
             | I32 size -> size
             | _ -> failwith "Alloc non I32 size"
           in
-          Hashtbl.replace mc b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
           (match size_cond with
-            | Some size_cond -> Some (mc, b, [ size_cond ])
-            | None -> Some (mc, b, []))
+            | Some size_cond -> 
+                Hashtbl.replace mc b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
+                Some (mc, b, [ size_cond ])
+            | None -> 
+                Hashtbl.replace c b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
+                Some (c, b, [])) (* MAYBE BUG WITH MEM CLONING?? *)
 
       in
       let fixed_attempts =

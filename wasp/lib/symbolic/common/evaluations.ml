@@ -67,21 +67,8 @@ let i32_binop op e1 e2 =
       | Val (Num (I32 i)) -> 
           BitVector.mk_mul e1 (Val (Num (I32 (Int32.shift_left 2l ((Int32.to_int i) - 1))))) `I32Type
       | _ -> BitVector.mk_shl e1 e2 `I32Type)
-  | I32Op.ShrS -> 
-    let open Value in (
-      match e2 with
-      | Val (Num (I32 i)) -> 
-          BitVector.mk_div_s e1 (Val (Num (I32 (Int32.shift_left 2l ((Int32.to_int i) - 1))))) `I32Type
-      | _ -> BitVector.mk_shr_s e1 e2 `I32Type)
-    
-      (* BitVector.mk_shr_s e1 e2 `I32Type *)
-  | I32Op.ShrU -> 
-    let open Value in (
-        match e2 with
-        | Val (Num (I32 i)) -> 
-            BitVector.mk_div_u e1 (Val (Num (I32 (Int32.shift_left 2l ((Int32.to_int i) - 1))))) `I32Type
-        | _ -> BitVector.mk_shr_u e1 e2 `I32Type)
-    (* BitVector.mk_shr_u e1 e2 `I32Type *)
+  | I32Op.ShrS -> BitVector.mk_shr_s e1 e2 `I32Type
+  | I32Op.ShrU -> BitVector.mk_shr_u e1 e2 `I32Type
   | I32Op.RemS -> BitVector.mk_rem_s e1 e2 `I32Type
   | I32Op.RemU -> BitVector.mk_rem_u e1 e2 `I32Type
   | I32Op.Rotl -> failwith "eval I32Binop: TODO Rotl"
@@ -103,18 +90,8 @@ let i64_binop op e1 e2 =
       | Val (Num (I64 i)) -> 
           BitVector.mk_mul e1 (Val (Num (I64 (Int64.shift_left 2L ((Int64.to_int i) - 1))))) `I64Type
       | _ -> BitVector.mk_shl e1 e2 `I64Type)
-  | I64Op.ShrS -> 
-      let open Value in (
-        match e2 with
-        | Val (Num (I64 i)) -> 
-            BitVector.mk_div_s e1 (Val (Num (I64 (Int64.shift_left 2L ((Int64.to_int i) - 1))))) `I32Type
-        | _ -> BitVector.mk_shr_s e1 e2 `I64Type)
-  | I64Op.ShrU -> 
-      let open Value in (
-        match e2 with
-        | Val (Num (I64 i)) -> 
-            BitVector.mk_div_u e1 (Val (Num (I64 (Int64.shift_left 2L ((Int64.to_int i) - 1))))) `I32Type
-        | _ -> BitVector.mk_shr_u e1 e2 `I64Type)
+  | I64Op.ShrS -> BitVector.mk_shr_s e1 e2 `I64Type
+  | I64Op.ShrU -> BitVector.mk_shr_u e1 e2 `I64Type
   | I64Op.RemS -> BitVector.mk_rem_s e1 e2 `I64Type
   | I64Op.RemU -> BitVector.mk_rem_u e1 e2 `I64Type
   | I64Op.Rotl -> failwith "eval I64Binop: TODO Rotl"

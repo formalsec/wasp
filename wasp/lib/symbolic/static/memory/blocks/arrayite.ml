@@ -97,7 +97,7 @@ module ArrayITE : Block.M = struct
       let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
       let v = concat_exprs exprs ty sz is_packed in
       [ ( h, v, [] ) ]
-    (* Load in symbolic index, randomly concretizes *)
+    (* Load in symbolic index, makes an ITE with all possible values *)
     | _ -> 
       let o = Val (Num (I32 o)) in
       let index = Expression.Binop (I32 I32.Add, idx, o) in
@@ -155,16 +155,19 @@ module ArrayITE : Block.M = struct
       | true ->
           let logic_env = Concolic.Store.create binds in
           let c_size = Concolic.Store.eval logic_env sz in
-          let _, mc = clone h in
+          let c, mc = clone h in
           let size = 
             match c_size with
             | I32 size -> size
             | _ -> failwith "Alloc non I32 size"
           in
-          Hashtbl.replace mc b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
           (match size_cond with
-            | Some size_cond -> Some (mc, b, [ size_cond ])
-            | None -> Some (mc, b, []))
+            | Some size_cond -> 
+                Hashtbl.replace mc b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
+                Some (mc, b, [ size_cond ])
+            | None -> 
+                Hashtbl.replace c b (Array.make (Int32.to_int size) (Extract (Val (Num (I32 0l)), 1, 0)));
+                Some (c, b, [])) (* MAYBE BUG WITH MEM CLONING?? *)
 
       in
       let fixed_attempts =
