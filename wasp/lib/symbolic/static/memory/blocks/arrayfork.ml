@@ -45,13 +45,13 @@ module ArrayFork : Block.M = struct
     loop h addr 0 n v
   
 
-  let filter_indexes (block : Expression.t list) (o : int) : Expression.t list =
-    let rec loop o i l : Expression.t list =
-      if i >= o then l
+  let filter_indexes (block : Expression.t list) (o : int) (sz : int): Expression.t list =
+    let rec loop o sz i l : Expression.t list =
+      if i >= o+sz then l
       else 
-        loop o (i+1) (List.tl l)
+        loop o sz (i+1) (List.tl l)
     in
-    loop o 0 block
+    loop o sz 0 block
 
 
   let store (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool)
@@ -69,7 +69,7 @@ module ArrayFork : Block.M = struct
       let block = Hashtbl.find h addr in
       let o' = (Int32.to_int o) in
       (* indexes are filtered to account for offset added to idx *)
-      let blockList = filter_indexes (Array.to_list block) o' in
+      let blockList = filter_indexes (Array.to_list block) o' sz in
       let temp = List.mapi (fun idx' _ ->
         let newHeap = Hashtbl.copy h in
         let _ = store_n newHeap addr o' idx' sz v in
