@@ -47,6 +47,8 @@ class Tool(benchexec.tools.template.BaseTool2):
             or run.output.any_line_contains("WASP crashed")
         ):
             return result.RESULT_ERROR
+        elif run.exit_code == 137:
+            return "Memout"
         elif run.was_timeout or run.output.any_line_contains("WASP timed out"):
             return result.TIMEOUT
         elif run.exit_code == 0 and run.output.any_line_contains("Analysis done."):
