@@ -44,6 +44,25 @@ module ArrayITE : Block.M = struct
     loop h addr 0 n v
     
 
+  let store_n_symb (h : t) (addr : address) (idx : int) (e : expr) (n : int) 
+    (v : Expression.t) : unit =
+    let block = Hashtbl.find h addr in
+    let old_expr = Array.get (block) (idx)
+    in
+    let rec loop mem a i n x =
+      if n > i then (
+        let x' = 
+          match x with 
+          | Extract (_, _, _) -> x 
+          | _ -> Expression.Extract (x, i + 1, i)
+        in
+        let x'' = Expression.Triop (Bool B.ITE, e, x', old_expr)
+        in
+        store_byte mem a (idx+i) x'';
+        loop mem a (i + 1) n x)
+    in
+    loop h addr 0 n v
+
   let store (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool)
     (h : t) (addr : address) (idx : Expression.t) 
     (o : int32) (v : Expression.t)  (sz : int) :
@@ -59,12 +78,11 @@ module ArrayITE : Block.M = struct
       let o = Val (Num (I32 o)) in
       let index = Expression.Binop (I32 I32.Add, idx, o) in
       let block = Hashtbl.find h addr in
-      let block' = Array.mapi (fun j old_expr ->
+      Core.Array.iteri ~f:(fun j old_expr ->
         let e = Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int j)))) in
-        if not (check_sat_helper e) then Expression.Triop (Bool B.ITE, e, v, old_expr)
-        else old_expr) block 
-      in
-      Hashtbl.replace h addr block';
+        if not (check_sat_helper e) then 
+          store_n_symb h addr j e sz v
+        else ()) block;
       [ ( h, [] ) ]
 
 
@@ -104,7 +122,7 @@ module ArrayITE : Block.M = struct
       let aux = Array.of_list (List.filteri (fun index' _ ->
                 let e = Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int index')))) in
                 if check_sat_helper e then false else true)
-                (Array.to_list (Array.mapi (fun j e -> (
+                (Array.to_list (Core.Array.mapi ~f:(fun j e -> (
                   Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int j)))), e
                 )) block )))
       in

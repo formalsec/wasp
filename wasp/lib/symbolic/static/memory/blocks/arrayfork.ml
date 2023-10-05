@@ -64,17 +64,20 @@ module ArrayFork : Block.M = struct
     | Val (Num (I32 idx')) -> 
       store_n h addr (Int32.to_int o) (Int32.to_int idx') sz v;
       [ ( h, [] ) ]
-    (* Store in symbolic index *)
+    (* Store in symbolic index, forks *)
+    (* optimization would be to see if idx matches a concrete address *)
     | _ ->
       let block = Hashtbl.find h addr in
       let o' = (Int32.to_int o) in
+      let o = Val (Num (I32 o)) in
+      let index = Expression.Binop (I32 I32.Add, idx, o) in
       (* indexes are filtered to account for offset added to idx *)
       let blockList = filter_indexes (Array.to_list block) o' sz in
-      let temp = List.mapi (fun idx' _ ->
+      let temp = Core.List.mapi ~f:(fun idx' _ ->
         let newHeap = Hashtbl.copy h in
         let _ = store_n newHeap addr o' idx' sz v in
-        let cond = Expression.Relop (I32 I32.Eq, idx, (Val (Num (I32 (Int32.of_int (idx')))))) in
-        (newHeap, [cond] )
+        let cond = Expression.Relop (I32 I32.Eq, index, (Val (Num (I32 (Int32.of_int (idx')))))) in
+        (newHeap, [cond])
       ) blockList in
       temp
       (* List.filteri (fun index' _ ->   (* can be optimized *)
@@ -105,33 +108,30 @@ module ArrayFork : Block.M = struct
     (t * Expression.t * Expression.t list) list =
     ignore check_sat_helper;
     let idx = Expression.simplify idx in
-    let idx', conds = 
-      match idx with
-      (* Load in concrete index *)
-      | Val (Num (I32 idx')) -> idx', []
-      (* Load in symbolic index, concretizes. SOULD BRANCH*)
-      | _ ->
-        let block = Hashtbl.find h addr in
-        let block_sz = Array.length block in
-        let o' = Val (Num (I32 o)) in
-        let index = Expression.Binop (I32 I32.Add, idx, o') in
-        let c = 
-          Relop (I32 I32.LtS, index, Val (Num (I32 (Int32.of_int block_sz)))) in
-        (* Get from path condition, if not there concretize and add to it *)
-        let idx' = 
-          match (expr_to_value idx c) with
-          | I32 n -> n
-          | I64 n -> Int64.to_int32 n
-          | _     -> assert false
-        in
-        let cond =
-          Relop (I32 I32.Eq, idx, Val (Num (I32 idx'))) in
-        ( idx', [ cond ] )
-    in
-    let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
-    (* pad with 0s *)
-    let v = concat_exprs exprs ty sz is_packed in
-    [ ( h, v, [] ) ]
+    match idx with
+    (* Load in concrete index *)
+    | Val (Num (I32 idx')) ->
+      let exprs = load_n h addr (Int32.to_int o) (Int32.to_int idx') sz in
+      (* pad with 0s *)
+      let v = concat_exprs exprs ty sz is_packed in
+      [ ( h, v, [] ) ]
+    (* Load in symbolic index, forks*)
+    (* optimization would be to see if idx matches a concrete address *)
+    | _ ->
+      let block = Hashtbl.find h addr in
+      let o' = (Int32.to_int o) in
+      let o = Val (Num (I32 o)) in
+      let index = Expression.Binop (I32 I32.Add, idx, o) in
+      (* indexes are filtered to account for offset added to idx *)
+      let blockList = filter_indexes (Array.to_list block) o' sz in
+      let temp = Core.List.mapi ~f:(fun idx' _ ->
+        let newHeap = Hashtbl.copy h in
+        let exprs = load_n newHeap addr o' idx' sz in
+        let v = concat_exprs exprs ty sz is_packed in
+        let cond = Expression.Relop (I32 I32.Eq, index, (Val (Num (I32 (Int32.of_int (idx')))))) in
+        (newHeap, v, [cond])
+      ) blockList in
+      temp
 
   let from_heap (h : Concolic.Heap.t) : t =
     failwith "not implemented"

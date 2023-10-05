@@ -223,8 +223,9 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Load from memory *)
       if MB.check_bound mem.blocks ptr_b then (
-        (* Printf.printf "LOAD: idx: %s + %s " (Int32.to_string ptr_b) (Int32.to_string o); *)
+        (* Printf.printf "LOAD: idx: %s + %s + %s " (Int32.to_string ptr_b) (Expression.to_string ptr_o) (Int32.to_string o); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
+        (* Printf.printf "EXP: %s\nPC: %s\n" (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
           let check_sat_helper (expr : Expression.t) : bool =
             check_sat encoder expr
@@ -233,8 +234,8 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             expr_to_value ex encoder varmap (Some c)
           in
           let res = MB.load expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o sz ty false in
-          let res' = List.map (fun (mb, v, c) -> 
-            (* Printf.printf "v: %s %s\n"  (Expression.to_string v) (Types.string_of_type (Expression.type_of v)); *)
+          let res' = Core.List.map ~f:(fun (mb, v, c) -> 
+            (* Printf.printf "v: %s \n"  (Expression.to_string v) ; *)
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res')
@@ -271,7 +272,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
               expr_to_value ex encoder varmap (Some c)
             in
             let res = MB.load expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o sz ty true in
-            let res' = List.map (fun (mb, v, c) -> 
+            let res' = Core.List.map ~f:(fun (mb, v, c) -> 
               (* Printf.printf "v: %s\n"  (Expression.to_string (Expression.simplify v)); *)
               (let fixed' = Hashtbl.copy mem.fixed in
               ( {blocks = mb; fixed = fixed'}, v, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
@@ -323,9 +324,9 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
     match sym_ptr with
     | SymPtr (ptr_b, ptr_o) -> (* Store to memory *)
       if MB.check_bound mem.blocks ptr_b then (
-        (* Printf.printf "STORE: %s + %s -> %s\n" (Int32.to_string ptr_b) (Int32.to_string o) (Expression.to_string value); *)
+        (* Printf.printf "STORE: %s + %s + %s -> %s\n" (Int32.to_string ptr_b) (Expression.to_string ptr_o) (Int32.to_string o) (Expression.to_string value); *)
         let bounds_exp = MB.in_bounds mem.blocks ptr_b ptr_o o sz in
-        (* Printf.printf " %s\n %s " (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
+        (* Printf.printf " %s\n %s\n" (Expression.to_string bounds_exp) (Expression.to_string (E.get_assertions encoder)); *)
         if (check_sat encoder bounds_exp) then
           let check_sat_helper (expr : Expression.t) : bool =
             check_sat encoder expr
@@ -334,7 +335,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             expr_to_value ex encoder varmap (Some c)
           in
           (let res = MB.store expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o value sz in
-          let res' = List.map (fun (mb, c) -> 
+          let res' = Core.List.map ~f:(fun (mb, c) -> 
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* SHOULD CLEAN UNSAT CONDS *)
           Result.ok (res'))
@@ -373,7 +374,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
             expr_to_value ex encoder varmap (Some c)
           in
           (let res = MB.store expr_to_value_helper check_sat_helper mem.blocks ptr_b ptr_o o value sz in
-          let res' = List.map (fun (mb, c) -> 
+          let res' = Core.List.map ~f:(fun (mb, c) -> 
             (let fixed' = Hashtbl.copy mem.fixed in
             ( {blocks = mb; fixed = fixed'}, c))) res in (* CLEAN UNSAT CONDS *)
           Result.ok (res'))
