@@ -22,7 +22,15 @@ module ArrayITE : Block.M = struct
   let to_string (heap: t) : string =
     Hashtbl.fold (fun _ b acc -> (block_str b) ^ "\n" ^ acc) heap ""
 
-  
+
+  let filter_indexes (block : Expression.t list) (o : int) (sz : int): Expression.t list =
+    let rec loop o sz i l : Expression.t list =
+      if i >= o+sz then l
+      else 
+        loop o sz (i+1) (List.tl l)
+    in
+    loop o sz 0 block
+
   let store_byte (h : t) (addr : address) (idx : int) (v : Expression.t) : unit =
     let block = Hashtbl.find h addr in
     Array.set block idx v;
@@ -102,13 +110,15 @@ module ArrayITE : Block.M = struct
     in
     loop a n []
     
-    
+
+
+
   let load (expr_to_value : (expr -> expr -> Num.t)) (check_sat_helper : Expression.t -> bool) 
     (h : t) (addr : address) (idx : Expression.t) (o : int32) (sz : int) (ty : num_type) 
     (is_packed : bool) : 
     (t * Expression.t * Expression.t list) list =
     (* Printf.printf "\n\n%s\n\n" (to_string h); *)
-    let block = Hashtbl.find h addr in
+    
     match idx with
     (* Load in concrete index *)
     | Val (Num (I32 idx')) -> 
@@ -117,13 +127,17 @@ module ArrayITE : Block.M = struct
       [ ( h, v, [] ) ]
     (* Load in symbolic index, makes an ITE with all possible values *)
     | _ -> 
-      let o = Val (Num (I32 o)) in
-      let index = Expression.Binop (I32 I32.Add, idx, o) in
+      let block = Hashtbl.find h addr in
+      let o' = Val (Num (I32 o)) in
+      let index = Expression.Binop (I32 I32.Add, idx, o') in
+      (* this is a bit of a mess.. could probably be cleaned and optimized *)
+      let block = Array.of_list (filter_indexes (Array.to_list block) (Int32.to_int o) sz) in
       let aux = Array.of_list (List.filteri (fun index' _ ->
                 let e = Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int index')))) in
                 if check_sat_helper e then false else true)
                 (Array.to_list (Core.Array.mapi ~f:(fun j e -> (
-                  Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int j)))), e
+                  Expression.Relop (I32 I32.Eq, index, Val (Num (I32 (Int32.of_int j)))), 
+                  concat_exprs (load_n h addr (Int32.to_int o) (j) sz) ty sz is_packed
                 )) block )))
       in
       let f = fun (bop, e) l ->
