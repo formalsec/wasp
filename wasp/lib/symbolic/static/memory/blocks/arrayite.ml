@@ -55,10 +55,9 @@ module ArrayITE : Block.M = struct
   let store_n_symb (h : t) (addr : address) (idx : int) (e : expr) (n : int) 
     (v : Expression.t) : unit =
     let block = Hashtbl.find h addr in
-    let old_expr = Array.get (block) (idx)
-    in
     let rec loop mem a i n x =
       if n > i then (
+        let old_expr = Array.get (block) (idx + i) in
         let x' = 
           match x with 
           | Extract (_, _, _) -> x 
