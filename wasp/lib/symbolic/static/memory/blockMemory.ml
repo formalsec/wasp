@@ -432,7 +432,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let check_bound (m : t) (b : int32) : bool = MB.check_bound m.blocks b
 
   let free (m : t) (b : int32) : (unit, bug) result = 
-    if (b != 0l) && not (check_bound m b) then (
+    if (not (Int32.equal b 0l) && not (check_bound m b)) then (
       Result.error(InvalidFree)
     )
     else (

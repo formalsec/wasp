@@ -72,7 +72,7 @@ module OpList : Block.M = struct
     (match idx' with
     (* Store in concrete index *)
     | Val (Num (I32 n)) -> 
-      Printf.printf "\n%d %s\n" (sz) (Expression.to_string v);
+      (* Printf.printf "\n%d %s\n" (sz) (Expression.to_string v); *)
       Hashtbl.replace h.cache (addr, idx') (sz, v)
     (* Store in symbolic index *)
     | _ -> Hashtbl.clear h.cache);
@@ -113,7 +113,7 @@ module OpList : Block.M = struct
     let aux = Expression.simplify aux in
     let v = match Hashtbl.find_opt h.cache (addr, aux) with
     | Some (sz', v) -> 
-      Printf.printf "\n %s \n" (Expression.to_string v);
+      (* Printf.printf "\n %s \n" (Expression.to_string v); *)
       if sz' == sz then Some v 
       else (
         if sz' > sz then
@@ -123,9 +123,9 @@ module OpList : Block.M = struct
     in
     match v with
     (* In cache *)
-    | Some v -> Printf.printf "\nCache!\n"; [ h, v, [] ]
+    | Some v -> (* Printf.printf "\nCache!\n"; *) [ h, v, [] ] 
     (* Not in cache *)
-    | None -> Printf.printf "\nNOT CACHE!\n";
+    | None -> (* Printf.printf "\nNOT CACHE!\n"; *)
       let arr' = Hashtbl.find h.mem addr in
       let _, ops = arr' in
       let idx' = Expression.Binop (I32 I32.Add, aux, Val (Num (I32 (Int32.of_int (sz-1))))) in
