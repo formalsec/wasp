@@ -319,6 +319,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let store_value (encoder : E.t) (varmap : Varmap.t) (mem : t) 
     (sym_ptr : Expression.t) (o : offset) (value : Expression.t) :
     ((t * Expression.t list) list, bug) result = 
+    (* Printf.printf "\nAAAA %s\n" (Expression.to_string value); *)
     let ty = Expression.type_of value in
     let sz = Types.size ty in
     match sym_ptr with
@@ -431,7 +432,7 @@ module SMem (MB : Block.M) (E : Common.Encoder) : SymbolicMemory with type e = E
   let check_bound (m : t) (b : int32) : bool = MB.check_bound m.blocks b
 
   let free (m : t) (b : int32) : (unit, bug) result = 
-    if not (check_bound m b) then (
+    if (b != 0l) && not (check_bound m b) then (
       Result.error(InvalidFree)
     )
     else (
