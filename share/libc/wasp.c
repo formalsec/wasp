@@ -19,6 +19,10 @@ float __WASP_symb_float(char *name) {
 double __WASP_symb_double(char *name) {
   return (double)0;
 }
+char __WASP_symb_char() {
+	return (char) __WASP_symb_int(0);
+}
+
 
 /* symbolic variable manipulation */
 #ifndef assume
