@@ -656,7 +656,7 @@ let int64_of_fp (fp : Z3.Expr.expr) ~(ebits : int) ~(sbits : int) : int64 =
     else Int64.bits_of_float 0.0
   else
     let fp = Z3.Expr.to_string fp in
-    let fp = Caml.String.sub fp 4 (String.length fp - 5) in
+    let fp = Stdlib.String.sub fp 4 (String.length fp - 5) in
     let fp_list =
       List.map ~f:(fun fp -> set fp 0 '0') (String.split ~on:' ' fp)
     in

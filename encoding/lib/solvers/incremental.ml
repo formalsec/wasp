@@ -7,9 +7,9 @@ let solver_time = ref 0.0
 let solver_count = ref 0
 
 let time_call f acc =
-  let start = Caml.Sys.time () in
+  let start = Stdlib.Sys.time () in
   let ret = f () in
-  acc := !acc +. (Caml.Sys.time () -. start);
+  acc := !acc +. (Stdlib.Sys.time () -. start);
   ret
 
 type s = Z3.Solver.solver

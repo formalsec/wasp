@@ -42,20 +42,20 @@ let rec equal (e1 : expr) (e2 : expr) : Bool.t =
   match (e1, e2) with
   | Val v1, Val v2 -> Value.equal v1 v2
   | SymPtr (b1, o1), SymPtr (b2, o2) -> Int32.(b1 = b2) && equal o1 o2
-  | Unop (op1, e1), Unop (op2, e2) -> Caml.( = ) op1 op2 && equal e1 e2
-  | Cvtop (op1, e1), Cvtop (op2, e2) -> Caml.( = ) op1 op2 && equal e1 e2
+  | Unop (op1, e1), Unop (op2, e2) -> Stdlib.( = ) op1 op2 && equal e1 e2
+  | Cvtop (op1, e1), Cvtop (op2, e2) -> Stdlib.( = ) op1 op2 && equal e1 e2
   | Binop (op1, e1, e3), Binop (op2, e2, e4) ->
-      Caml.( = ) op1 op2 && equal e1 e2 && equal e3 e4
+      Stdlib.( = ) op1 op2 && equal e1 e2 && equal e3 e4
   | Relop (op1, e1, e3), Relop (op2, e2, e4) ->
-      Caml.( = ) op1 op2 && equal e1 e2 && equal e3 e4
+      Stdlib.( = ) op1 op2 && equal e1 e2 && equal e3 e4
   | Triop (op1, e1, e3, e5), Triop (op2, e2, e4, e6) ->
-      Caml.( = ) op1 op2 && equal e1 e2 && equal e3 e4 && equal e5 e6
+      Stdlib.( = ) op1 op2 && equal e1 e2 && equal e3 e4 && equal e5 e6
   | Symbol s1, Symbol s2 -> Symbol.equal s1 s2
   | Extract (e1, h1, l1), Extract (e2, h2, l2) ->
       equal e1 e2 && Int.(h1 = h2) && Int.(l1 = l2)
   | Concat (e1, e3), Concat (e2, e4) -> equal e1 e2 && equal e3 e4
   | Quantifier (q1, vars1, e1, p1), Quantifier (q2, vars2, e2, p2) ->
-      Caml.( = ) q1 q2
+      Stdlib.( = ) q1 q2
       && List.equal Symbol.equal vars1 vars2
       && equal e1 e2
       && List.equal (List.equal equal) p1 p2
@@ -434,7 +434,7 @@ let rec simplify ?(extract = true) (e : expr) : expr =
               Binop (I32 Sub, x, Val (Num v))
           | _, _ -> Binop (I32 op, e1', e2'))
       | (bop, Val (Num (I32 1l)) | Val (Num (I32 1l)), bop)
-        when is_relop bop && Caml.( = ) op And ->
+        when is_relop bop && Stdlib.( = ) op And ->
           bop
       | _ -> Binop (I32 op, e1', e2'))
   | Binop (I64 op, e1, e2) -> (
@@ -484,7 +484,7 @@ let rec simplify ?(extract = true) (e : expr) : expr =
               Binop (I64 Sub, x, Val (Num v))
           | _, _ -> Binop (I64 op, e1', e2'))
       | (bop, Val (Num (I64 1L)) | Val (Num (I64 1L)), bop)
-        when is_relop bop && Caml.( = ) op And ->
+        when is_relop bop && Stdlib.( = ) op And ->
           bop
       | _ -> Binop (I64 op, e1', e2'))
   | Relop (I32 op, e1, e2) -> (
@@ -543,7 +543,7 @@ let rec simplify ?(extract = true) (e : expr) : expr =
           let x = Int32.(shift_left x2' (Int.( * ) d1 8) lor x1') in
           Extract (Val (Num (I32 x)), d1 + d2, 0)
       | Extract (s1, h, m1), Extract (s2, m2, l)
-        when Caml.( = ) s1 s2 && m1 = m2 ->
+        when Stdlib.( = ) s1 s2 && m1 = m2 ->
           Extract (s1, h, l)
       | ( Extract (Val (Num (I64 x2)), h2, l2),
           Concat (Extract (Val (Num (I64 x1)), h1, l1), se) )

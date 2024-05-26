@@ -9,9 +9,9 @@ type t = Optimize.optimize
 let solver_time = ref 0.0
 
 let time_call ~f ~accum =
-  let start = Caml.Sys.time () in
+  let start = Stdlib.Sys.time () in
   let ret = f () in
-  accum := !accum +. (Caml.Sys.time () -. start);
+  accum := !accum +. (Stdlib.Sys.time () -. start);
   ret
 
 let create () : t = Optimize.mk_opt ctx
