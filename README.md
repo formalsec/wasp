@@ -5,7 +5,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/wasp-platform/wasp)](https://github.com/wasp-platform/wasp/commit/main~0)
 
 The WebAssembly Symbolic Processor (WASP), is a symbolic execution engine for
-testing Wasm modules, which works directly on Wasm code and was built on top 
+testing Wasm modules, which works directly on Wasm code and was built on top
 of a standard-compliant Wasm reference implementation.
 
 ## Build from source
@@ -33,11 +33,7 @@ opam install . ./encoding/encoding.opam --deps-only
 ```sh
 dune build
 dune runtest
-```
-
-* Install `wasp` on your `PATH` by running:
-
-```
+make -C share/libc
 dune install
 ```
 
@@ -51,7 +47,7 @@ wasp [option | file ...]
 
 #### `wasp: undefined symbol Z3_fixedpoint_pop`
 
-If you encounter this or other Z3 symbol related errors 
+If you encounter this or other Z3 symbol related errors
 add the following line to your shell configuration file:
 
 ```sh
@@ -63,10 +59,10 @@ On macOS the environment variable should be `DYLD_LIBRARY_PATH`.
 
 #### Converting Modules or Scripts
 
-The option `-o` allows to output module definitions to 
-files. Depending on its extension, it'll write out 
-the module definition in either S-expression or binary 
-format. This option allows to convert between the 
+The option `-o` allows to output module definitions to
+files. Depending on its extension, it'll write out
+the module definition in either S-expression or binary
+format. This option allows to convert between the
 two in both directions. For example:
 
 ```
@@ -75,7 +71,7 @@ wasp -d module.wasm -o module.wast
 ```
 #### Command Line Expressions
 
-The option `-e` allows to provide arbitrary script commands 
+The option `-e` allows to provide arbitrary script commands
 directly on the command line. For example:
 
 ```

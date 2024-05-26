@@ -26,7 +26,7 @@ RUN opam init -y --disable-sandboxing \
     && echo 'test -r /home/wasp/.opam/opam-init/init.sh && . /home/wasp/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true' >> /home/wasp/.bashrc
 
 # Instal required OCaml packages
-RUN cd "${BASE}/wasp" && opam install -y . --deps-only
+RUN cd "${BASE}" && opam install -y . --deps-only
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/wasp/.opam/default/lib/z3/"
 
@@ -34,10 +34,10 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/wasp/.opam/default/lib/z3/"
 RUN sudo ln -sf /usr/bin/wasm-ld-10 /usr/bin/wasm-ld
 
 # Build WASP and libc
-RUN eval $(opam env) && cd "${BASE}/wasp" \
+RUN eval $(opam env) && cd "${BASE}" \
     && dune build && dune install \
     && python3 -m pip install pycparser numpy tsbuilder \
-    && make -C "${BASE}/wasp-c/lib"
+    && make -C "${BASE}/share/libc"
 
 # Get test suites
 RUN git clone https://github.com/wasp-platform/Collections-C.git "${BASE}/Collections-C"
