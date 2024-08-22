@@ -17,10 +17,13 @@
  (name wasp)
  (synopsis "WebAssembly Symbolic Processor (WASP)")
  (description "WASP is a symbolic execution engine for testing and validating Wasm modules.")
- (depends base batteries ocamlformat))
-
-(package
- (name waspc)
- (synopsis "")
- (description "")
- (depends ocaml dune re2 bos pyml cmdliner))
+ (depends
+   batteries
+   bos
+   cmdliner
+   dune
+   ocaml
+   (ocamlformat :with-dev-setup)
+   pyml
+   re2
+   (smtml (>= "0.2.4"))))

@@ -9,10 +9,15 @@ license: "LICENSE"
 homepage: "https://github.com/wasp-platform/wasp"
 bug-reports: "https://github.com/wasp-platform/wasp/issues"
 depends: [
-  "dune" {>= "3.0"}
-  "base"
   "batteries"
-  "ocamlformat"
+  "bos"
+  "cmdliner"
+  "dune" {>= "3.0"}
+  "ocaml"
+  "ocamlformat" {with-dev-setup}
+  "pyml"
+  "re2"
+  "smtml" {>= "0.2.4"}
   "odoc" {with-doc}
 ]
 build: [
