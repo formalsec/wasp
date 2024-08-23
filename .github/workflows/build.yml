@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches: main
+  pull_request:
+    branches: main
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    env:
+      # allow opam depext to yes package manager prompts
+      OPAMCONFIRMLEVEL: unsafe-yes
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OCaml 4.14
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14
+          dune-cache: true
+
+      - name: Install dependencies
+        run: opam install -y . --deps-only --with-test
+
+      - name: Build
+        run: opam exec -- dune build @install
+
+      - name: Test
+        run: opam exec -- dune runtest
