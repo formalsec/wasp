@@ -26,4 +26,5 @@
    (ocamlformat :with-dev-setup)
    pyml
    re2
-   (smtml (>= "0.2.4"))))
+   (smtml (>= "0.2.4"))
+   z3))
