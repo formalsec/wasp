@@ -27,5 +27,5 @@ result
 .DS_Store
 nix/profiles/
 
-**/wasp-out/
+wasp-out/*
 bin/libc.wasm

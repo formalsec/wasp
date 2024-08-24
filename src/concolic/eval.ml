@@ -233,7 +233,15 @@ let mk_relop ?(reduce : bool = true) (e : Expr.t) (ty : Ty.t) =
     | Ty_fp 64 -> Expr.relop (Ty_fp 64) Ne e (Expr.value zero)
     | _ -> assert false )
 
-let add_constraint ?neg:_ _ _ = assert false
+let add_constraint ?(neg : bool = false) e pc =
+  let cond =
+    let c = to_relop (Expr.simplify e) in
+    if neg then Option.map (fun e -> Expr.Bool.not e) c else c
+  in
+  match (cond, Expr.view pc) with
+  | None, _ -> pc
+  | Some cond, Val True -> cond
+  | Some cond, _ -> Expr.binop Ty_bool And cond pc
 
 let branch_on_cond bval c pc tree =
   let tree', to_branch =
