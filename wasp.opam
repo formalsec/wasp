@@ -18,6 +18,7 @@ depends: [
   "pyml"
   "re2"
   "smtml" {>= "0.2.4"}
+  "z3"
   "odoc" {with-doc}
 ]
 build: [
