@@ -1,13 +1,30 @@
 (* Types *)
 
-type value_type = I32Type | I64Type | F32Type | F64Type
+type value_type =
+  | I32Type
+  | I64Type
+  | F32Type
+  | F64Type
+
 type elem_type = FuncRefType
+
 type stack_type = value_type list
+
 type func_type = FuncType of stack_type * stack_type
-type 'a limits = { min : 'a; max : 'a option }
-type mutability = Immutable | Mutable
+
+type 'a limits =
+  { min : 'a
+  ; max : 'a option
+  }
+
+type mutability =
+  | Immutable
+  | Mutable
+
 type table_type = TableType of Int32.t limits * elem_type
+
 type memory_type = MemoryType of Int32.t limits
+
 type global_type = GlobalType of value_type * mutability
 
 type extern_type =

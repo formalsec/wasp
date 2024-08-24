@@ -1,8 +1,11 @@
 type count = int
+
 type 'a t = ('a, count) Hashtbl.t
 
 let create () : 'a t = Hashtbl.create Interpreter.Flags.hashtbl_default_size
+
 let clear (cnt : 'a t) : unit = Hashtbl.clear cnt
+
 let copy (cnt : 'a t) : 'a t = Hashtbl.copy cnt
 
 let reset (cnt : 'a t) : unit =
@@ -27,5 +30,5 @@ let to_string (cnt : 'a t) : string =
   Seq.fold_left
     (fun a b ->
       let k, c = b in
-      a ^ "(" ^ k ^ "-> cnt=" ^ string_of_int c ^ ")\n")
+      a ^ "(" ^ k ^ "-> cnt=" ^ string_of_int c ^ ")\n" )
     "" (Hashtbl.to_seq cnt)

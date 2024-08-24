@@ -11,6 +11,7 @@ module Registry = Map.Make (struct
 end)
 
 let registry = ref Registry.empty
+
 let register name lookup = registry := Registry.add name lookup !registry
 
 let lookup (m : module_) (im : import) : Instance.extern =
@@ -19,7 +20,7 @@ let lookup (m : module_) (im : import) : Instance.extern =
   try Registry.find module_name !registry item_name t
   with Not_found ->
     Unknown.error im.at
-      ("unknown import \"" ^ string_of_name module_name ^ "\".\""
-     ^ string_of_name item_name ^ "\"")
+      ( "unknown import \"" ^ string_of_name module_name ^ "\".\""
+      ^ string_of_name item_name ^ "\"" )
 
 let link m = List.map (lookup m) m.it.imports

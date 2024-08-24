@@ -14,11 +14,18 @@ and action' =
   | Get of var option * Ast.name
 
 type nanop = nanop' Source.phrase
+
 and nanop' = (unit, unit, nan, nan) Values.op
-and nan = CanonicalNan | ArithmeticNan
+
+and nan =
+  | CanonicalNan
+  | ArithmeticNan
 
 type result = result' Source.phrase
-and result' = LitResult of Ast.literal | NanResult of nanop
+
+and result' =
+  | LitResult of Ast.literal
+  | NanResult of nanop
 
 type assertion = assertion' Source.phrase
 

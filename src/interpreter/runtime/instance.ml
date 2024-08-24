@@ -1,18 +1,22 @@
 open Types
 
-type module_inst = {
-  types : func_type list;
-  funcs : func_inst list;
-  tables : table_inst list;
-  memories : memory_inst list;
-  globals : global_inst list;
-  exports : export_inst list;
-}
+type module_inst =
+  { types : func_type list
+  ; funcs : func_inst list
+  ; tables : table_inst list
+  ; memories : memory_inst list
+  ; globals : global_inst list
+  ; exports : export_inst list
+  }
 
 and func_inst = module_inst ref Func.t
+
 and table_inst = Table.t
+
 and memory_inst = Memory.t
+
 and global_inst = Global.t
+
 and export_inst = Ast.name * extern
 
 and extern =
@@ -35,13 +39,12 @@ let clone (m : module_inst) : module_inst =
   { types; funcs; tables; memories; globals; exports }
 
 let empty_module_inst =
-  {
-    types = [];
-    funcs = [];
-    tables = [];
-    memories = [];
-    globals = [];
-    exports = [];
+  { types = []
+  ; funcs = []
+  ; tables = []
+  ; memories = []
+  ; globals = []
+  ; exports = []
   }
 
 let extern_type_of = function

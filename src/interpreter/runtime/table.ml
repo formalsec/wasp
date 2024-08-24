@@ -1,21 +1,27 @@
 open Types
 
 type size = int32
+
 type index = int32
+
 type elem = ..
+
 type elem += Uninitialized
+
 type table' = elem array
 
-type table = {
-  mutable content : table';
-  max : size option;
-  elem_type : elem_type;
-}
+type table =
+  { mutable content : table'
+  ; max : size option
+  ; elem_type : elem_type
+  }
 
 type t = table
 
 exception Bounds
+
 exception SizeOverflow
+
 exception SizeLimit
 
 let within_limits size = function None -> true | Some max -> I32.le_u size max
@@ -29,6 +35,7 @@ let alloc (TableType ({ min; max }, elem_type)) =
   { content = create min; max; elem_type }
 
 let size tab = Lib.Array32.length tab.content
+
 let type_of tab = TableType ({ min = size tab; max = tab.max }, tab.elem_type)
 
 let grow tab delta =

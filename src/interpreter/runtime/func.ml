@@ -8,7 +8,9 @@ and 'inst func =
   | HostFunc of func_type * (value list -> value list)
 
 let alloc ft inst f = AstFunc (ft, inst, f)
+
 let alloc_host ft f = HostFunc (ft, f)
+
 let type_of = function AstFunc (ft, _, _) -> ft | HostFunc (ft, _) -> ft
 
 let get_inst (f : 'inst t) : 'inst option =

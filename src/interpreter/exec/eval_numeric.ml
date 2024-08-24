@@ -13,6 +13,7 @@ module IntOp (IXX : Int.S) (Value : ValueType with type t = IXX.t) = struct
   open Ast.IntOp
 
   let to_value = Value.to_value
+
   let of_value = of_arg Value.of_value
 
   let unop op =
@@ -72,6 +73,7 @@ module FloatOp (FXX : Float.S) (Value : ValueType with type t = FXX.t) = struct
   open Ast.FloatOp
 
   let to_value = Value.to_value
+
   let of_value = of_arg Value.of_value
 
   let unop op =
@@ -187,7 +189,11 @@ let op i32 i64 f32 f64 = function
   | F64 x -> f64 x
 
 let eval_unop = op I32Op.unop I64Op.unop F32Op.unop F64Op.unop
+
 let eval_binop = op I32Op.binop I64Op.binop F32Op.binop F64Op.binop
+
 let eval_testop = op I32Op.testop I64Op.testop F32Op.testop F64Op.testop
+
 let eval_relop = op I32Op.relop I64Op.relop F32Op.relop F64Op.relop
+
 let eval_cvtop = op I32CvtOp.cvtop I64CvtOp.cvtop F32CvtOp.cvtop F64CvtOp.cvtop

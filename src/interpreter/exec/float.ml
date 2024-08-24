@@ -2,58 +2,105 @@ module type RepType = sig
   type t
 
   val mantissa : int
+
   val zero : t
+
   val min_int : t
+
   val max_int : t
+
   val pos_nan : t
+
   val neg_nan : t
+
   val bare_nan : t
+
   val bits_of_float : float -> t
+
   val float_of_bits : t -> float
+
   val of_string : string -> t
+
   val to_string : t -> string
+
   val to_hex_string : t -> string
+
   val lognot : t -> t
+
   val logand : t -> t -> t
+
   val logor : t -> t -> t
+
   val logxor : t -> t -> t
 end
 
 module type S = sig
   type t
+
   type bits
 
   val pos_nan : t
+
   val neg_nan : t
+
   val is_inf : t -> bool
+
   val is_nan : t -> bool
+
   val of_float : float -> t
+
   val to_float : t -> float
+
   val of_string : string -> t
+
   val to_string : t -> string
+
   val of_bits : bits -> t
+
   val to_bits : t -> bits
+
   val add : t -> t -> t
+
   val sub : t -> t -> t
+
   val mul : t -> t -> t
+
   val div : t -> t -> t
+
   val sqrt : t -> t
+
   val min : t -> t -> t
+
   val max : t -> t -> t
+
   val ceil : t -> t
+
   val floor : t -> t
+
   val trunc : t -> t
+
   val nearest : t -> t
+
   val abs : t -> t
+
   val neg : t -> t
+
   val copysign : t -> t -> t
+
   val eq : t -> t -> bool
+
   val ne : t -> t -> bool
+
   val lt : t -> t -> bool
+
   val le : t -> t -> bool
+
   val gt : t -> t -> bool
+
   val ge : t -> t -> bool
+
   val zero : t
+
   val rand : float -> t
 end
 
@@ -61,17 +108,27 @@ module Make (Rep : RepType) : S with type bits = Rep.t = struct
   let _ = assert (Rep.mantissa <= 52)
 
   type t = Rep.t
+
   type bits = Rep.t
 
   let pos_inf = Rep.bits_of_float (1.0 /. 0.0)
+
   let neg_inf = Rep.bits_of_float (-.(1.0 /. 0.0))
+
   let pos_nan = Rep.pos_nan
+
   let neg_nan = Rep.neg_nan
+
   let bare_nan = Rep.bare_nan
+
   let of_float = Rep.bits_of_float
+
   let to_float = Rep.float_of_bits
+
   let of_bits x = x
+
   let to_bits x = x
+
   let is_inf x = x = pos_inf || x = neg_inf
 
   let is_nan x =
@@ -124,12 +181,19 @@ module Make (Rep : RepType) : S with type bits = Rep.t = struct
     if t = t then of_float t else determine_unary_nan x
 
   let zero = of_float 0.0
+
   let add x y = binary x ( +. ) y
+
   let sub x y = binary x ( -. ) y
+
   let mul x y = binary x ( *. ) y
+
   let div x y = binary x ( /. ) y
+
   let sqrt x = unary sqrt x
+
   let ceil x = unary ceil x
+
   let floor x = unary floor x
 
   let trunc x =
@@ -183,13 +247,21 @@ module Make (Rep : RepType) : S with type bits = Rep.t = struct
 
   (* abs, neg, copysign are purely bitwise operations, even on NaN values *)
   let abs x = Rep.logand x Rep.max_int
+
   let neg x = Rep.logxor x Rep.min_int
+
   let copysign x y = Rep.logor (abs x) (Rep.logand y Rep.min_int)
+
   let eq x y = to_float x = to_float y
+
   let ne x y = to_float x <> to_float y
+
   let lt x y = to_float x < to_float y
+
   let gt x y = to_float x > to_float y
+
   let le x y = to_float x <= to_float y
+
   let ge x y = to_float x >= to_float y
 
   (*
@@ -197,7 +269,9 @@ module Make (Rep : RepType) : S with type bits = Rep.t = struct
    * This is a gross hack to detect rounding during parsing of floats.
    *)
   let is_hex c = ('0' <= c && c <= '9') || ('A' <= c && c <= 'F')
+
   let is_exp hex c = c = if hex then 'P' else 'E'
+
   let at_end hex s i = i = String.length s || is_exp hex s.[i]
 
   let rec skip_non_hex s i =
@@ -216,9 +290,9 @@ module Make (Rep : RepType) : S with type bits = Rep.t = struct
     | true, false -> if at_end hex s2 (skip_zeroes s2 i2') then 0 else -1
     | false, true -> if at_end hex s1 (skip_zeroes s1 i1') then 0 else 1
     | false, false -> (
-        match compare s1.[i1'] s2.[i2'] with
-        | 0 -> compare_mantissa_str' hex s1 (i1' + 1) s2 (i2' + 1)
-        | n -> n)
+      match compare s1.[i1'] s2.[i2'] with
+      | 0 -> compare_mantissa_str' hex s1 (i1' + 1) s2 (i2' + 1)
+      | n -> n )
 
   let compare_mantissa_str hex s1 s2 =
     let s1' = String.uppercase_ascii s1 in
@@ -318,13 +392,14 @@ module Make (Rep : RepType) : S with type bits = Rep.t = struct
   (* String conversion that groups digits for readability *)
 
   let is_digit c = '0' <= c && c <= '9'
+
   let isnt_digit c = not (is_digit c)
 
   let rec add_digits buf s i j k =
     if i < j then (
       if k = 0 then Buffer.add_char buf '_';
       Buffer.add_char buf s.[i];
-      add_digits buf s (i + 1) j ((k + 2) mod 3))
+      add_digits buf s (i + 1) j ((k + 2) mod 3) )
 
   let group_digits s =
     let len = String.length s in

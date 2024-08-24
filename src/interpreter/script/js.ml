@@ -150,7 +150,11 @@ end)
 module Map = Map.Make (String)
 
 type exports = extern_type NameMap.t
-type modules = { mutable env : exports Map.t; mutable current : int }
+
+type modules =
+  { mutable env : exports Map.t
+  ; mutable current : int
+  }
 
 let exports m : exports =
   List.fold_left
@@ -158,6 +162,7 @@ let exports m : exports =
     NameMap.empty m.it.exports
 
 let modules () : modules = { env = Map.empty; current = 0 }
+
 let current_var (mods : modules) = "$" ^ string_of_int mods.current
 
 let of_var_opt (mods : modules) = function
@@ -176,16 +181,16 @@ let lookup (mods : modules) x_opt name at =
     with Not_found ->
       raise
         (Eval.Crash
-           ( at,
-             if x_opt = None then "no module defined within script"
+           ( at
+           , if x_opt = None then "no module defined within script"
              else "unknown module " ^ of_var_opt mods x_opt ^ " within script"
-           ))
+           ) )
   in
   try NameMap.find name exports
   with Not_found ->
     raise
       (Eval.Crash
-         (at, "unknown export \"" ^ string_of_name name ^ "\" within module"))
+         (at, "unknown export \"" ^ string_of_name name ^ "\" within module") )
 
 (* Wrappers *)
 
@@ -214,51 +219,50 @@ let abs_mask_of = function
   | I64Type | F64Type -> Values.I64 Int64.max_int
 
 let invoke ft lits at =
-  ( [ ft @@ at ],
-    FuncImport (1l @@ at) @@ at,
-    List.map (fun lit -> Const lit @@ at) lits @ [ Call (0l @@ at) @@ at ] )
+  ( [ ft @@ at ]
+  , FuncImport (1l @@ at) @@ at
+  , List.map (fun lit -> Const lit @@ at) lits @ [ Call (0l @@ at) @@ at ] )
 
 let get t at = ([], GlobalImport t @@ at, [ GlobalGet (0l @@ at) @@ at ])
+
 let run _ _ = ([], [])
 
 let assert_return ress _ at =
   let test res =
     match res.it with
     | LitResult lit ->
-        let t', reinterpret = reinterpret_of (Values.type_of lit.it) in
-        [
-          reinterpret @@ at;
-          Const lit @@ at;
-          reinterpret @@ at;
-          Compare (eq_of t') @@ at;
-          Test (Values.I32 I32Op.Eqz) @@ at;
-          BrIf (0l @@ at) @@ at;
-        ]
+      let t', reinterpret = reinterpret_of (Values.type_of lit.it) in
+      [ reinterpret @@ at
+      ; Const lit @@ at
+      ; reinterpret @@ at
+      ; Compare (eq_of t') @@ at
+      ; Test (Values.I32 I32Op.Eqz) @@ at
+      ; BrIf (0l @@ at) @@ at
+      ]
     | NanResult nanop ->
-        let nan =
-          match nanop.it with
-          | Values.I32 _ | Values.I64 _ -> assert false
-          | Values.F32 n | Values.F64 n -> n
-        in
-        let nan_bitmask_of =
-          match nan with
-          | CanonicalNan ->
-              abs_mask_of
-              (* must only differ from the canonical NaN in its sign bit *)
-          | ArithmeticNan -> canonical_nan_of
-          (* can be any NaN that's one everywhere the canonical NaN is one *)
-        in
-        let t = Values.type_of nanop.it in
-        let t', reinterpret = reinterpret_of t in
-        [
-          reinterpret @@ at;
-          Const (nan_bitmask_of t' @@ at) @@ at;
-          Binary (and_of t') @@ at;
-          Const (canonical_nan_of t' @@ at) @@ at;
-          Compare (eq_of t') @@ at;
-          Test (Values.I32 I32Op.Eqz) @@ at;
-          BrIf (0l @@ at) @@ at;
-        ]
+      let nan =
+        match nanop.it with
+        | Values.I32 _ | Values.I64 _ -> assert false
+        | Values.F32 n | Values.F64 n -> n
+      in
+      let nan_bitmask_of =
+        match nan with
+        | CanonicalNan ->
+          abs_mask_of
+          (* must only differ from the canonical NaN in its sign bit *)
+        | ArithmeticNan -> canonical_nan_of
+        (* can be any NaN that's one everywhere the canonical NaN is one *)
+      in
+      let t = Values.type_of nanop.it in
+      let t', reinterpret = reinterpret_of t in
+      [ reinterpret @@ at
+      ; Const (nan_bitmask_of t' @@ at) @@ at
+      ; Binary (and_of t') @@ at
+      ; Const (canonical_nan_of t' @@ at) @@ at
+      ; Compare (eq_of t') @@ at
+      ; Test (Values.I32 I32Op.Eqz) @@ at
+      ; BrIf (0l @@ at) @@ at
+      ]
   in
   ([], List.flatten (List.rev_map test ress))
 
@@ -271,8 +275,8 @@ let wrap module_name item_name wrap_action wrap_assertion at =
   let edesc = FuncExport item @@ at in
   let exports = [ { name = Utf8.decode "run"; edesc } @@ at ] in
   let body =
-    [
-      Block ([], action @ assertion @ [ Return @@ at ]) @@ at; Unreachable @@ at;
+    [ Block ([], action @ assertion @ [ Return @@ at ]) @@ at
+    ; Unreachable @@ at
     ]
   in
   let funcs = [ { ftype = 0l @@ at; locals; body } @@ at ] in
@@ -297,7 +301,7 @@ let add_char buf c =
   if c < '\x20' || c >= '\x7f' then add_hex_char buf c
   else (
     if c = '\"' || c = '\\' then Buffer.add_char buf '\\';
-    Buffer.add_char buf c)
+    Buffer.add_char buf c )
 
 let add_unicode_char buf uc =
   if uc < 0x20 || uc >= 0x7f then Printf.bprintf buf "\\u{%02x}" uc
@@ -311,7 +315,9 @@ let of_string_with iter add_char s =
   Buffer.contents buf
 
 let of_bytes = of_string_with String.iter add_hex_char
+
 let of_string = of_string_with String.iter add_char
+
 let of_name = of_string_with List.iter add_unicode_char
 
 let of_float z =
@@ -337,17 +343,17 @@ let of_result res =
   match res.it with
   | LitResult lit -> of_literal lit
   | NanResult nanop -> (
-      match nanop.it with
-      | Values.I32 _ | Values.I64 _ -> assert false
-      | Values.F32 n | Values.F64 n -> of_nan n)
+    match nanop.it with
+    | Values.I32 _ | Values.I64 _ -> assert false
+    | Values.F32 n | Values.F64 n -> of_nan n )
 
 let rec of_definition def =
   match def.it with
   | Textual m -> of_bytes (Encode.encode m)
   | Encoded (_, bs) -> of_bytes bs
   | Quoted (_, s) -> (
-      try of_definition (Parse.string_to_module s)
-      with Parse.Syntax _ -> of_bytes "<malformed quote>")
+    try of_definition (Parse.string_to_module s)
+    with Parse.Syntax _ -> of_bytes "<malformed quote>" )
 
 let of_wrapper mods x_opt name wrap_action wrap_assertion at =
   let x = of_var_opt mods x_opt in
@@ -357,22 +363,22 @@ let of_wrapper mods x_opt name wrap_action wrap_assertion at =
 
 let of_action mods act =
   match act.it with
-  | Invoke (x_opt, name, lits) -> (
-      ( "call(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ", " ^ "["
-        ^ String.concat ", " (List.map of_literal lits)
-        ^ "])",
-        match lookup mods x_opt name act.at with
-        | ExternFuncType ft when not (is_js_func_type ft) ->
-            let (FuncType (_, out)) = ft in
-            Some (of_wrapper mods x_opt name (invoke ft lits), out)
-        | _ -> None ))
-  | Get (x_opt, name) -> (
-      ( "get(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ")",
-        match lookup mods x_opt name act.at with
-        | ExternGlobalType gt when not (is_js_global_type gt) ->
-            let (GlobalType (t, _)) = gt in
-            Some (of_wrapper mods x_opt name (get gt), [ t ])
-        | _ -> None ))
+  | Invoke (x_opt, name, lits) ->
+    ( "call(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ", " ^ "["
+      ^ String.concat ", " (List.map of_literal lits)
+      ^ "])"
+    , match lookup mods x_opt name act.at with
+      | ExternFuncType ft when not (is_js_func_type ft) ->
+        let (FuncType (_, out)) = ft in
+        Some (of_wrapper mods x_opt name (invoke ft lits), out)
+      | _ -> None )
+  | Get (x_opt, name) ->
+    ( "get(" ^ of_var_opt mods x_opt ^ ", " ^ of_name name ^ ")"
+    , match lookup mods x_opt name act.at with
+      | ExternGlobalType gt when not (is_js_global_type gt) ->
+        let (GlobalType (t, _)) = gt in
+        Some (of_wrapper mods x_opt name (get gt), [ t ])
+      | _ -> None )
 
 let of_assertion' mods act name args wrapper_opt =
   let act_js, act_wrapper_opt = of_action mods act in
@@ -380,12 +386,12 @@ let of_assertion' mods act name args wrapper_opt =
   match act_wrapper_opt with
   | None -> js ^ ";"
   | Some (act_wrapper, out) ->
-      let run_name, wrapper =
-        match wrapper_opt with
-        | None -> (name, run)
-        | Some wrapper -> ("run", wrapper)
-      in
-      run_name ^ "(() => " ^ act_wrapper (wrapper out) act.at ^ ");  // " ^ js
+    let run_name, wrapper =
+      match wrapper_opt with
+      | None -> (name, run)
+      | Some wrapper -> ("run", wrapper)
+    in
+    run_name ^ "(() => " ^ act_wrapper (wrapper out) act.at ^ ");  // " ^ js
 
 let of_assertion mods ass =
   match ass.it with
@@ -393,13 +399,13 @@ let of_assertion mods ass =
   | AssertInvalid (def, _) -> "assert_invalid(" ^ of_definition def ^ ");"
   | AssertUnlinkable (def, _) -> "assert_unlinkable(" ^ of_definition def ^ ");"
   | AssertUninstantiable (def, _) ->
-      "assert_uninstantiable(" ^ of_definition def ^ ");"
+    "assert_uninstantiable(" ^ of_definition def ^ ");"
   | AssertReturn (act, ress) ->
-      of_assertion' mods act "assert_return" (List.map of_result ress)
-        (Some (assert_return ress))
+    of_assertion' mods act "assert_return" (List.map of_result ress)
+      (Some (assert_return ress))
   | AssertTrap (act, _) -> of_assertion' mods act "assert_trap" [] None
   | AssertExhaustion (act, _) ->
-      of_assertion' mods act "assert_exhaustion" [] None
+    of_assertion' mods act "assert_exhaustion" [] None
 
 let of_command mods cmd =
   "\n// "
@@ -410,19 +416,19 @@ let of_command mods cmd =
   ^
   match cmd.it with
   | Module (x_opt, def) ->
-      let rec unquote def =
-        match def.it with
-        | Textual m -> m
-        | Encoded (_, bs) -> Decode.decode "binary" bs
-        | Quoted (_, s) -> unquote (Parse.string_to_module s)
-      in
-      bind mods x_opt (unquote def);
-      "let " ^ current_var mods ^ " = instance(" ^ of_definition def ^ ");\n"
-      ^
-      if x_opt = None then ""
-      else "let " ^ of_var_opt mods x_opt ^ " = " ^ current_var mods ^ ";\n"
+    let rec unquote def =
+      match def.it with
+      | Textual m -> m
+      | Encoded (_, bs) -> Decode.decode "binary" bs
+      | Quoted (_, s) -> unquote (Parse.string_to_module s)
+    in
+    bind mods x_opt (unquote def);
+    "let " ^ current_var mods ^ " = instance(" ^ of_definition def ^ ");\n"
+    ^
+    if x_opt = None then ""
+    else "let " ^ of_var_opt mods x_opt ^ " = " ^ current_var mods ^ ";\n"
   | Register (name, x_opt) ->
-      "register(" ^ of_name name ^ ", " ^ of_var_opt mods x_opt ^ ")\n"
+    "register(" ^ of_name name ^ ", " ^ of_var_opt mods x_opt ^ ")\n"
   | Action act -> of_assertion' mods act "run" [] None ^ "\n"
   | Assertion ass -> of_assertion mods ass ^ "\n"
   | Meta _ -> assert false

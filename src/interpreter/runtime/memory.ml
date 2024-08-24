@@ -4,22 +4,43 @@ open Types
 open Values
 
 type size = int32 (* number of pages *)
+
 type address = int64
+
 type offset = int32
-type pack_size = Pack8 | Pack16 | Pack32
-type extension = SX | ZX
+
+type pack_size =
+  | Pack8
+  | Pack16
+  | Pack32
+
+type extension =
+  | SX
+  | ZX
+
 type memory' = (int, int8_unsigned_elt, c_layout) Array1.t
-type memory = { mutable content : memory'; max : size option }
+
+type memory =
+  { mutable content : memory'
+  ; max : size option
+  }
+
 type t = memory
 
 exception Type
+
 exception Bounds
+
 exception SizeOverflow
+
 exception SizeLimit
+
 exception OutOfMemory
 
 let page_size = 0x10000L (* 64 KiB *)
+
 let packed_size = function Pack8 -> 1 | Pack16 -> 2 | Pack32 -> 4
+
 let within_limits n = function None -> true | Some max -> I32.le_u n max
 
 let create n =
@@ -37,7 +58,9 @@ let alloc (MemoryType { min; max }) =
   { content = create min; max }
 
 let bound mem = Array1_64.dim mem.content
+
 let size mem = Int64.(to_int32 (div (bound mem) page_size))
+
 let type_of mem = MemoryType { min = size mem; max = mem.max }
 
 let grow mem delta =
@@ -94,7 +117,7 @@ let storen mem a o n x =
   let rec loop a n x =
     if n > 0 then (
       Int64.(loop (add a 1L) (n - 1) (shift_right x 8));
-      store_byte mem a (Int64.to_int x land 0xff))
+      store_byte mem a (Int64.to_int x land 0xff) )
   in
   loop (effective_address a o) n x
 
@@ -119,8 +142,8 @@ let store_value mem a o v =
 let extend x n = function
   | ZX -> x
   | SX ->
-      let sh = 64 - (8 * n) in
-      Int64.(shift_right (shift_left x sh) sh)
+    let sh = 64 - (8 * n) in
+    Int64.(shift_right (shift_left x sh) sh)
 
 let load_packed sz ext mem a o t =
   assert (packed_size sz <= Types.size t);

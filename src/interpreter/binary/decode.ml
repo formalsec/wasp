@@ -1,13 +1,21 @@
 (* Decoding stream *)
 
-type stream = { name : string; bytes : string; pos : int ref }
+type stream =
+  { name : string
+  ; bytes : string
+  ; pos : int ref
+  }
 
 exception EOS
 
 let stream name bs = { name; bytes = bs; pos = ref 0 }
+
 let len s = String.length s.bytes
+
 let pos s = !(s.pos)
+
 let eos s = pos s = len s
+
 let check n s = if pos s + n > len s then raise EOS
 
 let skip n s =
@@ -15,6 +23,7 @@ let skip n s =
   s.pos := !(s.pos) + n
 
 let read s = Char.code s.bytes.[!(s.pos)]
+
 let peek s = if eos s then None else Some (read s)
 
 let get s =
@@ -35,21 +44,27 @@ module Code = Error.Make ()
 exception Code = Code.Error
 
 let string_of_byte b = Printf.sprintf "%02x" b
+
 let position s pos = Source.{ file = s.name; line = -1; column = pos }
 
 let region s left right =
   Source.{ left = position s left; right = position s right }
 
 let error s pos msg = raise (Code (region s pos pos, msg))
+
 let require b s pos msg = if not b then error s pos msg
 
 let guard f s =
   try f s with EOS -> error s (len s) "unexpected end of section or function"
 
 let get = guard get
+
 let get_string n = guard (get_string n)
+
 let skip n = guard (skip n)
+
 let expect b s msg = require (guard get s = b) s (pos s - 1) msg
+
 let illegal s pos b = error s pos ("illegal opcode " ^ string_of_byte b)
 
 let at f s =
@@ -99,11 +114,17 @@ let rec vsN n s =
   else Int64.(logor x (shift_left (vsN (n - 7) s) 7))
 
 let vu1 s = Int64.to_int (vuN 1 s)
+
 let vu32 s = Int64.to_int32 (vuN 32 s)
+
 let vs7 s = Int64.to_int (vsN 7 s)
+
 let vs32 s = Int64.to_int32 (vsN 32 s)
+
 let vs64 s = vsN 64 s
+
 let f32 s = F32.of_bits (u32 s)
+
 let f64 s = F64.of_bits (u64 s)
 
 let len32 s =
@@ -162,16 +183,16 @@ let elem_type s =
 let stack_type s =
   match peek s with
   | Some 0x40 ->
-      skip 1 s;
-      []
+    skip 1 s;
+    []
   | _ -> [ value_type s ]
 
 let func_type s =
   match vs7 s with
   | -0x20 ->
-      let ins = vec value_type s in
-      let out = vec value_type s in
-      FuncType (ins, out)
+    let ins = vec value_type s in
+    let out = vec value_type s in
+    FuncType (ins, out)
   | _ -> error s (pos s - 1) "invalid function type"
 
 let limits vu s =
@@ -206,7 +227,9 @@ open Ast
 open Operators
 
 let var s = vu32 s
+
 let op s = u8 s
+
 let end_ s = expect 0x0b s "END opcode expected"
 
 let memop s =
@@ -221,43 +244,43 @@ let rec instr s =
   | 0x00 -> unreachable
   | 0x01 -> nop
   | 0x02 ->
-      let ts = stack_type s in
-      let es' = instr_block s in
-      end_ s;
-      block ts es'
+    let ts = stack_type s in
+    let es' = instr_block s in
+    end_ s;
+    block ts es'
   | 0x03 ->
-      let ts = stack_type s in
-      let es' = instr_block s in
-      end_ s;
-      loop ts es'
+    let ts = stack_type s in
+    let es' = instr_block s in
+    end_ s;
+    loop ts es'
   | 0x04 ->
-      let ts = stack_type s in
-      let es1 = instr_block s in
-      if peek s = Some 0x05 then (
-        expect 0x05 s "ELSE or END opcode expected";
-        let es2 = instr_block s in
-        end_ s;
-        if_ ts es1 es2)
-      else (
-        end_ s;
-        if_ ts es1 [])
+    let ts = stack_type s in
+    let es1 = instr_block s in
+    if peek s = Some 0x05 then (
+      expect 0x05 s "ELSE or END opcode expected";
+      let es2 = instr_block s in
+      end_ s;
+      if_ ts es1 es2 )
+    else (
+      end_ s;
+      if_ ts es1 [] )
   | 0x05 -> error s pos "misplaced ELSE opcode"
   | (0x06 | 0x07 | 0x08 | 0x09 | 0x0a) as b -> illegal s pos b
   | 0x0b -> error s pos "misplaced END opcode"
   | 0x0c -> br (at var s)
   | 0x0d -> br_if (at var s)
   | 0x0e ->
-      let xs = vec (at var) s in
-      let x = at var s in
-      br_table xs x
+    let xs = vec (at var) s in
+    let x = at var s in
+    br_table xs x
   | 0x0f -> return
   | 0x10 -> call (at var s)
   | 0x11 ->
-      let x = at var s in
-      expect 0x00 s "zero flag expected";
-      call_indirect x
+    let x = at var s in
+    expect 0x00 s "zero flag expected";
+    call_indirect x
   | (0x12 | 0x13 | 0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19) as b ->
-      illegal s pos b
+    illegal s pos b
   | 0x1a -> drop
   | 0x1b -> select
   | (0x1c | 0x1d | 0x1e | 0x1f) as b -> illegal s pos b
@@ -268,80 +291,80 @@ let rec instr s =
   | 0x24 -> global_set (at var s)
   | (0x25 | 0x26 | 0x27) as b -> illegal s pos b
   | 0x28 ->
-      let a, o = memop s in
-      i32_load a o
+    let a, o = memop s in
+    i32_load a o
   | 0x29 ->
-      let a, o = memop s in
-      i64_load a o
+    let a, o = memop s in
+    i64_load a o
   | 0x2a ->
-      let a, o = memop s in
-      f32_load a o
+    let a, o = memop s in
+    f32_load a o
   | 0x2b ->
-      let a, o = memop s in
-      f64_load a o
+    let a, o = memop s in
+    f64_load a o
   | 0x2c ->
-      let a, o = memop s in
-      i32_load8_s a o
+    let a, o = memop s in
+    i32_load8_s a o
   | 0x2d ->
-      let a, o = memop s in
-      i32_load8_u a o
+    let a, o = memop s in
+    i32_load8_u a o
   | 0x2e ->
-      let a, o = memop s in
-      i32_load16_s a o
+    let a, o = memop s in
+    i32_load16_s a o
   | 0x2f ->
-      let a, o = memop s in
-      i32_load16_u a o
+    let a, o = memop s in
+    i32_load16_u a o
   | 0x30 ->
-      let a, o = memop s in
-      i64_load8_s a o
+    let a, o = memop s in
+    i64_load8_s a o
   | 0x31 ->
-      let a, o = memop s in
-      i64_load8_u a o
+    let a, o = memop s in
+    i64_load8_u a o
   | 0x32 ->
-      let a, o = memop s in
-      i64_load16_s a o
+    let a, o = memop s in
+    i64_load16_s a o
   | 0x33 ->
-      let a, o = memop s in
-      i64_load16_u a o
+    let a, o = memop s in
+    i64_load16_u a o
   | 0x34 ->
-      let a, o = memop s in
-      i64_load32_s a o
+    let a, o = memop s in
+    i64_load32_s a o
   | 0x35 ->
-      let a, o = memop s in
-      i64_load32_u a o
+    let a, o = memop s in
+    i64_load32_u a o
   | 0x36 ->
-      let a, o = memop s in
-      i32_store a o
+    let a, o = memop s in
+    i32_store a o
   | 0x37 ->
-      let a, o = memop s in
-      i64_store a o
+    let a, o = memop s in
+    i64_store a o
   | 0x38 ->
-      let a, o = memop s in
-      f32_store a o
+    let a, o = memop s in
+    f32_store a o
   | 0x39 ->
-      let a, o = memop s in
-      f64_store a o
+    let a, o = memop s in
+    f64_store a o
   | 0x3a ->
-      let a, o = memop s in
-      i32_store8 a o
+    let a, o = memop s in
+    i32_store8 a o
   | 0x3b ->
-      let a, o = memop s in
-      i32_store16 a o
+    let a, o = memop s in
+    i32_store16 a o
   | 0x3c ->
-      let a, o = memop s in
-      i64_store8 a o
+    let a, o = memop s in
+    i64_store8 a o
   | 0x3d ->
-      let a, o = memop s in
-      i64_store16 a o
+    let a, o = memop s in
+    i64_store16 a o
   | 0x3e ->
-      let a, o = memop s in
-      i64_store32 a o
+    let a, o = memop s in
+    i64_store32 a o
   | 0x3f ->
-      expect 0x00 s "zero flag expected";
-      memory_size
+    expect 0x00 s "zero flag expected";
+    memory_size
   | 0x40 ->
-      expect 0x00 s "zero flag expected";
-      memory_grow
+    expect 0x00 s "zero flag expected";
+    memory_grow
   | 0x41 -> i32_const (at vs32 s)
   | 0x42 -> i64_const (at vs64 s)
   | 0x43 -> f32_const (at f32 s)
@@ -477,9 +500,9 @@ and instr_block' s es =
   match peek s with
   | None | Some (0x05 | 0x0b) -> es
   | _ ->
-      let pos = pos s in
-      let e' = instr s in
-      instr_block' s (Source.(e' @@ region s pos pos) :: es)
+    let pos = pos s in
+    let e' = instr s in
+    instr_block' s (Source.(e' @@ region s pos pos) :: es)
 
 let const s =
   let c = at instr_block s in
@@ -504,14 +527,14 @@ let id s =
       | 9 -> `ElemSection
       | 10 -> `CodeSection
       | 11 -> `DataSection
-      | _ -> error s (pos s) "invalid section id")
+      | _ -> error s (pos s) "invalid section id" )
     bo
 
 let section_with_size tag f default s =
   match id s with
   | Some tag' when tag' = tag ->
-      ignore (u8 s);
-      sized f s
+    ignore (u8 s);
+    sized f s
   | _ -> default
 
 let section tag f default s = section_with_size tag (fun _ -> f) default s
@@ -519,6 +542,7 @@ let section tag f default s = section_with_size tag (fun _ -> f) default s
 (* Type section *)
 
 let type_ s = at func_type s
+
 let type_section s = section `TypeSection (vec type_) [] s
 
 (* Import section *)
@@ -619,11 +643,13 @@ let segment dat s =
   { index; offset; init }
 
 let table_segment s = segment (vec (at var)) s
+
 let elem_section s = section `ElemSection (vec (at table_segment)) [] s
 
 (* Data section *)
 
 let memory_segment s = segment string s
+
 let data_section s = section `DataSection (vec (at memory_segment)) [] s
 
 (* Custom section *)
@@ -677,17 +703,16 @@ let module_ s =
       Source.(fun t f -> { f.it with ftype = t } @@ f.at)
       func_types func_bodies
   in
-  {
-    types;
-    tables;
-    memories;
-    globals;
-    funcs;
-    imports;
-    exports;
-    elems;
-    data;
-    start;
+  { types
+  ; tables
+  ; memories
+  ; globals
+  ; funcs
+  ; imports
+  ; exports
+  ; elems
+  ; data
+  ; start
   }
 
 let decode name bs = at module_ (stream name bs)
