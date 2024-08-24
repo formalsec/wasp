@@ -1,0 +1,4 @@
+(cram
+ (deps
+  %{bin:wasp}
+  test1.wast))

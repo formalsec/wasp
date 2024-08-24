@@ -8,7 +8,7 @@ exception IO of Source.region * string
 
 val trace : string -> unit
 
-val run_string_concolic : string -> bool
+val run_string_concolic : string -> Concolic.Eval.policy -> bool
 
 val run_file : string -> bool
 

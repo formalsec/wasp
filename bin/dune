@@ -3,4 +3,4 @@
  (name main)
  (public_name wasp)
  (modules main options)
- (libraries cmdliner interpreter wasp))
+ (libraries prelude interpreter wasp))

@@ -186,10 +186,11 @@ let rec eval (env : t) (e : Expr.t) : Value.t =
       in
       Hashtbl.replace env.map x v;
       Num v )
-  | Extract (e, _, _) ->
-    let _v = int64_of_value (eval env e) in
-    (* Num (I64 (Expr.nland64 (Int64.shift_right v (l * 8)) (h - l))) *)
-    assert false
+  | Extract (e', h, l) when h - l = 1 ->
+    let v = int64_of_value (eval env e') in
+    Num (I64 Int64.(logand (shift_right v (8 * l)) 0xffL))
+  | Extract (_, _, _) ->
+      assert false
   | Concat (e1, e2) -> (
     let v1 = int64_of_value (eval env e1) in
     let v2 = int64_of_value (eval env e2) in

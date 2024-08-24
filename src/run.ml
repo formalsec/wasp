@@ -524,7 +524,7 @@ and run_quote_script script invoke =
   bind scripts None (List.rev !quote);
   quote := !quote @ save_quote
 
-let invoke_concolic f vs inst =
+let invoke_concolic _policy f vs inst =
   Concolic.Eval.main f
     (List.map
        (fun v ->
@@ -545,8 +545,8 @@ let run_file _file =
   (* input_file file run_script *)
   assert false
 
-let run_string_concolic string =
-  input_string string ~callback:(fun s -> run_script s invoke_concolic)
+let run_string_concolic string policy =
+  input_string string ~callback:(fun s -> run_script s (invoke_concolic policy))
 
 (* let run_string_se string = *)
 (*   input_string string ~callback:(fun s -> run_script s invoke_se) *)
