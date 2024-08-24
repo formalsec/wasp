@@ -1,5 +1,3 @@
-open Encoding.Value
-open Encoding.Expression
 open Interpreter
 open Script
 open Source
@@ -11,7 +9,9 @@ module Assert = Error.Make ()
 module IO = Error.Make ()
 
 exception Abort = Abort.Error
+
 exception Assert = Assert.Error
+
 exception IO = IO.Error
 
 let trace name = if !Flags.trace then print_endline ("-- " ^ name)
@@ -19,9 +19,13 @@ let trace name = if !Flags.trace then print_endline ("-- " ^ name)
 (* File types *)
 
 let binary_ext = "wasm"
+
 let sexpr_ext = "wat"
+
 let script_binary_ext = "bin.wast"
+
 let script_ext = "wast"
+
 let js_ext = "js"
 
 let dispatch_file_ext on_binary on_sexpr on_script_binary on_script on_js file =
@@ -123,7 +127,7 @@ let input_sexpr name lexbuf run =
   input_from
     (fun _ ->
       let var_opt, def = Parse.parse name lexbuf Parse.Module in
-      [ Module (var_opt, def) @@ no_region ])
+      [ Module (var_opt, def) @@ no_region ] )
     run
 
 let input_binary name buf run =
@@ -160,7 +164,7 @@ let input_binary_file file run =
     close_in ic;
     raise exn
 
-let input_js_file file run =
+let input_js_file file _run =
   raise (Sys_error (file ^ ": unrecognized input file type"))
 
 let input_file file run =
@@ -170,11 +174,11 @@ let input_file file run =
     (input_sexpr_file (input_script Parse.Script))
     input_js_file file run
 
-let input_string string run =
+let input_string string ~callback =
   trace ("Running (\"" ^ String.escaped string ^ "\")...");
   let lexbuf = Lexing.from_string string in
   trace "Parsing...";
-  input_script Parse.Script "string" lexbuf run
+  input_script Parse.Script "string" lexbuf callback
 
 (* Interactive *)
 
@@ -266,9 +270,9 @@ let string_of_result r =
   match r with
   | LitResult v -> Values.string_of_value v.it
   | NanResult nanop -> (
-      match nanop.it with
-      | Values.I32 _ | Values.I64 _ -> assert false
-      | Values.F32 n | Values.F64 n -> string_of_nan n)
+    match nanop.it with
+    | Values.I32 _ | Values.I64 _ -> assert false
+    | Values.F32 n | Values.F64 n -> string_of_nan n )
 
 let string_of_results = function
   | [ r ] -> string_of_result r
@@ -285,10 +289,15 @@ let print_results rs =
 module Map = Map.Make (String)
 
 let quote : script ref = ref []
+
 let scripts : script Map.t ref = ref Map.empty
+
 let modules : Ast.module_ Map.t ref = ref Map.empty
+
 let instances : Instance.module_inst Map.t ref = ref Map.empty
+
 let registry : Instance.module_inst Map.t ref = ref Map.empty
+
 let memories : Concolic.Heap.t Map.t ref = ref Map.empty
 
 let bind map x_opt y =
@@ -300,12 +309,15 @@ let lookup category map x_opt at =
   try Map.find key !map
   with Not_found ->
     IO.error at
-      (if key = "" then "no " ^ category ^ " defined"
-      else "unknown " ^ category ^ " " ^ key)
+      ( if key = "" then "no " ^ category ^ " defined"
+        else "unknown " ^ category ^ " " ^ key )
 
 let lookup_script = lookup "script" scripts
+
 let lookup_module = lookup "module" modules
+
 let lookup_instance = lookup "module" instances
+
 let lookup_memory = lookup "memory" memories
 
 let lookup_registry module_name item_name _t =
@@ -319,32 +331,32 @@ let rec run_definition def : Ast.module_ =
   match def.it with
   | Textual m -> m
   | Encoded (name, bs) ->
-      trace "Decoding...";
-      Decode.decode name bs
+    trace "Decoding...";
+    Decode.decode name bs
   | Quoted (_, s) ->
-      trace "Parsing quote...";
-      let def' = Parse.string_to_module s in
-      run_definition def'
+    trace "Parsing quote...";
+    let def' = Parse.string_to_module s in
+    run_definition def'
 
 let run_action act invoke : Values.value list =
   match act.it with
   | Invoke (x_opt, name, vs) -> (
-      trace ("Invoking function \"" ^ Ast.string_of_name name ^ "\"...");
-      let inst = lookup_instance x_opt act.at in
-      let memory = lookup_memory x_opt act.at in
-      match Instance.export inst name with
-      | Some (Instance.ExternFunc f) ->
-          invoke f vs inst memory;
-          []
-      | Some _ -> Assert.error act.at "export is not a function"
-      | None -> Assert.error act.at "undefined export")
+    trace ("Invoking function \"" ^ Ast.string_of_name name ^ "\"...");
+    let inst = lookup_instance x_opt act.at in
+    let memory = lookup_memory x_opt act.at in
+    match Instance.export inst name with
+    | Some (Instance.ExternFunc f) ->
+      invoke f vs inst memory;
+      []
+    | Some _ -> Assert.error act.at "export is not a function"
+    | None -> Assert.error act.at "undefined export" )
   | Get (x_opt, name) -> (
-      trace ("Getting global \"" ^ Ast.string_of_name name ^ "\"...");
-      let inst = lookup_instance x_opt act.at in
-      match Instance.export inst name with
-      | Some (Instance.ExternGlobal gl) -> [ Global.load gl ]
-      | Some _ -> Assert.error act.at "export is not a global"
-      | None -> Assert.error act.at "undefined export")
+    trace ("Getting global \"" ^ Ast.string_of_name name ^ "\"...");
+    let inst = lookup_instance x_opt act.at in
+    match Instance.export inst name with
+    | Some (Instance.ExternGlobal gl) -> [ Global.load gl ]
+    | Some _ -> Assert.error act.at "export is not a global"
+    | None -> Assert.error act.at "undefined export" )
 
 let assert_result at got expect =
   let open Values in
@@ -355,23 +367,23 @@ let assert_result at got expect =
            match r with
            | LitResult v' -> v <> v'.it
            | NanResult nanop -> (
-               match (nanop.it, v) with
-               | F32 CanonicalNan, F32 z -> z <> F32.pos_nan && z <> F32.neg_nan
-               | F64 CanonicalNan, F64 z -> z <> F64.pos_nan && z <> F64.neg_nan
-               | F32 ArithmeticNan, F32 z ->
-                   let pos_nan = F32.to_bits F32.pos_nan in
-                   Int32.logand (F32.to_bits z) pos_nan <> pos_nan
-               | F64 ArithmeticNan, F64 z ->
-                   let pos_nan = F64.to_bits F64.pos_nan in
-                   Int64.logand (F64.to_bits z) pos_nan <> pos_nan
-               | _, _ -> false))
+             match (nanop.it, v) with
+             | F32 CanonicalNan, F32 z -> z <> F32.pos_nan && z <> F32.neg_nan
+             | F64 CanonicalNan, F64 z -> z <> F64.pos_nan && z <> F64.neg_nan
+             | F32 ArithmeticNan, F32 z ->
+               let pos_nan = F32.to_bits F32.pos_nan in
+               Int32.logand (F32.to_bits z) pos_nan <> pos_nan
+             | F64 ArithmeticNan, F64 z ->
+               let pos_nan = F64.to_bits F64.pos_nan in
+               Int64.logand (F64.to_bits z) pos_nan <> pos_nan
+             | _, _ -> false ) )
          got expect
   then (
     print_string "Result: ";
     print_values got;
     print_string "Expect: ";
     print_results expect;
-    Assert.error at "wrong return values")
+    Assert.error at "wrong return values" )
 
 let assert_message at name msg re =
   if
@@ -380,126 +392,124 @@ let assert_message at name msg re =
   then (
     print_endline ("Result: \"" ^ msg ^ "\"");
     print_endline ("Expect: \"" ^ re ^ "\"");
-    Assert.error at ("wrong " ^ name ^ " error"))
+    Assert.error at ("wrong " ^ name ^ " error") )
 
 let run_assertion ass invoke =
   match ass.it with
   | AssertMalformed (def, re) -> (
-      trace "Asserting malformed...";
-      match ignore (run_definition def) with
-      | exception Decode.Code (_, msg) ->
-          assert_message ass.at "decoding" msg re
-      | exception Parse.Syntax (_, msg) ->
-          assert_message ass.at "parsing" msg re
-      | _ -> Assert.error ass.at "expected decoding/parsing error")
+    trace "Asserting malformed...";
+    match ignore (run_definition def) with
+    | exception Decode.Code (_, msg) -> assert_message ass.at "decoding" msg re
+    | exception Parse.Syntax (_, msg) -> assert_message ass.at "parsing" msg re
+    | _ -> Assert.error ass.at "expected decoding/parsing error" )
   | AssertInvalid (def, re) -> (
-      trace "Asserting invalid...";
-      match
-        let m = run_definition def in
-        Valid.check_module m
-      with
-      | exception Valid.Invalid (_, msg) ->
-          assert_message ass.at "validation" msg re
-      | _ -> Assert.error ass.at "expected validation error")
+    trace "Asserting invalid...";
+    match
+      let m = run_definition def in
+      Valid.check_module m
+    with
+    | exception Valid.Invalid (_, msg) ->
+      assert_message ass.at "validation" msg re
+    | _ -> Assert.error ass.at "expected validation error" )
   | AssertUnlinkable (def, re) -> (
-      trace "Asserting unlinkable...";
-      let m = run_definition def in
-      if not !Flags.unchecked then Valid.check_module m;
-      match
-        let imports = Import.link m in
-        ignore (Concolic.Eval.init m imports)
-      with
-      | exception (Import.Unknown (_, msg) | Common.Link (_, msg)) ->
-          assert_message ass.at "linking" msg re
-      | _ -> Assert.error ass.at "expected linking error")
+    trace "Asserting unlinkable...";
+    let m = run_definition def in
+    if not !Flags.unchecked then Valid.check_module m;
+    match
+      let imports = Import.link m in
+      ignore (Concolic.Eval.init m imports)
+    with
+    | exception (Import.Unknown (_, msg) | Common.Link (_, msg)) ->
+      assert_message ass.at "linking" msg re
+    | _ -> Assert.error ass.at "expected linking error" )
   | AssertUninstantiable (def, re) -> (
-      trace "Asserting trap...";
-      let m = run_definition def in
-      if not !Flags.unchecked then Valid.check_module m;
-      match
-        let imports = Import.link m in
-        ignore (Concolic.Eval.init m imports)
-      with
-      | exception Common.Trap (_, msg) ->
-          assert_message ass.at "instantiation" msg re
-      | _ -> Assert.error ass.at "expected instantiation error")
+    trace "Asserting trap...";
+    let m = run_definition def in
+    if not !Flags.unchecked then Valid.check_module m;
+    match
+      let imports = Import.link m in
+      ignore (Concolic.Eval.init m imports)
+    with
+    | exception Common.Trap (_, msg) ->
+      assert_message ass.at "instantiation" msg re
+    | _ -> Assert.error ass.at "expected instantiation error" )
   | AssertReturn (act, rs) ->
-      trace "Asserting return...";
-      let got_vs = run_action act invoke in
-      let expect_rs = List.map (fun r -> r.it) rs in
-      assert_result ass.at got_vs expect_rs
+    trace "Asserting return...";
+    let got_vs = run_action act invoke in
+    let expect_rs = List.map (fun r -> r.it) rs in
+    assert_result ass.at got_vs expect_rs
   | AssertTrap (act, re) -> (
-      trace "Asserting trap...";
-      match run_action act invoke with
-      | exception Common.Trap (_, msg) -> assert_message ass.at "runtime" msg re
-      | _ -> Assert.error ass.at "expected runtime error")
+    trace "Asserting trap...";
+    match run_action act invoke with
+    | exception Common.Trap (_, msg) -> assert_message ass.at "runtime" msg re
+    | _ -> Assert.error ass.at "expected runtime error" )
   | AssertExhaustion (act, re) -> (
-      trace "Asserting exhaustion...";
-      match run_action act invoke with
-      | exception Common.Exhaustion (_, msg) ->
-          assert_message ass.at "exhaustion" msg re
-      | _ -> Assert.error ass.at "expected exhaustion error")
+    trace "Asserting exhaustion...";
+    match run_action act invoke with
+    | exception Common.Exhaustion (_, msg) ->
+      assert_message ass.at "exhaustion" msg re
+    | _ -> Assert.error ass.at "expected exhaustion error" )
 
 let rec run_command cmd invoke =
   match cmd.it with
   | Module (x_opt, def) ->
-      quote := cmd :: !quote;
-      let m = run_definition def in
-      if not !Flags.unchecked then (
-        trace "Checking...";
-        Valid.check_module m;
-        if !Flags.print_sig then (
-          trace "Signature:";
-          print_module x_opt m));
-      bind scripts x_opt [ cmd ];
-      bind modules x_opt m;
-      if not !Flags.dry then (
-        trace "Initializing...";
-        let imports = Import.link m in
-        let memory, inst = Concolic.Eval.init m imports in
-        bind memories x_opt memory;
-        bind instances x_opt inst)
+    quote := cmd :: !quote;
+    let m = run_definition def in
+    if not !Flags.unchecked then (
+      trace "Checking...";
+      Valid.check_module m;
+      if !Flags.print_sig then (
+        trace "Signature:";
+        print_module x_opt m ) );
+    bind scripts x_opt [ cmd ];
+    bind modules x_opt m;
+    if not !Flags.dry then (
+      trace "Initializing...";
+      let imports = Import.link m in
+      let memory, inst = Concolic.Eval.init m imports in
+      bind memories x_opt memory;
+      bind instances x_opt inst )
   | Register (name, x_opt) ->
-      quote := cmd :: !quote;
-      if not !Flags.dry then (
-        trace ("Registering module \"" ^ Ast.string_of_name name ^ "\"...");
-        let inst = lookup_instance x_opt cmd.at in
-        registry := Map.add (Utf8.encode name) inst !registry;
-        Import.register name (lookup_registry (Utf8.encode name)))
+    quote := cmd :: !quote;
+    if not !Flags.dry then (
+      trace ("Registering module \"" ^ Ast.string_of_name name ^ "\"...");
+      let inst = lookup_instance x_opt cmd.at in
+      registry := Map.add (Utf8.encode name) inst !registry;
+      Import.register name (lookup_registry (Utf8.encode name)) )
   | Action act ->
-      quote := cmd :: !quote;
-      if not !Flags.dry then
-        let vs = run_action act invoke in
-        if vs <> [] then print_values vs
+    quote := cmd :: !quote;
+    if not !Flags.dry then
+      let vs = run_action act invoke in
+      if vs <> [] then print_values vs
   | Assertion ass ->
-      quote := cmd :: !quote;
-      if not !Flags.dry then run_assertion ass invoke
+    quote := cmd :: !quote;
+    if not !Flags.dry then run_assertion ass invoke
   | Meta cmd -> run_meta cmd invoke
 
 and run_meta cmd invoke =
   match cmd.it with
   | Script (x_opt, script) ->
-      run_quote_script script invoke;
-      bind scripts x_opt (lookup_script None cmd.at)
+    run_quote_script script invoke;
+    bind scripts x_opt (lookup_script None cmd.at)
   | Input (x_opt, file) ->
-      (try
-         if not (input_file file (fun s -> run_quote_script s invoke)) then
-           Abort.error cmd.at "aborting"
-       with Sys_error msg -> IO.error cmd.at msg);
-      bind scripts x_opt (lookup_script None cmd.at);
-      if x_opt <> None then (
-        bind modules x_opt (lookup_module None cmd.at);
-        if not !Flags.dry then
-          bind instances x_opt (lookup_instance None cmd.at))
+    ( try
+        if not (input_file file (fun s -> run_quote_script s invoke)) then
+          Abort.error cmd.at "aborting"
+      with Sys_error msg -> IO.error cmd.at msg );
+    bind scripts x_opt (lookup_script None cmd.at);
+    if x_opt <> None then (
+      bind modules x_opt (lookup_module None cmd.at);
+      if not !Flags.dry then bind instances x_opt (lookup_instance None cmd.at)
+      )
   | Output (x_opt, Some file) -> (
-      try
-        output_file file
-          (fun () -> lookup_script x_opt cmd.at)
-          (fun () -> lookup_module x_opt cmd.at)
-      with Sys_error msg -> IO.error cmd.at msg)
+    try
+      output_file file
+        (fun () -> lookup_script x_opt cmd.at)
+        (fun () -> lookup_module x_opt cmd.at)
+    with Sys_error msg -> IO.error cmd.at msg )
   | Output (x_opt, None) -> (
-      try output_stdout (fun () -> lookup_module x_opt cmd.at)
-      with Sys_error msg -> IO.error cmd.at msg)
+    try output_stdout (fun () -> lookup_module x_opt cmd.at)
+    with Sys_error msg -> IO.error cmd.at msg )
 
 and run_script script invoke =
   List.iter (fun cmd -> run_command cmd invoke) script
@@ -507,31 +517,42 @@ and run_script script invoke =
 and run_quote_script script invoke =
   let save_quote = !quote in
   quote := [];
-  (try run_script script invoke
-   with exn ->
-     quote := save_quote;
-     raise exn);
+  ( try run_script script invoke
+    with exn ->
+      quote := save_quote;
+      raise exn );
   bind scripts None (List.rev !quote);
   quote := !quote @ save_quote
 
-let invoke_ce f vs inst =
+let invoke_concolic f vs inst =
   Concolic.Eval.main f
     (List.map
        (fun v ->
          let v' = Common.Evaluations.of_value v.it in
-         (v', Val (Num v')))
-       vs)
+         (v', Smtml.Expr.value (Num v')) )
+       vs )
     inst
 
-let invoke_se f vs _ =
-  Static.Eval.invoke f
-    (List.map
-       (fun v ->
-         let v' = Common.Evaluations.of_value v.it in
-         Val (Num v'))
-       vs)
+(* let invoke_se f vs _ = *)
+(*   Static.Eval.invoke f *)
+(*     (List.map *)
+(*        (fun v -> *)
+(*          let v' = Common.Evaluations.of_value v.it in *)
+(*          Val (Num v')) *)
+(*        vs) *)
 
-let run_file file = input_file file run_script
-let run_string_ce string = input_string string (fun s -> run_script s invoke_ce)
-let run_string_se string = input_string string (fun s -> run_script s invoke_se)
-let run_stdin () = input_stdin run_script
+let run_file _file =
+  (* input_file file run_script *)
+  assert false
+
+let run_string_concolic string =
+  input_string string ~callback:(fun s -> run_script s invoke_concolic)
+
+(* let run_string_se string = *)
+(*   input_string string ~callback:(fun s -> run_script s invoke_se) *)
+
+let _ = input_stdin
+
+let run_stdin () =
+  (* input_stdin run_script *)
+  assert false

@@ -1,11 +1,22 @@
-open Evaluations
-open Common
 open Smtml
 open Value
-open Interpreter.Ast
-open Interpreter.Source
-open Interpreter.Instance
+module Ast = Interpreter.Ast
 module Batch = Smtml.Solver.Batch (Smtml.Z3_mappings)
+module Bug = Common.Bug
+module Counter = Common.Counter
+module Crash = Common.Crash
+module Chunktable = Common.Chunktable
+
+module Evaluations = struct
+  include Common.Evaluations
+  include Evaluations
+end
+
+module Flags = Interpreter.Flags
+module Globals = Common.Globals
+module Instance = Interpreter.Instance
+module Source = Interpreter.Source
+module Trap = Common.Trap
 
 let memory_error at = function
   | Heap.InvalidAddress a ->
@@ -31,21 +42,21 @@ type value = Num.t * Expr.t
 type 'a stack = 'a list
 
 type frame =
-  { inst : module_inst
+  { inst : Instance.module_inst
   ; locals : value ref list
   }
 
 type code = value stack * sym_admin_instr list
 
-and sym_admin_instr = sym_admin_instr' phrase
+and sym_admin_instr = sym_admin_instr' Source.phrase
 
 and sym_admin_instr' =
-  | Plain of instr'
-  | Invoke of func_inst
+  | Plain of Ast.instr'
+  | Invoke of Instance.func_inst
   | Trapping of string
   | Returning of value stack
   | Breaking of int32 * value stack
-  | Label of int * instr list * code
+  | Label of int * Ast.instr list * code
   | Frame of int * frame * code
   | Interrupt of interruption
   | Restart of Expr.t
@@ -61,7 +72,7 @@ type config =
   ; bp : bp list
   ; tree : tree ref
   ; budget : int
-  ; call_stack : region Stack.t
+  ; call_stack : Source.region Stack.t
   }
 
 and tree = config ref Execution_tree.t ref
@@ -76,6 +87,7 @@ let clone_frame (f : frame) : frame =
   frame f.inst (List.map (fun l -> ref !l) f.locals)
 
 let rec clone_admin_instr e =
+  let open Source in
   let it =
     match e.it with
     | Label (n, es0, (vs, es)) ->
@@ -116,7 +128,7 @@ let config inst vs es mem glob tree =
   ; call_stack = Stack.create ()
   }
 
-exception BugException of config * region * Bug.bug
+exception BugException of config * Source.region * Bug.bug
 
 let head = ref Execution_tree.(Node (None, None, ref Leaf, ref Leaf))
 
@@ -130,7 +142,13 @@ let logs = ref []
 
 let solver = Batch.create ()
 
-let debug str = if !Interpreter.Flags.trace then print_endline str
+let debug0 fmt = if !Flags.trace then Format.eprintf fmt
+
+let debug1 fmt a = if !Flags.trace then Format.eprintf fmt a
+
+let debug2 fmt a b = if !Flags.trace then Format.eprintf fmt a b
+
+let debug3 fmt a b c = if !Flags.trace then Format.eprintf fmt a b c
 
 let parse_policy (p : string) : policy option =
   match p with
@@ -144,22 +162,25 @@ let string_of_interruption : interruption -> string = function
   | Failure _ -> "Assertion Failure"
   | Bug b -> Bug.string_of_bug b
 
-let plain e = Plain e.it @@ e.at
+let plain e =
+  let open Source in
+  Plain e.it @@ e.at
 
 let lookup category list x =
+  let open Source in
   try Interpreter.Lib.List32.nth list x.it
   with Failure _ ->
     Crash.error x.at ("undefined " ^ category ^ " " ^ Int32.to_string x.it)
 
-let type_ (inst : module_inst) x = lookup "type" inst.types x
+let type_ (inst : Instance.module_inst) x = lookup "type" inst.types x
 
-let func (inst : module_inst) x = lookup "function" inst.funcs x
+let func (inst : Instance.module_inst) x = lookup "function" inst.funcs x
 
-let table (inst : module_inst) x = lookup "table" inst.tables x
+let table (inst : Instance.module_inst) x = lookup "table" inst.tables x
 
-let memory (inst : module_inst) x = lookup "memory" inst.memories x
+let memory (inst : Instance.module_inst) x = lookup "memory" inst.memories x
 
-let global (inst : module_inst) x = lookup "global" inst.globals x
+let global (inst : Instance.module_inst) x = lookup "global" inst.globals x
 
 let local (frame : frame) x = lookup "local" frame.locals x
 
@@ -172,6 +193,7 @@ let elem inst x i at =
     Trap.error at ("undefined element " ^ Int32.to_string i)
 
 let func_elem inst x i at =
+  let open Instance in
   match elem inst x i at with
   | FuncElem f -> f
   | _ -> Crash.error at ("type mismatch for element " ^ Int32.to_string i)
@@ -184,6 +206,33 @@ let drop n (vs : 'a stack) at =
   try Interpreter.Lib.List.drop n vs
   with Failure _ -> Crash.error at "stack underflow"
 
+let default_value = function
+  | Ty.Ty_bitv 32 -> Num.I32 0l
+  | Ty.Ty_bitv 64 -> I64 0L
+  | Ty.Ty_fp 32 -> F32 (Int32.bits_of_float 0.)
+  | Ty.Ty_fp 64 -> F64 (Int64.bits_of_float 0.)
+  | _ -> assert false
+
+let to_relop e =
+  match Expr.view e with
+  | Val _ | Ptr _ | Relop _ -> None
+  | _ -> Some (Expr.relop Ty_bool Ne e (Expr.value (Num (I32 0l))))
+
+let mk_relop ?(reduce : bool = true) (e : Expr.t) (ty : Ty.t) =
+  let e = if reduce then Expr.simplify e else e in
+  match Expr.view e with
+  | Relop _ -> e
+  | _ -> (
+    let zero = Value.Num (default_value ty) in
+    Expr.simplify
+    @@
+    match ty with
+    | Ty_bitv 32 -> Expr.relop Ty_bool Ne e (Expr.value zero)
+    | Ty_bitv 64 -> Expr.relop Ty_bool Ne e (Expr.value zero)
+    | Ty_fp 32 -> Expr.relop (Ty_fp 32) Ne e (Expr.value zero)
+    | Ty_fp 64 -> Expr.relop (Ty_fp 64) Ne e (Expr.value zero)
+    | _ -> assert false )
+
 let add_constraint ?neg:_ _ _ = assert false
 
 let branch_on_cond bval c pc tree =
@@ -194,15 +243,18 @@ let branch_on_cond bval c pc tree =
   tree := tree';
   if to_branch then Some (add_constraint ~neg:bval c pc) else None
 
-module type Checkpoint = sig
-  val is_checkpoint : config -> bool
-end
+let concretize_base_ptr e =
+  match Expr.view e with Ptr { base; _ } -> Some base | _ -> None
 
-module NoCheckpoint : Checkpoint = struct
+module NoCheckpoint : Checkpoint_intf.S with type config = config = struct
+  type nonrec config = config
+
   let is_checkpoint (_ : config) : bool = false
 end
 
-module FuncCheckpoint : Checkpoint = struct
+module FuncCheckpoint : Checkpoint_intf.S with type config = config = struct
+  type nonrec config = config
+
   let visited = Hashtbl.create Interpreter.Flags.hashtbl_default_size
 
   let is_checkpoint (c : config) : bool =
@@ -213,13 +265,17 @@ module FuncCheckpoint : Checkpoint = struct
       Execution_tree.can_branch !(c.tree) )
 end
 
-module RandCheckpoint : Checkpoint = struct
+module RandCheckpoint : Checkpoint_intf.S with type config = config = struct
+  type nonrec config = config
+
   let is_checkpoint (c : config) : bool =
     Execution_tree.can_branch !(c.tree) && Random.bool ()
 end
 
-module DepthCheckpoint : Checkpoint = struct
-  let count = Counter.create ()
+module DepthCheckpoint : Checkpoint_intf.S with type config = config = struct
+  type nonrec config = config
+
+  let _ = Counter.create ()
 
   let is_checkpoint (_c : config) : bool = false
   (* let size_pc = Expression.length c.pc in *)
@@ -232,7 +288,15 @@ module type Stepper = sig
   val step : config -> config
 end
 
-module ConcolicStepper (C : Checkpoint) : Stepper = struct
+module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
+  Stepper = struct
+  open Source
+
+  let pp_value fmt (n, e) = Format.fprintf fmt "(%a, %a)" Num.pp n Expr.pp e
+
+  let pp_value_list fmt vs =
+    Format.pp_print_list ~pp_sep:Format.pp_print_newline pp_value fmt vs
+
   let rec step (c : config) : config =
     let { frame
         ; glob
@@ -289,9 +353,9 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               (mem, Checkpoint cp :: bp)
           in
           let bp' =
-            Option.fold ~init:bp
-              ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
-              (branch_on_cond b ex pc tree)
+            match branch_on_cond b ex pc tree with
+            | None -> bp
+            | Some pc -> Branchpoint (pc, !tree) :: bp
           in
           let pc' = add_constraint ~neg:(not b) ex pc in
           (vs', (if b then es1' else es2'), mem', pc', bp')
@@ -314,9 +378,9 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               (mem, Checkpoint cp :: bp)
           in
           let bp' =
-            Option.fold ~init:bp
-              ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
-              (branch_on_cond b ex pc tree)
+            match branch_on_cond b ex pc tree with
+            | None -> bp
+            | Some pc -> Branchpoint (pc, !tree) :: bp
           in
           let pc' = add_constraint ~neg:(not b) ex pc in
           (vs', (if b then es1' else es2'), mem', pc', bp')
@@ -355,9 +419,9 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               (mem, Checkpoint cp :: bp)
           in
           let bp' =
-            Option.fold ~init:bp
-              ~f:(fun br pc -> Branchpoint (pc, !tree) :: br)
-              (branch_on_cond b ve pc tree)
+            match branch_on_cond b ve pc tree with
+            | None -> bp
+            | Some pc -> Branchpoint (pc, !tree) :: bp
           in
           let pc' = add_constraint ~neg:(not b) ve pc in
           ((if b then vs1 else vs2), [], mem', pc', bp')
@@ -383,7 +447,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
             with
             | Some b -> (vs', [ Interrupt (Bug b) @@ e.at ], mem, pc, bp)
             | None ->
-              let ty = Evaluations.ty_of_num_type ty in
+              let ty = Common.Evaluations.ty_of_num_type ty in
               let v, e =
                 match sz with
                 | None -> Heap.load_value mem base offset ty
@@ -431,28 +495,48 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           let v = Evaluations.of_value v.it in
           ((v, Expr.value (Num v)) :: vs, [], mem, pc, bp)
         | Test testop, v :: vs' -> (
-          try (eval_testop v testop :: vs', [], mem, pc, bp)
+          try (Evaluations.eval_testop v testop :: vs', [], mem, pc, bp)
           with exn ->
-            (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp) )
+            ( vs'
+            , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
+            , mem
+            , pc
+            , bp ) )
         | Compare relop, v2 :: v1 :: vs' -> (
-          try (eval_relop v1 v2 relop :: vs', [], mem, pc, bp)
+          try (Evaluations.eval_relop v1 v2 relop :: vs', [], mem, pc, bp)
           with exn ->
-            (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp) )
+            ( vs'
+            , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
+            , mem
+            , pc
+            , bp ) )
         | Unary unop, v :: vs' -> (
-          try (eval_unop v unop :: vs', [], mem, pc, bp)
+          try (Evaluations.eval_unop v unop :: vs', [], mem, pc, bp)
           with exn ->
-            (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp) )
+            ( vs'
+            , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
+            , mem
+            , pc
+            , bp ) )
         | Binary binop, v2 :: v1 :: vs' -> (
-          try (eval_binop v1 v2 binop :: vs', [], mem, pc, bp)
+          try (Evaluations.eval_binop v1 v2 binop :: vs', [], mem, pc, bp)
           with exn ->
-            (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp) )
+            ( vs'
+            , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
+            , mem
+            , pc
+            , bp ) )
         | Convert cvtop, v :: vs' -> (
-          try (eval_cvtop cvtop v :: vs', [], mem, pc, bp)
+          try (Evaluations.eval_cvtop cvtop v :: vs', [], mem, pc, bp)
           with exn ->
-            (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp) )
+            ( vs'
+            , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
+            , mem
+            , pc
+            , bp ) )
         | Dup, v :: vs' -> (v :: v :: vs', [], mem, pc, bp)
         | SymAssert, (I32 0l, _) :: vs' ->
-          debug ">>> Assert FAILED! Stopping...";
+          debug0 ">>> Assert FAILED! Stopping...@.";
           (vs', [ Interrupt (Failure pc) @@ e.at ], mem, pc, bp)
         | SymAssert, (I32 _, ex) :: vs' when not Expr.(is_symbolic (simplify ex))
           ->
@@ -478,7 +562,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           if i = 0l then
             (vs', [ Restart (add_constraint ex pc) @@ e.at ], mem, pc, bp)
           else (
-            debug ">>> Assume passed. Continuing execution...";
+            debug0 ">>> Assume passed. Continuing execution...@.";
             let tree', _ = Execution_tree.move_true !tree in
             tree := tree';
             (vs', [], mem, add_constraint ex pc, bp) )
@@ -491,17 +575,26 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
           ((v, Expr.symbol (Symbol.make ty' x)) :: vs', [], mem, pc, bp)
         | Boolop boolop, (v2, sv2) :: (v1, sv1) :: vs' -> (
           let sv2' = mk_relop sv2 (Num.type_of v2) in
-          let v2' = Num.(num_of_bool (not (v2 = default_value (type_of v2)))) in
+          let v2' =
+            Num.(num_of_bool (not (v2 = default_value (Num.type_of v2))))
+          in
           let sv1' = mk_relop sv1 (Num.type_of v1) in
           let v1' = Num.(num_of_bool (not (v1 = default_value (type_of v1)))) in
           try
-            let v3, sv3 = eval_binop (v1', sv1') (v2', sv2') boolop in
-            ((v3, simplify sv3) :: vs', [], mem, pc, bp)
+            let v3, sv3 =
+              Evaluations.eval_binop (v1', sv1') (v2', sv2') boolop
+            in
+            ((v3, Expr.simplify sv3) :: vs', [], mem, pc, bp)
           with exn ->
-            (vs', [ Trapping (numeric_error e.at exn) @@ e.at ], mem, pc, bp) )
-        | Alloc, (I32 a, sa) :: (I32 b, sb) :: vs' ->
-          Hashtbl.add heap b a;
-          ((I32 b, SymPtr (b, Val (Num (I32 0l)))) :: vs', [], mem, pc, bp)
+            ( vs'
+            , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
+            , mem
+            , pc
+            , bp ) )
+        | Alloc, (I32 size, _) :: (I32 base, _) :: vs' ->
+          let ptr = Expr.ptr base (Expr.value (Num (I32 0l))) in
+          Hashtbl.add heap base size;
+          ((I32 base, ptr) :: vs', [], mem, pc, bp)
         | Free, (I32 i, _) :: vs' ->
           let es' =
             if not (Hashtbl.mem heap i) then
@@ -517,93 +610,93 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
             with Not_found ->
               Crash.error e.at "Symbolic variable was not in store."
           in
-          ((v, Expression.mk_symbol_s `I32Type x) :: vs', [], mem, pc, bp)
+          ((v, Expr.symbol (Symbol.make (Ty_bitv 32) x)) :: vs', [], mem, pc, bp)
         | GetSymInt64 x, vs' ->
           let v =
             try Store.find store x
             with Not_found ->
               Crash.error e.at "Symbolic variable was not in store."
           in
-          ((v, Expression.mk_symbol_s `I64Type x) :: vs', [], mem, pc, bp)
+          ((v, Expr.symbol (Symbol.make (Ty_bitv 64) x)) :: vs', [], mem, pc, bp)
         | GetSymFloat32 x, vs' ->
           let v =
             try Store.find store x
             with Not_found ->
               Crash.error e.at "Symbolic variable was not in store."
           in
-          ((v, Expression.mk_symbol_s `F32Type x) :: vs', [], mem, pc, bp)
+          ((v, Expr.symbol (Symbol.make (Ty_fp 32) x)) :: vs', [], mem, pc, bp)
         | GetSymFloat64 x, vs' ->
           let v =
             try Store.find store x
             with Not_found ->
               Crash.error e.at "Symbolic variable was not in store."
           in
-          ((v, Expression.mk_symbol_s `F64Type x) :: vs', [], mem, pc, bp)
+          ((v, Expr.symbol (Symbol.make (Ty_fp 64) x)) :: vs', [], mem, pc, bp)
         | TernaryOp, (I32 r2, s_r2) :: (I32 r1, s_r1) :: (I32 c, s_c) :: vs' ->
           let r : Num.t = I32 (if c = 0l then r2 else r1) in
-          let s_c' = to_relop (simplify s_c) in
+          let s_c' = to_relop (Expr.simplify s_c) in
           let v, pc' =
             match s_c' with
             | None -> ((r, if c = 0l then s_r2 else s_r1), pc)
             | Some s ->
               let x = Store.next store "__ternary" in
               Store.add store x r;
-              let s_x = Expression.mk_symbol_s `I32Type x in
-              let t_eq = Relop (I32 I32.Eq, s_x, s_r1) in
-              let t_imp = Binop (I32 I32.Or, negate_relop s, t_eq) in
-              let f_eq = Relop (I32 I32.Eq, s_x, s_r2) in
-              let f_imp = Binop (I32 I32.Or, s, f_eq) in
-              let cond = Binop (I32 I32.And, t_imp, f_imp) in
+              let s_x = Expr.symbol (Symbol.make (Ty_bitv 32) x) in
+              let t_eq = Expr.relop Ty_bool Eq s_x s_r1 in
+              let t_imp =
+                Expr.binop (Ty_bitv 32) Or (Expr.unop Ty_bool Not s) t_eq
+              in
+              let f_eq = Expr.relop Ty_bool Eq s_x s_r2 in
+              let f_imp = Expr.binop (Ty_bitv 32) Or s f_eq in
+              let cond = Expr.binop (Ty_bitv 32) And t_imp f_imp in
               ( (r, s_x)
-              , Expression.add_constraint
-                  (Relop (I32 I32.Ne, cond, Val (Num (I32 0l))))
+              , add_constraint
+                  (Expr.relop Ty_bool Ne cond (Expr.value (Num (I32 0l))))
                   pc )
           in
           (v :: vs', [], mem, pc', bp)
         | PrintStack, vs' ->
-          debug
-            ( Interpreter.Source.string_of_pos e.at.left
-            ^ ":VS:\n"
-            ^ Expression.string_of_values vs' );
+          debug3 "%s:VS:@\n%a@."
+            (Interpreter.Source.string_of_pos e.at.left)
+            pp_value_list vs';
           (vs', [], mem, pc, bp)
         | PrintPC, vs' ->
-          debug
-            ( Interpreter.Source.string_of_pos e.at.left
-            ^ ":PC: "
-            ^ Expression.(pp_to_string pc) );
+          debug3 "%s:PC: %a@."
+            (Interpreter.Source.string_of_pos e.at.left)
+            Expr.pp pc;
           (vs', [], mem, pc, bp)
         | PrintMemory, vs' ->
-          debug ("Mem:\n" ^ Heap.to_string mem);
+          debug1 "Mem:@\n%s@." (Heap.to_string mem);
           (vs', [], mem, pc, bp)
         | PrintBtree, vs' ->
           Printf.printf "B TREE STATE: \n\n";
           (* Btree.print_b_tree mem; *)
           (vs', [], mem, pc, bp)
         | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
-          let res : Num.t * Expression.t =
-            match (ex1, ex2) with
+          let res : Num.t * Expr.t =
+            match (Expr.view ex1, Expr.view ex2) with
             | Symbol s1, Symbol s2 ->
-              if Symbol.equal s1 s2 then (I32 1l, Integer.mk_eq ex1 ex2)
-              else (I32 0l, Integer.mk_ne ex1 ex2)
+              if Symbol.equal s1 s2 then (I32 1l, Expr.relop Ty_bool Eq ex1 ex2)
+              else (I32 0l, Expr.relop Ty_bool Ne ex1 ex2)
             | _, _ ->
-              eval_relop (v1, ex1) (v2, ex2)
+              Evaluations.eval_relop (v1, ex1) (v2, ex2)
                 (Interpreter.Values.I32 Interpreter.Ast.I32Op.Eq)
           in
           (res :: vs', [], mem, pc, bp)
         | IsSymbolic, (I32 n, _) :: (I32 i, _) :: vs' ->
           let base = Interpreter.I64_convert.extend_i32_u i in
           let _, v = Heap.load_bytes mem base (Int32.to_int n) in
-          let result : Num.t = I32 (match v with Val _ -> 0l | _ -> 1l) in
-          ((result, Val (Num result)) :: vs', [], mem, pc, bp)
+          let result = Num.num_of_bool (Expr.is_symbolic v) in
+          ((result, Expr.value (Num result)) :: vs', [], mem, pc, bp)
         | SetPriority, _ :: _ :: _ :: vs' -> (vs', [], mem, pc, bp)
         | PopPriority, _ :: vs' -> (vs', [], mem, pc, bp)
         | _ -> Crash.error e.at "missing or ill-typed operand on stack" )
-      | Trapping msg, vs -> assert false
-      | Interrupt i, vs -> assert false
-      | Restart pc, vs -> assert false
-      | Returning vs', vs -> Crash.error e.at "undefined frame"
-      | Breaking (k, vs'), vs -> Crash.error e.at "undefined label"
-      | Label (n, es0, (vs', [])), vs -> (vs' @ vs, [], mem, pc, bp)
+      | Trapping _, _ -> assert false
+      | Interrupt _, _ -> assert false
+      | Restart _, _ -> assert false
+      | Returning _, _ -> Crash.error e.at "undefined frame"
+      | Breaking (_, _), _ -> Crash.error e.at "undefined label"
+      | Label (_, _, (vs', [])), vs -> (vs' @ vs, [], mem, pc, bp)
       | Label (n, es0, (vs', { it = Restart pc'; at } :: es')), vs ->
         ( vs
         , [ Restart pc' @@ at; Label (n, es0, (vs', es')) @@ e.at ]
@@ -616,13 +709,13 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
         , mem
         , pc
         , bp )
-      | Label (n, es0, (vs', { it = Trapping msg; at } :: es')), vs ->
+      | Label (_, _, (_, { it = Trapping msg; at } :: _)), vs ->
         (vs, [ Trapping msg @@ at ], mem, pc, bp)
-      | Label (n, es0, (vs', { it = Returning vs0; at } :: es')), vs ->
+      | Label (_, _, (_, { it = Returning vs0; at } :: _)), vs ->
         (vs, [ Returning vs0 @@ at ], mem, pc, bp)
-      | Label (n, es0, (vs', { it = Breaking (0l, vs0); at } :: es')), vs ->
+      | Label (n, es0, (_, { it = Breaking (0l, vs0); _ } :: _)), vs ->
         (take n vs0 e.at @ vs, List.map plain es0, mem, pc, bp)
-      | Label (n, es0, (vs', { it = Breaking (k, vs0); at } :: es')), vs ->
+      | Label (_, _, (_, { it = Breaking (k, vs0); at } :: _)), vs ->
         (vs, [ Breaking (Int32.sub k 1l, vs0) @@ at ], mem, pc, bp)
       | Label (n, es0, code'), vs ->
         let c' = step { c with code = code' } in
@@ -635,7 +728,7 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               cp := { !cp with code = (vs, es') } )
           c'.bp;
         (vs, [ Label (n, es0, c'.code) @@ e.at ], c'.mem, c'.pc, c'.bp)
-      | Frame (n, frame', (vs', [])), vs ->
+      | Frame (_, _, (vs', [])), vs ->
         ignore (Stack.pop call_stack);
         (vs' @ vs, [], mem, pc, bp)
       | Frame (n, frame', (vs', { it = Restart pc'; at } :: es')), vs ->
@@ -650,9 +743,9 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
         , mem
         , pc
         , bp )
-      | Frame (n, frame', (vs', { it = Trapping msg; at } :: es')), vs ->
+      | Frame (_, _, (_, { it = Trapping msg; at } :: _)), vs ->
         (vs, [ Trapping msg @@ at ], mem, pc, bp)
-      | Frame (n, frame', (vs', { it = Returning vs0; at } :: es')), vs ->
+      | Frame (n, _, (_, { it = Returning vs0; _ } :: _)), vs ->
         (take n vs0 e.at @ vs, [], mem, pc, bp)
       | Frame (n, frame', code'), vs ->
         let c' =
@@ -680,13 +773,13 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
               cp := { !cp with frame = frame'; code = (vs, es') } )
           c'.bp;
         (vs, [ Frame (n, c'.frame, c'.code) @@ e.at ], c'.mem, c'.pc, c'.bp)
-      | Invoke func, vs when c.budget = 0 ->
+      | Invoke _, vs when c.budget = 0 ->
         (vs, [ Interrupt Limit @@ e.at ], mem, pc, bp)
       | Invoke func, vs -> (
-        let symbolic_arg t =
+        let symbolic_arg ty =
           let x = Store.next store "arg" in
-          let v = Store.get store x t false in
-          (v, Expression.mk_symbol_s t x)
+          let v = Store.get store x ty false in
+          (v, Expr.symbol (Symbol.make ty x))
         in
         let (Interpreter.Types.FuncType (ins, out)) =
           Interpreter.Func.type_of func
@@ -694,39 +787,40 @@ module ConcolicStepper (C : Checkpoint) : Stepper = struct
         let n = List.length ins in
         let vs =
           if n > 0 && List.length vs = 0 then
-            List.map (fun t -> symbolic_arg (Evaluations.to_num_type t)) ins
+            List.map (fun t -> symbolic_arg (Evaluations.ty_of_num_type t)) ins
           else vs
         in
         let args, vs' = (take n vs e.at, drop n vs e.at) in
         match func with
-        | Interpreter.Func.AstFunc (t, inst', f) ->
+        | Interpreter.Func.AstFunc (_, inst', f) ->
           Stack.push f.at call_stack;
           let locals' =
             List.map
-              (fun v -> (v, Val (Num v)))
+              (fun v -> (v, Expr.value (Num v)))
               (List.map
-                 (fun t -> Num.default_value (Evaluations.to_num_type t))
+                 (fun t -> default_value (Evaluations.ty_of_num_type t))
                  f.it.locals )
           in
           let locals'' = List.rev args @ locals' in
           let code' = ([], [ Plain (Block (out, f.it.body)) @@ f.at ]) in
           let frame' = { inst = !inst'; locals = List.map ref locals'' } in
           (vs', [ Frame (List.length out, frame', code') @@ e.at ], mem, pc, bp)
-        | Interpreter.Func.HostFunc (t, f) -> failwith "HostFunc error" )
+        | Interpreter.Func.HostFunc (_, _) -> failwith "HostFunc error" )
     in
     step_cnt := !step_cnt + 1;
     { c with code = (vs', es' @ List.tl es); mem = mem'; pc = pc'; bp = bp' }
 end
 
 let get_reason (err_t, at) : string =
+  let open Source in
   let loc =
-    Interpreter.Source.string_of_pos at.left
+    Source.string_of_pos at.left
     ^ if at.right = at.left then "" else "-" ^ string_of_pos at.right
   in
   "{" ^ "\"type\" : \"" ^ err_t ^ "\", " ^ "\"line\" : \"" ^ loc ^ "\"" ^ "}"
 
 let write_report error loop_time : unit =
-  if !Interpreter.Flags.log then print_logs !logs;
+  if !Interpreter.Flags.log then Common.print_logs !logs;
   let spec, reason =
     match error with None -> (true, "{}") | Some e -> (false, get_reason e)
   in
@@ -745,6 +839,7 @@ let write_report error loop_time : unit =
     report_str
 
 let rec update_admin_instr f e =
+  let open Source in
   let it =
     match e.it with
     | Plain e -> Plain e
@@ -763,10 +858,13 @@ let rec update_admin_instr f e =
   { it; at = e.at }
 
 let update c (vs, es) pc symbols =
-  let binds = Batch.value_binds solver ~symbols in
+  let model = Option.get (Batch.model ~symbols solver) in
+  let binds = Model.get_bindings model in
   Store.update c.store binds;
   Heap.update c.mem c.store;
-  let f store (_, expr) = (Store.eval store expr, expr) in
+  let f store (_, expr) =
+    ((match Store.eval store expr with Num n -> n | _ -> assert false), expr)
+  in
   List.iter (fun l -> l := f c.store !l) c.frame.locals;
   let code =
     (List.map (f c.store) vs, List.map (update_admin_instr (f c.store)) es)
@@ -774,27 +872,35 @@ let update c (vs, es) pc symbols =
   { c with code; pc }
 
 let reset c glob code mem =
-  let binds = Batch.value_binds solver ~symbols:(Store.get_key_types c.store) in
+  let model =
+    Option.get (Batch.model ~symbols:(Store.get_key_types c.store) solver)
+  in
+  let binds = Model.get_bindings model in
   Store.reset c.store;
   Store.init c.store binds;
   let glob = Globals.copy glob in
   Hashtbl.reset c.heap;
   c.tree := head;
   { c with
-    frame = frame empty_module_inst []
+    frame = frame Instance.empty_module_inst []
   ; code
   ; glob
   ; mem = Heap.memcpy mem
-  ; pc = Boolean.mk_val true
+  ; pc = Expr.value True
   ; bp = []
   ; budget = Interpreter.Flags.budget
   }
 
 let s_reset (c : config) : config =
-  let binds = Batch.value_binds solver ~symbols:(Store.get_key_types c.store) in
+  let model =
+    Option.get (Batch.model ~symbols:(Store.get_key_types c.store) solver)
+  in
+  let binds = Model.get_bindings model in
   Store.update c.store binds;
   Heap.update c.mem c.store;
-  let f store (_, expr) = (Store.eval store expr, expr) in
+  let f store (_, expr) =
+    ((match Store.eval store expr with Num n -> n | _ -> assert false), expr)
+  in
   List.iter (fun l -> l := f c.store !l) c.frame.locals;
   c.tree := head;
   let vs, es = c.code in
@@ -803,7 +909,7 @@ let s_reset (c : config) : config =
   in
   { c with code }
 
-module Guided_search (L : WorkList) (S : Stepper) = struct
+module Guided_search (L : Common.WorkList) (S : Stepper) = struct
   let enqueue (pc_wl, cp_wl) branch_points : unit =
     List.iter
       (fun bp ->
@@ -814,14 +920,14 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
 
   let rec eval (c : config) wls : config =
     match c.code with
-    | vs, [] -> c
-    | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-    | vs, { it = Interrupt Limit; at } :: _ -> { c with code = (vs, []) }
-    | vs, { it = Interrupt i; at } :: _ -> c
-    | vs, { it = Restart pc; at } :: _ ->
+    | _, [] -> c
+    | _, { it = Trapping msg; at } :: _ -> Trap.error at msg
+    | vs, { it = Interrupt Limit; _ } :: _ -> { c with code = (vs, []) }
+    | _, { it = Interrupt _; _ } :: _ -> c
+    | _, { it = Restart _; _ } :: _ ->
       iterations := !iterations - 1;
       c
-    | vs, es ->
+    | _, _ ->
       let c' = S.step c in
       enqueue wls c'.bp;
       eval { c' with bp = [] } wls
@@ -830,20 +936,24 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     if L.is_empty pcs then None
     else
       let pc, node = L.pop pcs in
-      if not (Batch.check_sat solver [ pc ]) then find_sat_pc pcs
-      else Some (pc, Execution_tree.find node)
+      match Batch.check solver [ pc ] with
+      | `Sat -> Some (pc, Execution_tree.find node)
+      | `Unsat -> find_sat_pc pcs
+      | `Unknown -> assert false
 
   let rec find_sat_cp cps =
     if L.is_empty cps then None
     else
       let cp = L.pop cps in
-      if not (Batch.check_sat solver [ !cp.pc ]) then find_sat_cp cps
-      else Some (!cp.pc, Some cp)
+      match Batch.check solver [ !cp.pc ] with
+      | `Sat -> Some (!cp.pc, Some cp)
+      | `Unsat -> find_sat_cp cps
+      | `Unknown -> assert false
 
   let find_sat_path (pcs, cps) =
     match find_sat_cp cps with None -> find_sat_pc pcs | Some _ as cp -> cp
 
-  let invoke (c : config) (test_suite : string) =
+  let invoke (c : config) (_test_suite : string) =
     let glob0 = Globals.copy c.glob
     and code0 = c.code
     and mem0 = Heap.memcpy c.mem in
@@ -852,37 +962,39 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     (* Main concolic loop *)
     let rec loop c =
       iterations := !iterations + 1;
-      let { code; store; bp; tree; _ } = eval c (pc_wl, cp_wl) in
+      let { code; store; bp; _ } = eval c (pc_wl, cp_wl) in
       enqueue (pc_wl, cp_wl) bp;
       match code with
-      | vs, { it = Interrupt i; at } :: _ ->
-        write_test_case ~witness:true (Store.to_json store);
+      | _, { it = Interrupt i; at } :: _ ->
+        Common.write_test_case ~witness:true (Store.to_json store);
         Some (string_of_interruption i, at)
-      | vs, { it = Restart pc; _ } :: es when Batch.check_sat solver [ pc ] ->
+      | vs, { it = Restart pc; _ } :: es
+        when match Batch.check solver [ pc ] with `Sat -> true | _ -> false ->
         let tree', _ = Execution_tree.move_true !(c.tree) in
         c.tree := tree';
         loop (update c (vs, es) pc (Store.get_key_types store))
       | _ -> (
-        write_test_case (Store.to_json store);
+        Common.write_test_case (Store.to_json store);
         match find_sat_path (pc_wl, cp_wl) with
         | None -> None
-        | Some (pc', None) -> loop (reset c glob0 code0 mem0)
+        | Some (_, None) -> loop (reset c glob0 code0 mem0)
         | Some (pc', Some cp) ->
           let _, c' = clone !cp in
-          loop (update c' c'.code c'.pc (Expression.get_symbols [ pc' ])) )
+          loop (update c' c'.code c'.pc (Expr.get_symbols [ pc' ])) )
     in
     loop c
 
-  let s_invoke (c : config) (test_suite : string) : (string * region) option =
+  let s_invoke (c : config) (_test_suite : string) :
+    (string * Source.region) option =
     let _, c0 = clone c in
     let wl = L.create () in
     let rec eval (c : config) : config =
       match c.code with
-      | vs, [] -> c
-      | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-      | vs, { it = Restart pc; at } :: es -> c
-      | vs, { it = Interrupt i; at } :: es -> c
-      | vs, es ->
+      | _, [] -> c
+      | _, { it = Trapping msg; at } :: _ -> Trap.error at msg
+      | _, { it = Restart _; _ } :: _ -> c
+      | _, { it = Interrupt _; _ } :: _ -> c
+      | _, _ ->
         let c' = S.step c in
         List.iter
           (fun bp ->
@@ -897,13 +1009,16 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     in
     let rec find_sat_pc pcs =
       if L.is_empty pcs then false
-      else if not (Batch.check_sat solver [ L.pop pcs ]) then find_sat_pc pcs
-      else true
+      else
+        (* FIXME: Don't we lose this pc? *)
+        match Batch.check solver [ L.pop pcs ] with
+        | `Sat -> true
+        | `Unsat | `Unknown -> find_sat_pc pcs
     in
     (* Main concolic loop *)
     let rec loop (c : config) =
       iterations := !iterations + 1;
-      let { code; store; bp; pc; _ } = eval c in
+      let { code; store; bp; _ } = eval c in
       List.iter
         (fun bp ->
           let pc =
@@ -912,20 +1027,21 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
           L.push pc wl )
         bp;
       match code with
-      | vs, { it = Interrupt i; at } :: _ ->
-        write_test_case ~witness:true (Store.to_json store);
+      | _, { it = Interrupt i; at } :: _ ->
+        Common.write_test_case ~witness:true (Store.to_json store);
         Some (string_of_interruption i, at)
-      | vs, { it = Restart pc; _ } :: es ->
+      | vs, { it = Restart pc; _ } :: es -> (
         print_endline "--- attempting restart ---";
         iterations := !iterations - 1;
-        if Batch.check_sat solver [ pc ] then
-          loop (update c (vs, es) pc (Store.get_key_types store))
-        else if L.is_empty wl || not (find_sat_pc wl) then None
-        else
-          let _, c' = clone c0 in
-          loop (s_reset c')
+        match Batch.check solver [ pc ] with
+        | `Sat -> loop (update c (vs, es) pc (Store.get_key_types store))
+        | `Unsat | `Unknown ->
+          if L.is_empty wl || not (find_sat_pc wl) then None
+          else
+            let _, c' = clone c0 in
+            loop (s_reset c') )
       | _ ->
-        write_test_case (Store.to_json store);
+        Common.write_test_case (Store.to_json store);
         if L.is_empty wl || not (find_sat_pc wl) then None
         else
           let _, c' = clone c0 in
@@ -934,27 +1050,27 @@ module Guided_search (L : WorkList) (S : Stepper) = struct
     let error = loop c in
     error
 
-  let p_invoke (c : config) (test_suite : string) :
-    (Expression.t, string * region) result =
+  let p_invoke (c : config) (_test_suite : string) :
+    (Expr.t, string * Source.region) result =
     let rec eval (c : config) : config =
       match c.code with
-      | vs, [] -> c
-      | vs, { it = Trapping msg; at } :: _ -> Trap.error at msg
-      | vs, { it = Restart pc; at } :: es ->
+      | _, [] -> c
+      | _, { it = Trapping msg; at } :: _ -> Trap.error at msg
+      | _, { it = Restart _; _ } :: _ ->
         c (* TODO: probably need to change this *)
-      | vs, { it = Interrupt i; at } :: es -> c
-      | vs, es ->
+      | _, { it = Interrupt _; _ } :: _ -> c
+      | _, _ ->
         let c' = S.step c in
         eval c'
     in
     let c' = eval c in
     let res =
       match c'.code with
-      | vs, { it = Interrupt i; at } :: _ ->
-        write_test_case ~witness:true (Store.to_json c'.store);
+      | _, { it = Interrupt i; at } :: _ ->
+        Common.write_test_case ~witness:true (Store.to_json c'.store);
         Result.error (string_of_interruption i, at)
       | _ ->
-        write_test_case (Store.to_json c'.store);
+        Common.write_test_case (Store.to_json c'.store);
         Result.ok c.pc
     in
     res
@@ -966,7 +1082,7 @@ module RandCheckpointStepper = ConcolicStepper (RandCheckpoint)
 module DepthCheckpointStepper = ConcolicStepper (DepthCheckpoint)
 module DFS = Guided_search (Stack) (NoCheckpointStepper)
 module BFS = Guided_search (Queue) (NoCheckpointStepper)
-module RND = Guided_search (RandArray) (NoCheckpointStepper)
+module RND = Guided_search (Common.RandArray) (NoCheckpointStepper)
 
 let exiter _ =
   let loop_time = Sys.time () -. !loop_start in
@@ -978,13 +1094,15 @@ let set_timeout (time_limit : int) : unit =
     Sys.(set_signal sigalrm (Signal_handle exiter));
     ignore (Unix.alarm time_limit) )
 
-let main (func : func_inst) (vs : value list) (inst : module_inst)
-  (mem0 : Heap.t) =
+let main (func : Instance.func_inst) (vs : value list)
+  (inst : Instance.module_inst) (mem0 : Heap.t) =
   let open Interpreter in
   set_timeout !Flags.timeout;
   let test_suite = Filename.concat !Flags.output "test_suite" in
   Io.safe_mkdir test_suite;
-  let at = match func with Func.AstFunc (_, _, f) -> f.at | _ -> no_region in
+  let at =
+    match func with Func.AstFunc (_, _, f) -> f.at | _ -> Source.no_region
+  in
   let glob =
     Globals.of_seq
       (Seq.mapi
@@ -996,8 +1114,8 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
          (List.to_seq inst.globals) )
   in
   let c =
-    config empty_module_inst (List.rev vs)
-      [ Invoke func @@ at ]
+    config Instance.empty_module_inst (List.rev vs)
+      Source.[ Invoke func @@ at ]
       mem0 glob (ref head)
   in
   let invoke =
@@ -1009,7 +1127,7 @@ let main (func : func_inst) (vs : value list) (inst : module_inst)
   in
   ( if !Interpreter.Flags.log then
       let get_finished () : int = !iterations in
-      logger logs get_finished exiter loop_start );
+      Common.logger logs get_finished exiter loop_start );
   loop_start := Sys.time ();
   let error = invoke c test_suite in
   write_report error (Sys.time () -. !loop_start)
@@ -1019,23 +1137,34 @@ let i32 (v : Interpreter.Values.value) at =
   | Interpreter.Values.I32 i -> i
   | _ -> Crash.error at "type error: i32 value expected"
 
-let create_func (inst : module_inst) (f : func) : func_inst =
+let create_func inst f =
+  let open Ast in
+  let open Source in
   Interpreter.Func.alloc (type_ inst f.it.ftype) (ref inst) f
 
-let create_table (_ : module_inst) (tab : table) : table_inst =
+let create_table _ tab =
+  let open Ast in
+  let open Source in
   let { ttype } = tab.it in
   Interpreter.Table.alloc ttype
 
-let create_memory (_ : module_inst) (mem : memory) : memory_inst =
+let create_memory _ mem =
+  let open Ast in
+  let open Source in
   let { mtype } = mem.it in
   Interpreter.Memory.alloc mtype
 
-let create_global (inst : module_inst) (glob : global) : global_inst =
+let create_global inst glob =
+  let open Ast in
+  let open Source in
   let { gtype; value } = glob.it in
   let v = Interpreter.Eval.eval_const inst value in
   Interpreter.Global.alloc gtype v
 
-let create_export (inst : module_inst) (ex : export) : export_inst =
+let create_export inst ex =
+  let open Ast in
+  let open Source in
+  let open Instance in
   let { name; edesc } = ex.it in
   let ext =
     match edesc.it with
@@ -1046,25 +1175,30 @@ let create_export (inst : module_inst) (ex : export) : export_inst =
   in
   (name, ext)
 
-let init_func (inst : module_inst) (func : func_inst) =
+let init_func inst func =
   match func with
   | Interpreter.Func.AstFunc (_, inst_ref, _) -> inst_ref := inst
   | _ -> assert false
 
-let init_table (inst : module_inst) (seg : table_segment) =
+let init_table inst seg =
+  let open Ast in
   let open Interpreter in
+  let open Source in
   let { index; offset = const; init } = seg.it in
   let tab = table inst index in
   let offset = i32 (Eval.eval_const inst const) const.at in
   let end_ = Int32.(add offset (of_int (List.length init))) in
   let bound = Table.size tab in
   if I32.lt_u bound end_ || I32.lt_u end_ offset then
-    Link.error seg.at "elements segment does not fit table";
+    Common.Link.error seg.at "elements segment does not fit table";
   fun () ->
-    Table.blit tab offset (List.map (fun x -> FuncElem (func inst x)) init)
+    Table.blit tab offset
+      (List.map (fun x -> Instance.FuncElem (func inst x)) init)
 
-let init_memory (inst : module_inst) (sym_mem : Heap.t) (seg : memory_segment) =
+let init_memory inst sym_mem seg =
+  let open Ast in
   let open Interpreter in
+  let open Source in
   let { index; offset = const; init } = seg.it in
   let mem = memory inst index in
   let offset' = i32 (Eval.eval_const inst const) const.at in
@@ -1072,22 +1206,24 @@ let init_memory (inst : module_inst) (sym_mem : Heap.t) (seg : memory_segment) =
   let end_ = Int64.(add offset (of_int (String.length init))) in
   let bound = Memory.bound mem in
   if I64.lt_u bound end_ || I64.lt_u end_ offset then
-    Link.error seg.at "data segment does not fit memory";
+    Common.Link.error seg.at "data segment does not fit memory";
   fun () -> Heap.store_bytes sym_mem offset init
 
-let add_import (m : module_) (ext : extern) (im : import) (inst : module_inst) :
-  module_inst =
+let add_import m ext im inst =
   let open Interpreter in
-  if not (Types.match_extern_type (extern_type_of ext) (import_type m im)) then
-    Link.error im.at "incompatible import type";
+  let open Instance in
+  if not (Types.match_extern_type (extern_type_of ext) (Ast.import_type m im))
+  then Common.Link.error im.Source.at "incompatible import type";
   match ext with
   | ExternFunc func -> { inst with funcs = func :: inst.funcs }
   | ExternTable tab -> { inst with tables = tab :: inst.tables }
   | ExternMemory mem -> { inst with memories = mem :: inst.memories }
   | ExternGlobal glob -> { inst with globals = glob :: inst.globals }
 
-let init (m : module_) (exts : extern list) =
+let init m exts =
+  let open Ast in
   let open Interpreter in
+  let open Source in
   let { imports
       ; tables
       ; memories
@@ -1102,9 +1238,9 @@ let init (m : module_) (exts : extern list) =
     m.it
   in
   if List.length exts <> List.length imports then
-    Link.error m.at "wrong number of imports provided for initialisation";
+    Common.Link.error m.at "wrong number of imports provided for initialisation";
   let inst0 =
-    { (List.fold_right2 (add_import m) exts imports empty_module_inst) with
+    { (List.fold_right2 (add_import m) exts imports Instance.empty_module_inst) with
       types = List.map (fun type_ -> type_.it) types
     }
   in
