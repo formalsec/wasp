@@ -1,12 +1,13 @@
 module Fun = struct
   let curry f x y = f (x, y)
+
   let uncurry f (x, y) = f x y
 
   let rec repeat n f x =
     if n = 0 then ()
     else (
       f x;
-      repeat (n - 1) f x)
+      repeat (n - 1) f x )
 end
 
 module Int = struct
@@ -58,9 +59,11 @@ end
 
 module List = struct
   let rec make n x = make' n x []
+
   and make' n x xs = if n = 0 then xs else make' (n - 1) x (x :: xs)
 
   let rec table n f = table' n f []
+
   and table' n f xs = if n = 0 then xs else table' (n - 1) f (f (n - 1) :: xs)
 
   let rec take n xs =
@@ -83,8 +86,8 @@ module List = struct
   let rec split_last = function
     | x :: [] -> ([], x)
     | x :: xs ->
-        let ys, y = split_last xs in
-        (x :: ys, y)
+      let ys, y = split_last xs in
+      (x :: ys, y)
     | [] -> failwith "split_last"
 
   let rec index_where p xs = index_where' p xs 0
@@ -100,13 +103,12 @@ module List = struct
   let rec map_filter f = function
     | [] -> []
     | x :: xs -> (
-        match f x with
-        | None -> map_filter f xs
-        | Some y -> y :: map_filter f xs)
+      match f x with None -> map_filter f xs | Some y -> y :: map_filter f xs )
 end
 
 module List32 = struct
   let rec make n x = make' n x []
+
   and make' n x xs = if n = 0l then xs else make' (Int32.sub n 1l) x (x :: xs)
 
   let rec length xs = length' xs 0l
@@ -149,6 +151,7 @@ module Array32 = struct
     else Int32.to_int i
 
   let get a i = Array.get a (index_of_int32 i)
+
   let set a i x = Array.set a (index_of_int32 i) x
 
   let blit a1 i1 a2 i2 n =
@@ -170,13 +173,17 @@ module Bigarray = struct
       if i < 0L || i > Int64.of_int max_int then -1 else Int64.to_int i
 
     let get a i = Array1.get a (index_of_int64 i)
+
     let set a i x = Array1.set a (index_of_int64 i) x
+
     let sub a i n = Array1.sub a (index_of_int64 i) (index_of_int64 n)
   end
 end
 
 module Option = struct
   let get o x = match o with Some y -> y | None -> x
+
   let map f = function Some x -> Some (f x) | None -> None
+
   let app f = function Some x -> f x | None -> ()
 end

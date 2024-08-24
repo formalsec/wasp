@@ -52,6 +52,7 @@ module type ValueType = sig
   type t
 
   val to_value : t -> value
+
   val of_value : value -> t (* raise Value *)
 end
 
@@ -59,6 +60,7 @@ module I32Value = struct
   type t = I32.t
 
   let to_value i = I32 i
+
   let of_value = function I32 i -> i | _ -> raise (Value I32Type)
 end
 
@@ -66,6 +68,7 @@ module I64Value = struct
   type t = I64.t
 
   let to_value i = I64 i
+
   let of_value = function I64 i -> i | _ -> raise (Value I64Type)
 end
 
@@ -73,6 +76,7 @@ module F32Value = struct
   type t = F32.t
 
   let to_value i = F32 i
+
   let of_value = function F32 z -> z | _ -> raise (Value F32Type)
 end
 
@@ -80,5 +84,6 @@ module F64Value = struct
   type t = F64.t
 
   let to_value i = F64 i
+
   let of_value = function F64 z -> z | _ -> raise (Value F64Type)
 end

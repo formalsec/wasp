@@ -1,10 +1,15 @@
 type 'a globals = (int32, 'a) Hashtbl.t
+
 type 'a t = 'a globals
 
 let create () = Hashtbl.create Interpreter.Flags.hashtbl_default_size
+
 let copy g = Hashtbl.copy g
+
 let add g i v = Hashtbl.replace g i v
+
 let find g i = Hashtbl.find g i
+
 let to_seq g = Hashtbl.to_seq g
 
 let of_seq (seq : (int32 * 'a) Seq.t) : 'a t =

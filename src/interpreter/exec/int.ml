@@ -2,72 +2,133 @@ module type RepType = sig
   type t
 
   val zero : t
+
   val one : t
+
   val minus_one : t
+
   val max_int : t
+
   val min_int : t
+
   val neg : t -> t
+
   val add : t -> t -> t
+
   val sub : t -> t -> t
+
   val mul : t -> t -> t
+
   val div : t -> t -> t (* raises Division_by_zero *)
+
   val rem : t -> t -> t (* raises Division_by_zero *)
+
   val logand : t -> t -> t
+
   val lognot : t -> t
+
   val logor : t -> t -> t
+
   val logxor : t -> t -> t
+
   val shift_left : t -> int -> t
+
   val shift_right : t -> int -> t
+
   val shift_right_logical : t -> int -> t
+
   val of_int : int -> t
+
   val to_int : t -> int
+
   val to_string : t -> string
+
   val bitwidth : int
 end
 
 module type S = sig
   type t
+
   type bits
 
   val of_bits : bits -> t
+
   val to_bits : t -> bits
+
   val zero : t
+
   val add : t -> t -> t
+
   val sub : t -> t -> t
+
   val mul : t -> t -> t
+
   val div_s : t -> t -> t (* raises IntegerDivideByZero, IntegerOverflow *)
+
   val div_u : t -> t -> t (* raises IntegerDivideByZero *)
+
   val rem_s : t -> t -> t (* raises IntegerDivideByZero *)
+
   val rem_u : t -> t -> t (* raises IntegerDivideByZero *)
+
   val and_ : t -> t -> t
+
   val or_ : t -> t -> t
+
   val xor : t -> t -> t
+
   val shl : t -> t -> t
+
   val shr_s : t -> t -> t
+
   val shr_u : t -> t -> t
+
   val rotl : t -> t -> t
+
   val rotr : t -> t -> t
+
   val clz : t -> t
+
   val ctz : t -> t
+
   val popcnt : t -> t
+
   val eqz : t -> bool
+
   val eq : t -> t -> bool
+
   val ne : t -> t -> bool
+
   val lt_s : t -> t -> bool
+
   val lt_u : t -> t -> bool
+
   val le_s : t -> t -> bool
+
   val le_u : t -> t -> bool
+
   val gt_s : t -> t -> bool
+
   val gt_u : t -> t -> bool
+
   val ge_s : t -> t -> bool
+
   val ge_u : t -> t -> bool
+
   val of_int_s : int -> t
+
   val of_int_u : int -> t
+
   val of_string_s : string -> t
+
   val of_string_u : string -> t
+
   val of_string : string -> t
+
   val to_string_s : t -> string
+
   val to_string_u : t -> string
+
   val rand : int -> t
 end
 
@@ -93,17 +154,24 @@ struct
       if cmp_u r ( < ) d then (q, r) else (Rep.add q Rep.one, Rep.sub r d)
 
   type t = Rep.t
+
   type bits = Rep.t
 
   let of_bits x = x
+
   let to_bits x = x
+
   let zero = Rep.zero
+
   let one = Rep.one
+
   let ten = Rep.of_int 10
 
   (* add, sub, and mul are sign-agnostic and do not trap on overflow. *)
   let add = Rep.add
+
   let sub = Rep.sub
+
   let mul = Rep.mul
 
   (* result is truncated toward zero *)
@@ -128,7 +196,9 @@ struct
     r
 
   let and_ = Rep.logand
+
   let or_ = Rep.logor
+
   let xor = Rep.logxor
 
   (* WebAssembly's shifts mask the shift count according to the bitwidth. *)
@@ -136,7 +206,9 @@ struct
     f x (Rep.to_int (Rep.logand y (Rep.of_int (Rep.bitwidth - 1))))
 
   let shl x y = shift Rep.shift_left x y
+
   let shr_s x y = shift Rep.shift_right x y
+
   let shr_u x y = shift Rep.shift_right_logical x y
 
   (* We must mask the count to implement rotates via shifts. *)
@@ -180,17 +252,29 @@ struct
     Rep.of_int (loop 0 Rep.bitwidth x)
 
   let eqz x = x = Rep.zero
+
   let eq x y = x = y
+
   let ne x y = x <> y
+
   let lt_s x y = x < y
+
   let lt_u x y = cmp_u x ( < ) y
+
   let le_s x y = x <= y
+
   let le_u x y = cmp_u x ( <= ) y
+
   let gt_s x y = x > y
+
   let gt_u x y = cmp_u x ( > ) y
+
   let ge_s x y = x >= y
+
   let ge_u x y = cmp_u x ( >= ) y
+
   let of_int_s = Rep.of_int
+
   let of_int_u i = and_ (Rep.of_int i) (or_ (shl (Rep.of_int max_int) one) one)
 
   (* String conversion that allows leading signs and unsigned values *)
@@ -238,9 +322,9 @@ struct
     match s.[0] with
     | '+' -> parse_int 1
     | '-' ->
-        let n = parse_int 1 in
-        require (ge_s (sub n one) minus_one);
-        Rep.neg n
+      let n = parse_int 1 in
+      require (ge_s (sub n one) minus_one);
+      Rep.neg n
     | _ -> parse_int 0
 
   let of_string_s s =
@@ -259,7 +343,7 @@ struct
     if i < j then (
       if k = 0 then Buffer.add_char buf '_';
       Buffer.add_char buf s.[i];
-      add_digits buf s (i + 1) j ((k + 2) mod 3))
+      add_digits buf s (i + 1) j ((k + 2) mod 3) )
 
   let group_digits s =
     let len = String.length s in

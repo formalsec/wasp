@@ -165,7 +165,7 @@ let i32_cvtop op s =
 
 let i64_cvtop op s =
   match op with
-  | I64Op.ExtendSI32 -> cvtop (Ty_bitv 64) (Sign_extend 32)  s
+  | I64Op.ExtendSI32 -> cvtop (Ty_bitv 64) (Sign_extend 32) s
   | I64Op.ExtendUI32 -> cvtop (Ty_bitv 64) (Zero_extend 32) s
   | I64Op.TruncSF32 -> cvtop (Ty_bitv 64) TruncSF32 s
   | I64Op.TruncUF32 -> cvtop (Ty_bitv 64) TruncUF32 s

@@ -1,10 +1,15 @@
 open Types
 open Values
 
-type global = { mutable content : value; mut : mutability }
+type global =
+  { mutable content : value
+  ; mut : mutability
+  }
+
 type t = global
 
 exception Type
+
 exception NotMutable
 
 let alloc (GlobalType (t, mut)) v =
@@ -12,6 +17,7 @@ let alloc (GlobalType (t, mut)) v =
   { content = v; mut }
 
 let type_of glob = GlobalType (type_of glob.content, glob.mut)
+
 let load glob = glob.content
 
 let store glob v =
@@ -20,6 +26,7 @@ let store glob v =
   glob.content <- v
 
 let safe_store glob v = if glob.mut = Mutable then glob.content <- v
+
 let globcpy (glob : global) : global = alloc (type_of glob) glob.content
 
 let contents (globs : global list) : value list =

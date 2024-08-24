@@ -17,7 +17,9 @@ let global (GlobalType (t, _) as gt) =
   Global.alloc gt v
 
 let table = Table.alloc (TableType ({ min = 10l; max = Some 20l }, FuncRefType))
+
 let memory = Memory.alloc (MemoryType { min = 1l; max = Some 2l })
+
 let func f t = Func.alloc_host t (f t)
 
 let print_value v =
@@ -34,9 +36,9 @@ let lookup name t =
   | "print", _ -> ExternFunc (func print (FuncType ([], [])))
   | "print_i32", _ -> ExternFunc (func print (FuncType ([ I32Type ], [])))
   | "print_i32_f32", _ ->
-      ExternFunc (func print (FuncType ([ I32Type; F32Type ], [])))
+    ExternFunc (func print (FuncType ([ I32Type; F32Type ], [])))
   | "print_f64_f64", _ ->
-      ExternFunc (func print (FuncType ([ F64Type; F64Type ], [])))
+    ExternFunc (func print (FuncType ([ F64Type; F64Type ], [])))
   | "print_f32", _ -> ExternFunc (func print (FuncType ([ F32Type ], [])))
   | "print_f64", _ -> ExternFunc (func print (FuncType ([ F64Type ], [])))
   | "global_i32", _ -> ExternGlobal (global (GlobalType (I32Type, Immutable)))

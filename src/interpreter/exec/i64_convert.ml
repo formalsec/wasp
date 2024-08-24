@@ -1,6 +1,7 @@
 (* WebAssembly-compatible type conversions to i64 implementation *)
 
 let extend_i32_s x = Int64.of_int32 x
+
 let extend_i32_u x = Int64.logand (Int64.of_int32 x) 0x0000_0000_ffff_ffffL
 
 let trunc_f32_s x =
@@ -21,8 +22,8 @@ let trunc_f32_u x =
       Int64.(
         logxor
           (of_float
-             (xf -. (* TODO(ocaml-4.03): 0x1p63 *) 9223372036854775808.0))
-          min_int)
+             (xf -. (* TODO(ocaml-4.03): 0x1p63 *) 9223372036854775808.0) )
+          min_int )
     else Int64.of_float xf
 
 let trunc_f64_s x =
@@ -43,8 +44,8 @@ let trunc_f64_u x =
       Int64.(
         logxor
           (of_float
-             (xf -. (* TODO(ocaml-4.03): 0x1p63 *) 9223372036854775808.0))
-          min_int)
+             (xf -. (* TODO(ocaml-4.03): 0x1p63 *) 9223372036854775808.0) )
+          min_int )
     else Int64.of_float xf
 
 let reinterpret_f64 = F64.to_bits

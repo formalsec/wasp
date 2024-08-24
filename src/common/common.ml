@@ -10,8 +10,11 @@ module Crash = Interpreter.Error.Make ()
 module Exhaustion = Interpreter.Error.Make ()
 
 exception Link = Link.Error
+
 exception Trap = Trap.Error
+
 exception Crash = Crash.Error
+
 exception Exhaustion = Exhaustion.Error
 
 module type WorkList = sig
@@ -20,10 +23,15 @@ module type WorkList = sig
   exception Empty
 
   val create : unit -> 'a t
+
   val push : 'a -> 'a t -> unit
+
   val pop : 'a t -> 'a
+
   val add_seq : 'a t -> 'a Seq.t -> unit
+
   val is_empty : 'a t -> bool
+
   val length : 'a t -> int
 end
 
@@ -53,14 +61,13 @@ let numeric_error at = function
   | Interpreter.Numeric_error.IntegerOverflow -> "integer overflow"
   | Interpreter.Numeric_error.IntegerDivideByZero -> "integer divide by zero"
   | Interpreter.Numeric_error.InvalidConversionToInteger ->
-      "invalid conversion to integer"
+    "invalid conversion to integer"
   | Interpreter.Eval_numeric.TypeError (i, v, t) ->
-      Crash.error at
-        ("type error, expected "
-        ^ Interpreter.Types.string_of_value_type t
-        ^ " as operand " ^ string_of_int i ^ ", got "
-        ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v)
-        )
+    Crash.error at
+      ( "type error, expected "
+      ^ Interpreter.Types.string_of_value_type t
+      ^ " as operand " ^ string_of_int i ^ ", got "
+      ^ Interpreter.Types.string_of_value_type (Interpreter.Values.type_of v) )
   | exn -> raise exn
 
 let print_logs (logs : (int * int * int) list) : unit =
@@ -80,7 +87,7 @@ let print_logs (logs : (int * int * int) list) : unit =
   Interpreter.Io.save_file log_file logs_string
 
 let logger (logs : (int * int * int) list ref) (get_finished : unit -> int)
-    (exiter : int -> unit) (loop_start : float ref) : unit =
+  (exiter : int -> unit) (loop_start : float ref) : unit =
   let cnt = ref 1 in
   let log () : unit =
     let pcs = get_finished () in
@@ -95,11 +102,11 @@ let logger (logs : (int * int * int) list ref) (get_finished : unit -> int)
   in
   let timeout = !Interpreter.Flags.timeout in
   let handler =
-    if timeout > 0 then (fun (_ : int) ->
+    if timeout > 0 then ( fun (_ : int) ->
       log ();
       if Sys.time () -. !loop_start >= Float.of_int timeout then (
         print_logs !logs;
-        exiter 0))
+        exiter 0 ) )
     else fun (_ : int) -> log ()
   in
   Sys.(set_signal sigalrm (Signal_handle handler));

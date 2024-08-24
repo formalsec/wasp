@@ -12,8 +12,8 @@ let error msg = raise (Eval.Crash (Source.no_region, msg))
 
 let type_error v t =
   error
-    ("type error, expected " ^ string_of_value_type t ^ ", got "
-    ^ string_of_value_type (type_of v))
+    ( "type error, expected " ^ string_of_value_type t ^ ", got "
+    ^ string_of_value_type (type_of v) )
 
 let empty = function [] -> () | _ -> error "type error, too many arguments"
 

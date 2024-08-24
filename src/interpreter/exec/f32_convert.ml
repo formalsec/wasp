@@ -24,7 +24,7 @@ let convert_i32_u x =
   F32.of_float
     Int32.(
       if x >= zero then to_float x
-      else to_float (logor (shift_right_logical x 1) (logand x 1l)) *. 2.0)
+      else to_float (logor (shift_right_logical x 1) (logand x 1l)) *. 2.0 )
 
 (*
  * Values that are too large would get rounded when represented in f64,
@@ -39,7 +39,7 @@ let convert_i64_s x =
       else
         let r = if logand x 0xfffL = 0L then 0L else 1L in
         to_float (logor (shift_right x 12) r)
-        *. (* TODO(ocaml-4.03): 0x1p12 *) 4096.0)
+        *. (* TODO(ocaml-4.03): 0x1p12 *) 4096.0 )
 
 let convert_i64_u x =
   F32.of_float
@@ -48,6 +48,6 @@ let convert_i64_u x =
       else
         let r = if logand x 0xfffL = 0L then 0L else 1L in
         to_float (logor (shift_right_logical x 12) r)
-        *. (* TODO(ocaml-4.03): 0x1p12 *) 4096.0)
+        *. (* TODO(ocaml-4.03): 0x1p12 *) 4096.0 )
 
 let reinterpret_i32 = F32.of_bits

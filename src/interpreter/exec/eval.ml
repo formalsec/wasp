@@ -2,7 +2,9 @@ open Values
 open Types
 open Instance
 open Ast
-open Source [@@@ocaml.warning "-27"]
+open Source
+
+[@@@ocaml.warning "-27"]
 
 (* Errors *)
 
