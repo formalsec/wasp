@@ -4,19 +4,18 @@ open Types
 
 type typemap = (string, expr_type) Hashtbl.t
 
-type varmap = {
-  sym : string Counter.t;
-  ord : string Stack.t;
-  typemap : typemap;
-}
+type varmap =
+  { sym : string Counter.t
+  ; ord : string Stack.t
+  ; typemap : typemap
+  }
 
 type t = varmap
 
 let create () : t =
-  {
-    sym = Counter.create ();
-    ord = Stack.create ();
-    typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size;
+  { sym = Counter.create ()
+  ; ord = Stack.create ()
+  ; typemap = Hashtbl.create Interpreter.Flags.hashtbl_default_size
   }
 
 let to_store (varmap : t) (binds : (Symbol.t * Value.t) list) : Concolic.Store.t

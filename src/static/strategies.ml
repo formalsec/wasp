@@ -1,17 +1,22 @@
 open Common
 open Encoding
 
-type interruption = IntLimit | AssFail of string | Bug of Bug.bug * string
+type interruption =
+  | IntLimit
+  | AssFail of string
+  | Bug of Bug.bug * string
 
 (*  Symbolic Frame  *)
-type sym_frame = {
-  sym_inst : Interpreter.Instance.module_inst;
-  sym_locals : Expression.t ref list; (*  Locals can be symbolic  *)
-}
+type sym_frame =
+  { sym_inst : Interpreter.Instance.module_inst
+  ; sym_locals : Expression.t ref list (*  Locals can be symbolic  *)
+  }
 
 (*  Symbolic code  *)
 type sym_code = Expression.t list * sym_admin_instr list
+
 and sym_admin_instr = sym_admin_instr' Interpreter.Source.phrase
+
 and instr = Interpreter.Ast.instr' Interpreter.Source.phrase
 
 and sym_admin_instr' =
@@ -22,10 +27,8 @@ and sym_admin_instr' =
   | SBreaking of int32 * Expression.t list
   | SLabel of int * instr list * sym_code
   | SFrame of int * sym_frame * sym_code
-      (**
-    * Wasp's administrative instructions to halt
-    * small-step semantic intepretation
-    *)
+    (** * Wasp's administrative instructions to halt * small-step semantic
+        intepretation *)
   | Interrupt of interruption
 
 module type Interpreter = sig
@@ -38,12 +41,12 @@ module type Interpreter = sig
   val clone : sym_config -> sym_config * sym_config
 
   val sym_config :
-    Interpreter.Instance.module_inst ->
-    Expression.t list ->
-    sym_admin_instr list ->
-    Concolic.Heap.t ->
-    Expression.t Globals.t ->
-    sym_config
+       Interpreter.Instance.module_inst
+    -> Expression.t list
+    -> sym_admin_instr list
+    -> Concolic.Heap.t
+    -> Expression.t Globals.t
+    -> sym_config
 
   val step : sym_config -> (step_res, string * Interpreter.Source.region) result
 
@@ -51,15 +54,15 @@ module type Interpreter = sig
     sym_config -> (string * Interpreter.Source.region) option
 
   val p_invoke :
-    sym_config ->
-    (Encoding.Expression.t, string * Interpreter.Source.region) result
+       sym_config
+    -> (Encoding.Expression.t, string * Interpreter.Source.region) result
 
   val p_finished : sym_config -> Encoding.Expression.t -> sym_config option
 end
 
 module TreeStrategy (L : WorkList) (I : Interpreter) = struct
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
-      (string * Interpreter.Source.region) option =
+    (string * Interpreter.Source.region) option =
     let w = L.create () in
     L.push c w;
 
@@ -68,9 +71,9 @@ module TreeStrategy (L : WorkList) (I : Interpreter) = struct
       let c = L.pop w in
       match I.step c with
       | Result.Ok step_res -> (
-          match step_res with
-          | I.Continuation cs' -> L.add_seq w (List.to_seq cs')
-          | I.End e -> pcs := e :: !pcs)
+        match step_res with
+        | I.Continuation cs' -> L.add_seq w (List.to_seq cs')
+        | I.End e -> pcs := e :: !pcs )
       | Result.Error step_err -> err := Some step_err
     done;
 
@@ -85,7 +88,7 @@ module BFS_L (I : Interpreter) = struct
   let max_configs = 32
 
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
-      (string * Interpreter.Source.region) option =
+    (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -95,12 +98,12 @@ module BFS_L (I : Interpreter) = struct
       let c = Queue.pop w in
       match I.step c with
       | Result.Ok step_res -> (
-          match step_res with
-          | I.Continuation cs' ->
-              if l + List.length cs' <= max_configs then
-                Queue.add_seq w (List.to_seq cs')
-              else Queue.push c w
-          | I.End e -> pcs := e :: !pcs)
+        match step_res with
+        | I.Continuation cs' ->
+          if l + List.length cs' <= max_configs then
+            Queue.add_seq w (List.to_seq cs')
+          else Queue.push c w
+        | I.End e -> pcs := e :: !pcs )
       | Result.Error step_err -> err := Some step_err
     done;
 
@@ -111,7 +114,7 @@ module Half_BFS (I : Interpreter) = struct
   let max_configs = 512
 
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
-      (string * Interpreter.Source.region) option =
+    (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -120,21 +123,21 @@ module Half_BFS (I : Interpreter) = struct
       let c = Queue.pop w in
       match I.step c with
       | Result.Ok step_res -> (
-          match step_res with
-          | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
-          | I.End e -> pcs := e :: !pcs)
+        match step_res with
+        | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
+        | I.End e -> pcs := e :: !pcs )
       | Result.Error step_err ->
-          err := Some step_err;
-          let l = Queue.length w in
-          if l >= max_configs - 2 then (
-            let filtered =
-              Queue.of_seq
-                (Seq.filter_map
-                   (fun c -> if Random.bool () then Some c else None)
-                   (Queue.to_seq w))
-            in
-            Queue.clear w;
-            Queue.transfer filtered w)
+        err := Some step_err;
+        let l = Queue.length w in
+        if l >= max_configs - 2 then (
+          let filtered =
+            Queue.of_seq
+              (Seq.filter_map
+                 (fun c -> if Random.bool () then Some c else None)
+                 (Queue.to_seq w) )
+          in
+          Queue.clear w;
+          Queue.transfer filtered w )
     done;
 
     !err
@@ -142,7 +145,7 @@ end
 
 module ProgressBFS (I : Interpreter) = struct
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
-      (string * Interpreter.Source.region) option =
+    (string * Interpreter.Source.region) option =
     let max_configs = ref 2 in
     let hot = Queue.create () in
     Queue.push c hot;
@@ -158,12 +161,12 @@ module ProgressBFS (I : Interpreter) = struct
         let c = Queue.pop hot in
         match I.step c with
         | Result.Ok step_res -> (
-            match step_res with
-            | I.Continuation cs' ->
-                if l + List.length cs' <= !max_configs then
-                  Queue.add_seq hot (List.to_seq cs')
-                else Queue.add_seq cold (List.to_seq cs')
-            | I.End e -> pcs := e :: !pcs)
+          match step_res with
+          | I.Continuation cs' ->
+            if l + List.length cs' <= !max_configs then
+              Queue.add_seq hot (List.to_seq cs')
+            else Queue.add_seq cold (List.to_seq cs')
+          | I.End e -> pcs := e :: !pcs )
         | Result.Error step_err -> err := Some step_err
       done;
       Queue.transfer cold hot;
@@ -179,7 +182,7 @@ module Hybrid (I : Interpreter) = struct
   let max_configs = 128
 
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
-      (string * Interpreter.Source.region) option =
+    (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -195,9 +198,9 @@ module Hybrid (I : Interpreter) = struct
       else
         match I.step c with
         | Result.Ok step_res -> (
-            match step_res with
-            | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
-            | I.End e -> pcs := e :: !pcs)
+          match step_res with
+          | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
+          | I.End e -> pcs := e :: !pcs )
         | Result.Error step_err -> err := Some step_err
     done;
 
@@ -208,7 +211,7 @@ module HybridP (I : Interpreter) = struct
   let max_configs = 128
 
   let eval (c : I.sym_config) (pcs : Expression.t list ref) :
-      (string * Interpreter.Source.region) option =
+    (string * Interpreter.Source.region) option =
     let w = Queue.create () in
     Queue.push c w;
 
@@ -221,14 +224,14 @@ module HybridP (I : Interpreter) = struct
         match I.p_invoke c with
         | Error step_err -> err := Some step_err
         | Ok pc' ->
-            pcs := pc' :: !pcs;
-            Queue.add_seq w (Option.to_seq (I.p_finished c pc')))
+          pcs := pc' :: !pcs;
+          Queue.add_seq w (Option.to_seq (I.p_finished c pc')) )
       else
         match I.step c with
         | Result.Ok step_res -> (
-            match step_res with
-            | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
-            | I.End e -> pcs := e :: !pcs)
+          match step_res with
+          | I.Continuation cs' -> Queue.add_seq w (List.to_seq cs')
+          | I.End e -> pcs := e :: !pcs )
         | Result.Error step_err -> err := Some step_err
     done;
 
@@ -236,11 +239,13 @@ module HybridP (I : Interpreter) = struct
 end
 
 let loop_start = ref 0.0
+
 let pcs = ref []
+
 let logs = ref []
 
 let write_report (error : (string * Interpreter.Source.region) option)
-    (loop_time : float) (paths : int) (step_count : int) : unit =
+  (loop_time : float) (paths : int) (step_count : int) : unit =
   if !Interpreter.Flags.log then print_logs !logs;
   let spec, reason =
     match error with
@@ -284,9 +289,9 @@ module Helper (I : Interpreter) = struct
   module HybridP_I = HybridP (I)
 
   let helper (inst : Interpreter.Instance.module_inst) (vs : Expression.t list)
-      (es : sym_admin_instr list) (sym_m : Concolic.Heap.t)
-      (globs : Expression.t Globals.t) :
-      bool * (string * Interpreter.Source.region) option * float * int =
+    (es : sym_admin_instr list) (sym_m : Concolic.Heap.t)
+    (globs : Expression.t Globals.t) :
+    bool * (string * Interpreter.Source.region) option * float * int =
     let c = I.sym_config inst vs es sym_m globs in
 
     let eval =
@@ -301,9 +306,9 @@ module Helper (I : Interpreter) = struct
       | _ -> failwith "unreachable"
     in
 
-    (if !Interpreter.Flags.log then
-     let get_finished () : int = List.length !pcs in
-     logger logs get_finished exiter loop_start);
+    ( if !Interpreter.Flags.log then
+        let get_finished () : int = List.length !pcs in
+        logger logs get_finished exiter loop_start );
     loop_start := Sys.time ();
     let step_err = eval c pcs in
     let spec, reason =
