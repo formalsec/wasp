@@ -189,8 +189,7 @@ let rec eval (env : t) (e : Expr.t) : Value.t =
   | Extract (e', h, l) when h - l = 1 ->
     let v = int64_of_value (eval env e') in
     Num (I64 Int64.(logand (shift_right v (8 * l)) 0xffL))
-  | Extract (_, _, _) ->
-      assert false
+  | Extract (_, _, _) -> assert false
   | Concat (e1, e2) -> (
     let v1 = int64_of_value (eval env e1) in
     let v2 = int64_of_value (eval env e2) in

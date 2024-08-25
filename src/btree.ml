@@ -3,7 +3,7 @@ open Interpreter.Types
 open Interpreter.Values
 
 let print_b_tree_keys (mem : memory) (n_keys : int) (max_keys : int)
-    (node_addr : int) =
+  (node_addr : int) =
   Printf.printf "[node: %s; keys: { " (string_of_int node_addr);
   for i = 0 to n_keys - 1 do
     let v, sym =
@@ -82,10 +82,10 @@ let print_b_tree (mem : memory) =
       let value, _ =
         load_value mem
           (Int64.of_int
-             (int_of_string (string_of_value root_addr)
+             ( int_of_string (string_of_value root_addr)
              + 8
              + (4 * (int_of_string (string_of_value t) - 1))
-             + (4 * i)))
+             + (4 * i) ) )
           0l I32Type
       in
       children := !children @ [ int_of_string (string_of_value value) ]
