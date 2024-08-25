@@ -1,2 +1,2 @@
 (cram
- (deps %{bin:wasp} test1.wast))
+ (deps %{bin:wasp} test1.wast test2.wast test3.wast test4.wast test5.wast))
