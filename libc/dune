@@ -1,0 +1,6 @@
+(rule
+ (targets libc.wasm)
+ (deps
+  (source_tree .))
+ (action
+  (run make)))

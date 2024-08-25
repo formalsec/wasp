@@ -28,4 +28,3 @@ result
 nix/profiles/
 
 wasp-out/*
-bin/libc.wasm
