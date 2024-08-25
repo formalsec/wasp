@@ -51,3 +51,10 @@ let cmd_concolic run =
     Term.(
       const run $ file0 $ unchecked $ trace $ timeout $ workspace $ no_simplify
       $ policy $ queries $ log )
+
+let cmd_symbolic run =
+  let info = Cmd.info "symbolic" in
+  Cmd.v info
+    Term.(
+      const run $ file0 $ unchecked $ trace $ timeout $ workspace $ policy
+      $ queries $ log )
