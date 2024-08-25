@@ -3,7 +3,7 @@ open Cmdliner
 let path = ((fun s -> `Ok (Fpath.v s)), Fpath.pp)
 
 let file0 =
-  let doc = "$(docv) to analyse" in
+  let doc = "$(docv) is the command input" in
   Arg.(required & pos 0 (some path) None & info [] ~doc ~docv:"FILE")
 
 let unchecked =
@@ -46,14 +46,24 @@ let log =
   Arg.(value & flag & info [ "log" ] ~doc)
 
 let cmd_concolic run =
-  let info = Cmd.info "concolic" in
+  let doc = "Performs concolic execution" in
+  let man =
+    [ `P "Concolically executes a WebAssembly program in textual format (.wat)"
+    ]
+  in
+  let info = Cmd.info "concolic" ~doc ~man in
   Cmd.v info
     Term.(
       const run $ file0 $ unchecked $ trace $ timeout $ workspace $ no_simplify
       $ policy $ queries $ log )
 
 let cmd_symbolic run =
-  let info = Cmd.info "symbolic" in
+  let doc = "Performs symbolic execution" in
+  let man =
+    [ `P "Symbolically executes a WebAssembly program in textual format (.wat)"
+    ]
+  in
+  let info = Cmd.info "symbolic" ~doc ~man in
   Cmd.v info
     Term.(
       const run $ file0 $ unchecked $ trace $ timeout $ workspace $ policy
