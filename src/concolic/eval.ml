@@ -150,17 +150,10 @@ let debug2 fmt a b = if !Flags.trace then Format.eprintf fmt a b
 
 let debug3 fmt a b c = if !Flags.trace then Format.eprintf fmt a b c
 
-let parse_policy (p : string) : policy option =
-  match p with
-  | "random" -> Some Random
-  | "depth" -> Some Depth
-  | "breadth" -> Some Breadth
-  | _ -> None
-
-let string_of_interruption : interruption -> string = function
-  | Limit -> "Analysis Limit"
-  | Failure _ -> "Assertion Failure"
-  | Bug b -> Bug.string_of_bug b
+let pp_interruption fmt = function
+  | Limit -> Fmt.string fmt "Reached Analysis Limit"
+  | Failure _ -> Fmt.string fmt "Reached Assertion Failure"
+  | Bug b -> Fmt.pf fmt "Found: %a" Bug.pp b
 
 let plain e =
   let open Source in
@@ -215,7 +208,8 @@ let default_value = function
 
 let to_relop e =
   match Expr.view e with
-  | Val _ | Ptr _ | Relop _ -> None
+  | Val _ | Ptr _ -> None
+  | Relop _ -> Some e
   | _ -> Some (Expr.relop Ty_bool Ne e (Expr.value (Num (I32 0l))))
 
 let mk_relop ?(reduce : bool = true) (e : Expr.t) (ty : Ty.t) =
@@ -234,8 +228,10 @@ let mk_relop ?(reduce : bool = true) (e : Expr.t) (ty : Ty.t) =
     | _ -> assert false )
 
 let add_constraint ?(neg : bool = false) e pc =
+  debug2 "add_constraint: %a@." Expr.pp e;
   let cond =
-    let c = to_relop (Expr.simplify e) in
+    let e = Expr.simplify e in
+    let c = to_relop e in
     if neg then Option.map (fun e -> Expr.Bool.not e) c else c
   in
   match (cond, Expr.view pc) with
@@ -548,9 +544,11 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
           (vs', [ Interrupt (Failure pc) @@ e.at ], mem, pc, bp)
         | SymAssert, (I32 _, ex) :: vs' when not Expr.(is_symbolic (simplify ex))
           ->
+          debug0 ">>> Assert PASSED!@.";
           (vs', [], mem, pc, bp)
         | SymAssert, (I32 _, ex) :: vs' -> (
           let formulas = add_constraint ~neg:true ex pc in
+          debug2 "Checking assertion: %a@." Expr.pp formulas;
           match Batch.check solver [ formulas ] with
           | `Unsat -> (vs', [], mem, pc, bp)
           | `Sat -> (
@@ -926,7 +924,7 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
         | Checkpoint cp -> L.push cp cp_wl )
       branch_points
 
-  let rec eval (c : config) wls : config =
+  let rec eval_loop (c : config) wls : config =
     match c.code with
     | _, [] -> c
     | _, { it = Trapping msg; at } :: _ -> Trap.error at msg
@@ -938,7 +936,7 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
     | _, _ ->
       let c' = S.step c in
       enqueue wls c'.bp;
-      eval { c' with bp = [] } wls
+      eval_loop { c' with bp = [] } wls
 
   let rec find_sat_pc pcs =
     if L.is_empty pcs then None
@@ -961,39 +959,40 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
   let find_sat_path (pcs, cps) =
     match find_sat_cp cps with None -> find_sat_pc pcs | Some _ as cp -> cp
 
-  let invoke (c : config) (_test_suite : string) =
+  let invoke (c : config) testsuite =
     let glob0 = Globals.copy c.glob
     and code0 = c.code
     and mem0 = Heap.memcpy c.mem in
     let pc_wl = L.create ()
     and cp_wl = L.create () in
     (* Main concolic loop *)
-    let rec loop c =
+    let rec concolic_loop c =
       iterations := !iterations + 1;
-      let { code; store; bp; _ } = eval c (pc_wl, cp_wl) in
+      let { code; store; bp; _ } = eval_loop c (pc_wl, cp_wl) in
       enqueue (pc_wl, cp_wl) bp;
       match code with
       | _, { it = Interrupt i; at } :: _ ->
-        Common.write_test_case ~witness:true (Store.to_json store);
-        Some (string_of_interruption i, at)
+        let model = Store.to_json store in
+        Fmt.epr "%a!@\nModel:@\n%s@." pp_interruption i model;
+        Common.write_test_case testsuite ~witness:true model;
+        Some (Fmt.str "%a" pp_interruption i, at)
       | vs, { it = Restart pc; _ } :: es
         when match Batch.check solver [ pc ] with `Sat -> true | _ -> false ->
         let tree', _ = Execution_tree.move_true !(c.tree) in
         c.tree := tree';
-        loop (update c (vs, es) pc (Store.get_key_types store))
+        concolic_loop (update c (vs, es) pc (Store.get_key_types store))
       | _ -> (
-        Common.write_test_case (Store.to_json store);
+        Common.write_test_case testsuite (Store.to_json store);
         match find_sat_path (pc_wl, cp_wl) with
         | None -> None
-        | Some (_, None) -> loop (reset c glob0 code0 mem0)
+        | Some (_, None) -> concolic_loop (reset c glob0 code0 mem0)
         | Some (pc', Some cp) ->
           let _, c' = clone !cp in
-          loop (update c' c'.code c'.pc (Expr.get_symbols [ pc' ])) )
+          concolic_loop (update c' c'.code c'.pc (Expr.get_symbols [ pc' ])) )
     in
-    loop c
+    concolic_loop c
 
-  let s_invoke (c : config) (_test_suite : string) :
-    (string * Source.region) option =
+  let s_invoke (c : config) testsuite : (string * Source.region) option =
     let _, c0 = clone c in
     let wl = L.create () in
     let rec eval (c : config) : config =
@@ -1036,8 +1035,8 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
         bp;
       match code with
       | _, { it = Interrupt i; at } :: _ ->
-        Common.write_test_case ~witness:true (Store.to_json store);
-        Some (string_of_interruption i, at)
+        Common.write_test_case testsuite ~witness:true (Store.to_json store);
+        Some (Fmt.str "%a" pp_interruption i, at)
       | vs, { it = Restart pc; _ } :: es -> (
         print_endline "--- attempting restart ---";
         iterations := !iterations - 1;
@@ -1049,7 +1048,7 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
             let _, c' = clone c0 in
             loop (s_reset c') )
       | _ ->
-        Common.write_test_case (Store.to_json store);
+        Common.write_test_case testsuite (Store.to_json store);
         if L.is_empty wl || not (find_sat_pc wl) then None
         else
           let _, c' = clone c0 in
@@ -1058,8 +1057,8 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
     let error = loop c in
     error
 
-  let p_invoke (c : config) (_test_suite : string) :
-    (Expr.t, string * Source.region) result =
+  let p_invoke (c : config) testsuite : (Expr.t, string * Source.region) result
+      =
     let rec eval (c : config) : config =
       match c.code with
       | _, [] -> c
@@ -1075,10 +1074,10 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
     let res =
       match c'.code with
       | _, { it = Interrupt i; at } :: _ ->
-        Common.write_test_case ~witness:true (Store.to_json c'.store);
-        Result.error (string_of_interruption i, at)
+        Common.write_test_case testsuite ~witness:true (Store.to_json c'.store);
+        Result.error (Fmt.str "%a" pp_interruption i, at)
       | _ ->
-        Common.write_test_case (Store.to_json c'.store);
+        Common.write_test_case testsuite (Store.to_json c'.store);
         Result.ok c.pc
     in
     res
@@ -1102,12 +1101,10 @@ let set_timeout (time_limit : int) : unit =
     Sys.(set_signal sigalrm (Signal_handle exiter));
     ignore (Unix.alarm time_limit) )
 
-let main (func : Instance.func_inst) (vs : value list)
+let main testsuite policy (func : Instance.func_inst) (vs : value list)
   (inst : Instance.module_inst) (mem0 : Heap.t) =
   let open Interpreter in
   set_timeout !Flags.timeout;
-  let test_suite = Filename.concat !Flags.output "test_suite" in
-  Io.safe_mkdir test_suite;
   let at =
     match func with Func.AstFunc (_, _, f) -> f.at | _ -> Source.no_region
   in
@@ -1127,18 +1124,21 @@ let main (func : Instance.func_inst) (vs : value list)
       mem0 glob (ref head)
   in
   let invoke =
-    match parse_policy !Flags.policy with
-    | None -> Crash.error at ("invalid search policy '" ^ !Flags.policy ^ "'")
-    | Some Depth -> DFS.invoke
-    | Some Breadth -> BFS.invoke
-    | Some Random -> RND.invoke
+    match policy with
+    | Depth -> DFS.invoke
+    | Breadth -> BFS.invoke
+    | Random -> RND.invoke
   in
   ( if !Interpreter.Flags.log then
       let get_finished () : int = !iterations in
       Common.logger logs get_finished exiter loop_start );
   loop_start := Sys.time ();
-  let error = invoke c test_suite in
-  write_report error (Sys.time () -. !loop_start)
+  let error = invoke c testsuite in
+  write_report error (Sys.time () -. !loop_start);
+  (* TODO: Propagate error out *)
+  match error with
+  | None -> Fmt.pr "All Ok"
+  | Some _bug -> Fmt.pr "Found Problem!"
 
 let i32 (v : Interpreter.Values.value) at =
   match v with
@@ -1268,5 +1268,7 @@ let init m exts =
   let init_datas = List.map (init_memory inst memory) data in
   List.iter (fun f -> f ()) init_elems;
   List.iter (fun f -> f ()) init_datas;
-  Lib.Option.app (fun x -> ignore (main (func inst x) [] inst memory)) start;
+  Option.iter
+    (fun x -> ignore (main "" Random (func inst x) [] inst memory))
+    start;
   (memory, inst)

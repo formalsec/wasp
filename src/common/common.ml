@@ -46,8 +46,7 @@ let count (init : int) : unit -> int =
 
 let test_case_cntr = count 0
 
-let write_test_case ?(witness = false) test_data : unit =
-  let out_dir = Filename.concat !Interpreter.Flags.output "test_suite" in
+let write_test_case out_dir ?(witness = false) test_data : unit =
   if not (test_data = "[]") then
     let i = test_case_cntr () in
     let filename =

@@ -174,7 +174,7 @@ let input_file file run =
     (input_sexpr_file (input_script Parse.Script))
     input_js_file file run
 
-let input_string string ~callback =
+let with_string string callback =
   trace ("Running (\"" ^ String.escaped string ^ "\")...");
   let lexbuf = Lexing.from_string string in
   trace "Parsing...";
@@ -524,8 +524,8 @@ and run_quote_script script invoke =
   bind scripts None (List.rev !quote);
   quote := !quote @ save_quote
 
-let invoke_concolic _policy f vs inst =
-  Concolic.Eval.main f
+let invoke_concolic testsuite policy f vs inst =
+  Concolic.Eval.main testsuite policy f
     (List.map
        (fun v ->
          let v' = Common.Evaluations.of_value v.it in
@@ -545,8 +545,9 @@ let run_file _file =
   (* input_file file run_script *)
   assert false
 
-let run_string_concolic string policy =
-  input_string string ~callback:(fun s -> run_script s (invoke_concolic policy))
+let run_string_concolic ~testsuite ~data policy =
+  with_string data (fun script ->
+      run_script script (invoke_concolic testsuite policy) )
 
 (* let run_string_se string = *)
 (*   input_string string ~callback:(fun s -> run_script s invoke_se) *)

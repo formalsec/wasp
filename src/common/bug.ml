@@ -1,3 +1,5 @@
+open Prelude
+
 type bug =
   | Overflow
   | UAF
@@ -5,7 +7,7 @@ type bug =
 
 exception BugException of bug * Interpreter.Source.region * string
 
-let string_of_bug : bug -> string = function
-  | Overflow -> "Overflow"
-  | UAF -> "Use After Free"
-  | InvalidFree -> "Invalid Free"
+let pp fmt = function
+  | Overflow -> Fmt.string fmt "Overflow"
+  | UAF -> Fmt.string fmt "Use After Free"
+  | InvalidFree -> Fmt.string fmt "Invalid Free"

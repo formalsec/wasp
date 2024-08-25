@@ -7,13 +7,21 @@ let run_concolic filename unchecked trace timeout workspace no_simplify policy
   Flags.unchecked := unchecked;
   Flags.trace := trace;
   Flags.timeout := timeout;
+  (* Need to keep this here because there are references to it? *)
   Flags.output := workspace;
   Flags.simplify := no_simplify;
   (* Flags.policy := *)
   Flags.queries := queries;
   Flags.log := log;
+  let testsuite = Fpath.(v workspace / "test_suite") in
+  let* _ = Bos.OS.Dir.create ~path:true testsuite in
   let+ data = Bos.OS.File.read filename in
-  if not (Wasp.Run.run_string_concolic data policy) then 1 else 0
+  let _result =
+    Wasp.Run.run_string_concolic
+      ~testsuite:(Fpath.to_string testsuite)
+      ~data policy
+  in
+  ()
 
 let run_symbolic _filename _unchecked _trace _timeout _workspace _policy
   (* memory *) _queries (* allocs *) _log =
@@ -62,7 +70,7 @@ let () =
   match Cmdliner.Cmd.eval_value' cli with
   | `Ok result -> (
     match result with
-    | Ok n -> exit n
+    | Ok () -> exit Cmdliner.Cmd.Exit.ok
     | Error (`Msg msg) ->
       Fmt.epr "unexpected error: %s@." msg;
       exit 2 )
