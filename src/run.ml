@@ -175,7 +175,7 @@ let input_file file run =
     input_js_file file run
 
 let with_string string callback =
-  trace ("Running (\"" ^ String.escaped string ^ "\")...");
+  trace "Running...";
   let lexbuf = Lexing.from_string string in
   trace "Parsing...";
   input_script Parse.Script "string" lexbuf callback

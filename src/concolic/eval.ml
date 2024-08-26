@@ -142,13 +142,25 @@ let logs = ref []
 
 let solver = Batch.create ()
 
-let debug0 fmt = if !Flags.trace then Format.eprintf fmt
+let debug0 fmt =
+  if !Flags.trace then
+    let t = Format.dprintf fmt in
+    Format.eprintf "WASP: %t" t
 
-let debug1 fmt a = if !Flags.trace then Format.eprintf fmt a
+let debug1 fmt a =
+  if !Flags.trace then
+    let t = Format.dprintf fmt a in
+    Format.eprintf "WASP: %t" t
 
-let debug2 fmt a b = if !Flags.trace then Format.eprintf fmt a b
+let debug2 fmt a b =
+  if !Flags.trace then
+    let t = Format.dprintf fmt a b in
+    Format.eprintf "WASP: %t" t
 
-let debug3 fmt a b c = if !Flags.trace then Format.eprintf fmt a b c
+let debug3 fmt a b c =
+  if !Flags.trace then
+    let t = Format.dprintf fmt a b c in
+    Format.eprintf "WASP: %t" t
 
 let pp_interruption fmt = function
   | Limit -> Fmt.string fmt "Reached Analysis Limit"
@@ -206,10 +218,18 @@ let default_value = function
   | Ty.Ty_fp 64 -> F64 (Int64.bits_of_float 0.)
   | _ -> assert false
 
+let int32 e =
+  match Expr.view e with
+  | Val True -> Expr.value (Num (I32 1l))
+  | Val False -> Expr.value (Num (I32 0l))
+  | Cvtop (Ty_bitv 32, ToBool, e) -> e
+  | _ -> Expr.cvtop (Ty_bitv 32) OfBool e
+
 let to_relop e =
   match Expr.view e with
   | Val _ | Ptr _ -> None
   | Relop _ -> Some e
+  | Cvtop (_, OfBool, cond) -> Some cond
   | _ -> Some (Expr.relop Ty_bool Ne e (Expr.value (Num (I32 0l))))
 
 let mk_relop ?(reduce : bool = true) (e : Expr.t) (ty : Ty.t) =
@@ -228,7 +248,6 @@ let mk_relop ?(reduce : bool = true) (e : Expr.t) (ty : Ty.t) =
     | _ -> assert false )
 
 let add_constraint ?(neg : bool = false) e pc =
-  debug2 "add_constraint: %a@." Expr.pp e;
   let cond =
     let e = Expr.simplify e in
     let c = to_relop e in
@@ -245,7 +264,10 @@ let branch_on_cond bval c pc tree =
     else Execution_tree.move_false !tree
   in
   tree := tree';
-  if to_branch then Some (add_constraint ~neg:bval c pc) else None
+  if to_branch then (
+    debug2 "Branching on: %a@." Expr.pp c;
+    Some (add_constraint ~neg:bval c pc) )
+  else None
 
 let concretize_base_ptr e =
   match Expr.view e with Ptr { base; _ } -> Some base | _ -> None
@@ -299,7 +321,9 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
   let pp_value fmt (n, e) = Format.fprintf fmt "(%a, %a)" Num.pp n Expr.pp e
 
   let pp_value_list fmt vs =
-    Format.pp_print_list ~pp_sep:Format.pp_print_newline pp_value fmt vs
+    Format.pp_print_list
+      ~pp_sep:(fun fmt () -> Format.fprintf fmt "@\n")
+      pp_value fmt vs
 
   let rec step (c : config) : config =
     let { frame
@@ -507,7 +531,8 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
             , pc
             , bp ) )
         | Compare relop, v2 :: v1 :: vs' -> (
-          try (Evaluations.eval_relop v1 v2 relop :: vs', [], mem, pc, bp)
+          let v, expr = Evaluations.eval_relop v1 v2 relop in
+          try ((v, int32 expr) :: vs', [], mem, pc, bp)
           with exn ->
             ( vs'
             , [ Trapping (Common.numeric_error e.at exn) @@ e.at ]
@@ -539,16 +564,15 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
             , pc
             , bp ) )
         | Dup, v :: vs' -> (v :: v :: vs', [], mem, pc, bp)
-        | SymAssert, (I32 0l, _) :: vs' ->
-          debug0 ">>> Assert FAILED! Stopping...@.";
+        | SymAssert, (I32 0l, ex) :: vs' ->
+          debug2 "Assertion failure: %a@." Expr.pp ex;
           (vs', [ Interrupt (Failure pc) @@ e.at ], mem, pc, bp)
         | SymAssert, (I32 _, ex) :: vs' when not Expr.(is_symbolic (simplify ex))
           ->
-          debug0 ">>> Assert PASSED!@.";
           (vs', [], mem, pc, bp)
         | SymAssert, (I32 _, ex) :: vs' -> (
           let formulas = add_constraint ~neg:true ex pc in
-          debug2 "Checking assertion: %a@." Expr.pp formulas;
+          debug2 "Testing assertion: %a@." Expr.pp formulas;
           match Batch.check solver [ formulas ] with
           | `Unsat -> (vs', [], mem, pc, bp)
           | `Sat -> (
@@ -565,10 +589,11 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
           if i = 0l then (vs', [ Restart unsat @@ e.at ], mem, pc, bp)
           else (vs', [], mem, pc, bp)
         | SymAssume, (I32 i, ex) :: vs' ->
-          if i = 0l then
-            (vs', [ Restart (add_constraint ex pc) @@ e.at ], mem, pc, bp)
+          if i = 0l then (
+            debug2 "Assumption failure: %a@." Expr.pp ex;
+            (vs', [ Restart (add_constraint ex pc) @@ e.at ], mem, pc, bp) )
           else (
-            debug0 ">>> Assume passed. Continuing execution...@.";
+            debug0 "Assumption holds@.";
             let tree', _ = Execution_tree.move_true !tree in
             tree := tree';
             (vs', [], mem, add_constraint ex pc, bp) )
@@ -662,7 +687,7 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
           in
           (v :: vs', [], mem, pc', bp)
         | PrintStack, vs' ->
-          debug3 "%s:VS:@\n%a@."
+          debug3 "Stack @@ %s:@\n  @[<v>%a@]@."
             (Interpreter.Source.string_of_pos e.at.left)
             pp_value_list vs';
           (vs', [], mem, pc, bp)
@@ -675,7 +700,6 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
           debug1 "Mem:@\n%s@." (Heap.to_string mem);
           (vs', [], mem, pc, bp)
         | PrintBtree, vs' ->
-          Printf.printf "B TREE STATE: \n\n";
           (* Btree.print_b_tree mem; *)
           (vs', [], mem, pc, bp)
         | CompareExpr, (v1, ex1) :: (v2, ex2) :: vs' ->
@@ -942,6 +966,7 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
     if L.is_empty pcs then None
     else
       let pc, node = L.pop pcs in
+      debug2 "Checking formula:@\n %a@." Expr.pp pc;
       match Batch.check solver [ pc ] with
       | `Sat -> Some (pc, Execution_tree.find node)
       | `Unsat -> find_sat_pc pcs
@@ -1136,9 +1161,10 @@ let main testsuite policy (func : Instance.func_inst) (vs : value list)
   let error = invoke c testsuite in
   write_report error (Sys.time () -. !loop_start);
   (* TODO: Propagate error out *)
+  Fmt.pr "Completed paths: %d@\n" !iterations;
   match error with
-  | None -> Fmt.pr "All Ok"
-  | Some _bug -> Fmt.pr "Found Problem!"
+  | None -> Fmt.pr "All Ok@."
+  | Some _bug -> Fmt.pr "Found Problem!@."
 
 let i32 (v : Interpreter.Values.value) at =
   match v with
