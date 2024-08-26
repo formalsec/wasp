@@ -24,6 +24,7 @@
    dune
    ocaml
    (ocamlformat :with-dev-setup)
+   (ocaml-lsp-server :with-dev-setup)
    pyml
    re2
    (smtml (>= "0.2.4"))
