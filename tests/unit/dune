@@ -1,0 +1,22 @@
+(cram
+ (deps
+  %{bin:wasp}
+  test01.wast
+  test02.wast
+  test03.wast
+  test04.wast
+  test05.wast
+  test06.wast
+  test07.wast
+  test08.wast
+  test09.wast
+  test10.wast
+  test11.wast
+  test12.wast
+  test13.wast
+  test14.wast
+  test15.wast
+  test16.wast
+  test17.wast
+  test18.wast
+  test19.wast))
