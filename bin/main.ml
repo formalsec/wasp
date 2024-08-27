@@ -1,5 +1,10 @@
 open Prelude
+module Import = Interpreter.Import
 module Flags = Interpreter.Flags
+module Utf8 = Interpreter.Utf8
+
+let configure () =
+  Import.register (Utf8.decode "symbolic") Concolic.Host.lookup
 
 let run_concolic filename unchecked trace timeout workspace no_simplify policy
   queries log =
@@ -13,6 +18,7 @@ let run_concolic filename unchecked trace timeout workspace no_simplify policy
   (* Flags.policy := *)
   Flags.queries := queries;
   Flags.log := log;
+  configure ();
   let testsuite = Fpath.(v workspace / "test_suite") in
   let* _ = Bos.OS.Dir.create ~path:true testsuite in
   let+ data = Bos.OS.File.read filename in

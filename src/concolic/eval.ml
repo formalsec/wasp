@@ -17,6 +17,7 @@ module Globals = Common.Globals
 module Instance = Interpreter.Instance
 module Source = Interpreter.Source
 module Trap = Common.Trap
+module Types = Interpreter.Types
 
 let memory_error at = function
   | Heap.InvalidAddress a ->
@@ -835,7 +836,12 @@ module ConcolicStepper (C : Checkpoint_intf.S with type config = config) :
           let code' = ([], [ Plain (Block (out, f.it.body)) @@ f.at ]) in
           let frame' = { inst = !inst'; locals = List.map ref locals'' } in
           (vs', [ Frame (List.length out, frame', code') @@ e.at ], mem, pc, bp)
-        | Interpreter.Func.HostFunc (_, _) -> failwith "HostFunc error" )
+        | HostFunc (FuncType ([], [ Types.I32Type ]), _) ->
+          let x = Store.next store "symbol" in
+          let ty = Ty.Ty_bitv 32 in
+          let v = Store.get store x ty false in
+          ((v, Expr.symbol (Symbol.make ty x)) :: vs', [], mem, pc, bp)
+        | HostFunc (_, _) -> failwith "Unknown host func" )
     in
     step_cnt := !step_cnt + 1;
     { c with code = (vs', es' @ List.tl es); mem = mem'; pc = pc'; bp = bp' }
@@ -951,7 +957,7 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
   let rec eval_loop (c : config) wls : config =
     match c.code with
     | _, [] -> c
-    | _, { it = Trapping msg; at } :: _ -> Trap.error at msg
+    | _, { it = Trapping _; _ } :: _ -> c
     | vs, { it = Interrupt Limit; _ } :: _ -> { c with code = (vs, []) }
     | _, { it = Interrupt _; _ } :: _ -> c
     | _, { it = Restart _; _ } :: _ ->
@@ -1006,6 +1012,14 @@ module Guided_search (L : Common.WorkList) (S : Stepper) = struct
         let tree', _ = Execution_tree.move_true !(c.tree) in
         c.tree := tree';
         concolic_loop (update c (vs, es) pc (Store.get_key_types store))
+      | _, { it = Trapping msg; at } :: _ -> (
+        Fmt.epr "%s: %s@." (Source.string_of_region at) msg;
+        match find_sat_path (pc_wl, cp_wl) with
+        | None -> None
+        | Some (_, None) -> concolic_loop (reset c glob0 code0 mem0)
+        | Some (pc', Some cp) ->
+          let _, c' = clone !cp in
+          concolic_loop (update c' c'.code c'.pc (Expr.get_symbols [ pc' ])) )
       | _ -> (
         Common.write_test_case testsuite (Store.to_json store);
         match find_sat_path (pc_wl, cp_wl) with
@@ -1254,7 +1268,7 @@ let add_import m ext im inst =
   | ExternMemory mem -> { inst with memories = mem :: inst.memories }
   | ExternGlobal glob -> { inst with globals = glob :: inst.globals }
 
-let init m exts =
+let init m exts testsuite policy =
   let open Ast in
   let open Interpreter in
   let open Source in
@@ -1295,6 +1309,6 @@ let init m exts =
   List.iter (fun f -> f ()) init_elems;
   List.iter (fun f -> f ()) init_datas;
   Option.iter
-    (fun x -> ignore (main "" Random (func inst x) [] inst memory))
+    (fun x -> ignore (main testsuite policy (func inst x) [] inst memory))
     start;
   (memory, inst)

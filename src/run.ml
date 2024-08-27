@@ -394,7 +394,7 @@ let assert_message at name msg re =
     print_endline ("Expect: \"" ^ re ^ "\"");
     Assert.error at ("wrong " ^ name ^ " error") )
 
-let run_assertion ass invoke =
+let run_assertion ass invoke testsuite policy =
   match ass.it with
   | AssertMalformed (def, re) -> (
     trace "Asserting malformed...";
@@ -417,7 +417,7 @@ let run_assertion ass invoke =
     if not !Flags.unchecked then Valid.check_module m;
     match
       let imports = Import.link m in
-      ignore (Concolic.Eval.init m imports)
+      ignore (Concolic.Eval.init m imports testsuite policy)
     with
     | exception (Import.Unknown (_, msg) | Common.Link (_, msg)) ->
       assert_message ass.at "linking" msg re
@@ -428,7 +428,7 @@ let run_assertion ass invoke =
     if not !Flags.unchecked then Valid.check_module m;
     match
       let imports = Import.link m in
-      ignore (Concolic.Eval.init m imports)
+      ignore (Concolic.Eval.init m imports testsuite policy)
     with
     | exception Common.Trap (_, msg) ->
       assert_message ass.at "instantiation" msg re
@@ -450,7 +450,7 @@ let run_assertion ass invoke =
       assert_message ass.at "exhaustion" msg re
     | _ -> Assert.error ass.at "expected exhaustion error" )
 
-let rec run_command cmd invoke =
+let rec run_command testsuite policy cmd invoke =
   match cmd.it with
   | Module (x_opt, def) ->
     quote := cmd :: !quote;
@@ -466,7 +466,7 @@ let rec run_command cmd invoke =
     if not !Flags.dry then (
       trace "Initializing...";
       let imports = Import.link m in
-      let memory, inst = Concolic.Eval.init m imports in
+      let memory, inst = Concolic.Eval.init m imports testsuite policy in
       bind memories x_opt memory;
       bind instances x_opt inst )
   | Register (name, x_opt) ->
@@ -483,17 +483,17 @@ let rec run_command cmd invoke =
       if vs <> [] then print_values vs
   | Assertion ass ->
     quote := cmd :: !quote;
-    if not !Flags.dry then run_assertion ass invoke
-  | Meta cmd -> run_meta cmd invoke
+    if not !Flags.dry then run_assertion ass invoke testsuite policy
+  | Meta cmd -> run_meta testsuite policy cmd invoke
 
-and run_meta cmd invoke =
+and run_meta testsuite policy cmd invoke =
   match cmd.it with
   | Script (x_opt, script) ->
-    run_quote_script script invoke;
+    run_quote_script testsuite policy script invoke;
     bind scripts x_opt (lookup_script None cmd.at)
   | Input (x_opt, file) ->
     ( try
-        if not (input_file file (fun s -> run_quote_script s invoke)) then
+        if not (input_file file (fun s -> run_quote_script testsuite policy s invoke)) then
           Abort.error cmd.at "aborting"
       with Sys_error msg -> IO.error cmd.at msg );
     bind scripts x_opt (lookup_script None cmd.at);
@@ -511,13 +511,13 @@ and run_meta cmd invoke =
     try output_stdout (fun () -> lookup_module x_opt cmd.at)
     with Sys_error msg -> IO.error cmd.at msg )
 
-and run_script script invoke =
-  List.iter (fun cmd -> run_command cmd invoke) script
+and run_script testsuite policy script invoke =
+  List.iter (fun cmd -> run_command testsuite policy cmd invoke) script
 
-and run_quote_script script invoke =
+and run_quote_script testsuite policy script invoke =
   let save_quote = !quote in
   quote := [];
-  ( try run_script script invoke
+  ( try run_script testsuite policy script invoke
     with exn ->
       quote := save_quote;
       raise exn );
@@ -547,7 +547,7 @@ let run_file _file =
 
 let run_string_concolic ~testsuite ~data policy =
   with_string data (fun script ->
-      run_script script (invoke_concolic testsuite policy) )
+      run_script testsuite policy script (invoke_concolic testsuite policy) )
 
 (* let run_string_se string = *)
 (*   input_string string ~callback:(fun s -> run_script s invoke_se) *)
